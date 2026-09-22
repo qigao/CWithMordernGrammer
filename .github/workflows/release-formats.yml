@@ -112,7 +112,7 @@ jobs:
       - name: Render standalone HTML
         run: |
           pandoc dist/release/C-with-Modern-Grammar.release.md \
-            --from markdown \
+            --from markdown-raw_html \
             --to html5 \
             --standalone \
             --toc --toc-depth=3 \
@@ -125,7 +125,7 @@ jobs:
       - name: Render EPUB3
         run: |
           pandoc dist/release/C-with-Modern-Grammar.epub.md \
-            --from markdown \
+            --from markdown-raw_html \
             --to epub3 \
             --toc --toc-depth=3 \
             --split-level=1 \
