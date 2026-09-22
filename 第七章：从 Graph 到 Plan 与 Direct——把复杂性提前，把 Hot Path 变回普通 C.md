@@ -1,100 +1,72 @@
 # 第七章：从 Graph 到 Plan 与 Direct——把复杂性提前，把 Hot Path 变回普通 C
 
-
 > **本章路线**
 >
-> 第四、五章先把计算保存成 Graph，并提供 LINQ-like Stream surface；第六章再建立 observable semantics、rewrite law 与 certificate。第七章反过来问：
->
-> **这些知识最终是不是都要留在每一个 Value 的 hot path？**
->
-> 本章把全书前半部分收束成一条真正的 compilation/refinement pipeline：
+> Chapter 4–6 已经回答了三个问题：
 >
 > ~~~text
-> High-level API
->      ↓
-> Surface Graph
->      ↓
-> Normalize
->      ↓
-> Verify / Optimize
->      ↓
-> Primitive IR
->      ↓
-> Plan / Direct-AOT eligibility
->      ↓
-> Certificate / Equivalence Witness
->      ↓
-> Simple Execution
+> 怎样把计算保存成 Graph？
+> 怎样给它 LINQ-like surface？
+> 怎样证明某些 rewrite 保持 observable semantics？
 > ~~~
 >
-> 核心原则不再只是口号：
+> 现在只剩一个工程问题：
 >
-> > **Know More Before Execution, Do Less During Execution.**
+> **真正处理每一个 value 时，还需要重新遍历 Graph、判断 operator、查 Callable 吗？**
 >
-> 本章会严格区分当前实现能力：完整 Filter → Map → Reduce canonical pipeline 可以进入 compiled Plan；当前 closed Direct/AOT macro path 主要覆盖 Filter/Map stage，因此不会把 Reduce 误写成已经拥有同样的 direct lowering。
-
-做到上一章以后，整个系统已经拥有了相当多的高级能力：
-
-```text
-Type
-Traits
-Generic
-Callable
-Lambda / Bind
-Graph
-Stream
-Reactive
-Executor
-Scheduler
-Machine
-Actor
-```
-
-如果只看这些名词，很容易产生一个问题：
-
-> **我们是不是正在把 C 变成一个越来越重的 Runtime？**
-
-这是一个必须认真回答的问题。
-
-因为整个设计最早的出发点恰恰不是：
-
-```text
-增加更多 abstraction
-```
-
-而是：
-
-```text
-减少重复
-降低复杂度
-保持 C 的简单和效率
-```
-
-如果最后每处理一个 value 都要经历：
-
-```text
-查询 Type Descriptor
-解析 Generic Identity
-检查 Callable Signature
-遍历 Graph Edge
-判断 Operator
-查询 Effects
-动态 Dispatch
-再调用实际函数
-```
-
-那么即使接口很漂亮，设计方向也已经偏离了最初目标。
-
-因此到了这个阶段，一个越来越明确的原则开始形成：
-
-**Rich Control Plane, Simple Execution Plane**
-
-也就是：
-
-> **允许构建阶段越来越聪明，但要求真正执行阶段越来越简单。**
-
----
-
+> 先看三种执行形态。下面是概念性的 C hot-path shape，用来解释成本位置，不是源码摘录。
+>
+> **1. 直接解释 Graph：**
+>
+> ~~~c
+> while (node_id != END) {
+>     const node *n = graph_node(graph, node_id);
+>
+>     switch (n->op) {
+>     case FILTER:
+>         value = run_filter(n->callable, value);
+>         break;
+>     case MAP:
+>         value = run_map(n->callable, value);
+>         break;
+>     }
+>
+>     node_id = next_edge(graph, node_id);
+> }
+> ~~~
+>
+> 这里每个 value 都可能重新支付 topology lookup / operator decode / dispatch selection。
+>
+> **2. Compile 成 Plan：**
+>
+> ~~~c
+> for (size_t i = 0; i < plan->step_count; ++i) {
+>     const plan_step *s = &plan->steps[i];
+>     value = s->handler(s->callable, value);
+> }
+> ~~~
+>
+> Graph 在 compile 时已经被解析成连续 step / index / handler；执行时不再重新理解 topology。
+>
+> **3. 满足更严格 eligibility 时，直接 lower 成普通 C：**
+>
+> ~~~c
+> for (size_t i = 0; i < n; ++i) {
+>     int x = input[i];
+>     if (!is_even(x))
+>         continue;
+>     int y = square(x);
+>     output[out_count++] = y;
+> }
+> ~~~
+>
+> 这就是本书所谓：
+>
+> **Know More Before Execution, Do Less During Execution.**
+>
+> 它不是“高级 API 一定更快”的宣传；它只是把可重复的结构判断从 per-value hot path 移到 build / normalize / compile 阶段。
+>
+> 本章会严格保持当前实现边界：完整 Filter → Map → Reduce 可以进入 compiled Plan；closed Direct/AOT path 主要覆盖 Filter/Map stage，不能把 Reduce 写成已经拥有相同 direct lowering。
 ## 1. 高级抽象真正昂贵的地方，往往不应该发生在每个 Value 上
 
 假设用户写了一条高级数据转换：
@@ -2094,63 +2066,7 @@ execution
 
 ---
 
-## 28. Machine / Actor 也遵循同一条 Control/Execution Plane 原则
-
-第八、九章看起来与 Graph optimizer 不同，其实原则完全一致。
-
-## 28.1 Machine build 时做复杂工作
-
-Build 阶段已经可以完成：
-
-~~~text
-ID normalization
-type validation
-guard/action contract validation
-transition reference validation
-priority/ambiguity check
-reachability
-unused declaration detection
-terminal transition validation
-~~~
-
-于是 runtime SmallStep 不需要每次重新扫描/证明整个 schema。
-
-## 28.2 Actor init/start 时做 capability admission
-
-Actor control plane可以确认：
-
-~~~text
-Machine/Statechart accepted
-Serial Executor valid
-concurrent Scheduler valid
-mailbox capacity fixed
-callbacks/bindings valid
-lifecycle starts consistently
-~~~
-
-然后 message hot path只需要：
-
-~~~text
-lifecycle gate
-typed bounded enqueue
-serialized dequeue
-Machine step
-commit
-~~~
-
-这也是：
-
-~~~text
-Know More
-    ↓
-Do Less
-~~~
-
-而不是 Graph 独有技巧。
-
----
-
-## 29. What We Learned
+## 28. What We Learned
 
 本章把前面看起来很多的组件压缩成一条统一原则。
 
@@ -2223,7 +2139,7 @@ Simple Execution Plane
 
 从一个架构口号变成真实工程链。
 
-Part III 到这里完成。
+Part II 到这里完成。
 
 下一章要回答的已经不是：
 
