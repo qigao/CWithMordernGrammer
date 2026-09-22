@@ -96,11 +96,17 @@ jobs:
           diagrams=(dist/release/diagrams/*.mmd)
           test "${#diagrams[@]}" -gt 0
           for source in "${diagrams[@]}"; do
-            target="${source%.mmd}.svg"
-            mmdc --input "$source" --output "$target" \
+            svg="${source%.mmd}.svg"
+            png="${source%.mmd}.png"
+            mmdc --input "$source" --output "$svg" \
               --configFile release/mermaid-config.json \
               --puppeteerConfigFile release/puppeteer-config.json \
               --backgroundColor transparent
+            mmdc --input "$source" --output "$png" \
+              --configFile release/mermaid-config.json \
+              --puppeteerConfigFile release/puppeteer-config.json \
+              --backgroundColor white \
+              --scale 2
           done
 
       - name: Render standalone HTML
@@ -118,7 +124,7 @@ jobs:
 
       - name: Render EPUB3
         run: |
-          pandoc dist/release/C-with-Modern-Grammar.release.md \
+          pandoc dist/release/C-with-Modern-Grammar.epub.md \
             --from markdown \
             --to epub3 \
             --toc --toc-depth=3 \
