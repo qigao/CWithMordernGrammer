@@ -1345,7 +1345,7 @@ independent validation boundary
 
 两者很容易混淆。
 
-## Proof Trace
+**Proof Trace**
 
 回答：
 
@@ -1367,7 +1367,7 @@ Optimization History
 
 ---
 
-## Certificate
+**Certificate**
 
 回答：
 
