@@ -112,7 +112,7 @@ Serialized
 
 那么它实际上已经非常接近：
 
-## Actor
+**Actor**
 
 所以 Actor 并不是在这个阶段突然决定重新设计的一套并发框架。
 
@@ -1229,982 +1229,15 @@ Actor 并不要求二者一一对应。
 
 ---
 
-## 19. Scheduler 在 Actor 中解决的是“何时获得执行机会”
+## 19. 从 Actor 外壳进入 lifecycle/admission contract
 
-当 Actor Mailbox 从：
+前十八节已经得到 Actor 的最小定义：它不是“一条线程”，而是在既有 Machine 语义外增加 bounded mailbox、non-blocking admission、single mutable owner、显式 lifecycle，以及 owner/reference/stale identity 边界。多 producer 只增加并发 admission，不增加并行 state mutation。
 
-```text
-empty
-```
-
-变成：
-
-```text
-non-empty
-```
-
-时，需要安排一次：
-
-```text
-Drain Task
-```
-
-但 `send()` 本身不应该直接执行整个 actor。
-
-所以典型过程可以是：
-
-```text
-send(message)
-    ↓
-message accepted
-    ↓
-actor becomes runnable
-    ↓
-Scheduler
-    ↓
-Executor
-    ↓
-drain / step mailbox
-```
-
-这样发送者与执行者继续解耦。
+后半章因此不再扩展 Supervisor、Effect 或“大一统模型”讨论，而是用 canonical Actor 检查这层外壳到底新增了什么：RUNNING 才能接受 send，rejected send 不改变 queue，STOPPING 先关闭 admission，FAILED/STOPPED 是 terminal，accepted handoff 继续 refine 原 Machine transition。随后再核对 Lean model、当前 C ownership、identity 和并发/lifecycle evidence。
 
 ---
 
-## 20. 为什么 Actor 可以复用 Reactive 的 Subscription
-
-这一点非常有意思。
-
-前面的 Reactive 已经有：
-
-```text
-Subscription
-```
-
-负责：
-
-```text
-一次 computation instance
-```
-
-包括：
-
-```text
-wake
-cancel
-terminal
-scheduling
-```
-
-Actor 也需要：
-
-```text
-start
-schedule
-run
-stop
-cancel
-terminal
-```
-
-如果再设计：
-
-```text
-ActorSubscription
-```
-
-很可能会重复大量 runtime logic。
-
-所以更好的方法是：
-
-> **让 Actor 组合已有 Subscription，而不是创建第二套 execution lifecycle。**
-
-本版 CFlow 实现 Actor 就包含自己的 identity Graph/Subscription，并借用 Scheduler 和 Serial Executor；Machine-backed 与 Statechart-backed facade 共用这一 lifecycle shell，而不是建立独立 actor runtime。
-
-这再次说明：
-
-```text
-Reactive
-```
-
-和：
-
-```text
-Actor
-```
-
-表面差异很大，但底层 execution primitive 可以共享。
-
----
-
-## 21. Actor 可以通过一个 Identity Graph 接入已有执行框架
-
-如果 Actor 核心行为已经在：
-
-```text
-Machine
-```
-
-中，那么外围 Subscription 并不需要再表达复杂数据转换。
-
-它可以只是一个极薄的：
-
-```text
-identity execution path
-```
-
-负责把：
-
-```text
-Mailbox Event
-```
-
-推进到：
-
-```text
-Machine
-```
-
-这样 Actor 可以直接复用已有：
-
-```text
-Subscription
-Scheduler
-Terminal
-Wake
-```
-
-协议。
-
-这种设计的价值不是：
-
-```text
-Graph 一定要参与所有事情
-```
-
-而是：
-
-> **尽量避免为新模型复制已有 execution lifecycle。**
-
----
-
-## 22. Actor 的 Failure 应该成为生命周期状态
-
-如果某次 Machine Transition 返回：
-
-```text
-ERROR
-```
-
-不能只：
-
-```text
-打印日志然后继续
-```
-
-因为这可能意味着：
-
-```text
-Actor State 已经无法保证继续满足 invariant
-```
-
-所以一种明确做法是：
-
-```text
-RUNNING
-    ↓ unrecoverable transition failure
-FAILED
-```
-
-以后：
-
-```text
-send()
-```
-
-直接返回：
-
-```text
-FAILED
-```
-
-直到 owner 显式处理。
-
-这样 Failure 不再只是：
-
-```text
-某个 callback 返回 false
-```
-
-而成为：
-
-```text
-Actor lifecycle fact
-```
-
----
-
-## 23. Actor 也应该避免隐式 Restart Policy
-
-一些 Actor Framework 会自动提供：
-
-```text
-restart
-supervision
-retry
-```
-
-这些功能很有价值。
-
-但它们不应该偷偷进入最底层 Actor mechanism。
-
-因为：
-
-```text
-restart
-```
-
-到底意味着什么？
-
-```text
-清空 Mailbox？
-恢复 Initial State？
-恢复 Snapshot？
-重新处理失败 Message？
-保留 Producer Identity？
-```
-
-这些都是非常强的 policy。
-
-因此核心 Actor 更合理的边界是：
-
-```text
-FAILED
-```
-
-然后由更高层：
-
-```text
-Supervisor / Application
-```
-
-决定：
-
-```text
-restart
-replace
-stop
-escalate
-```
-
----
-
-## 24. 这为未来的 Supervisor 提供了很自然的基础
-
-如果以后需要 supervision，可以建立在：
-
-```text
-Actor Lifecycle
-+
-Actor Identity
-+
-Failure Event
-```
-
-之上。
-
-例如：
-
-```text
-Child Actor
-    ↓ FAILED
-Supervisor
-    ↓
-Policy
-    ↓
-Restart / Replace / Stop
-```
-
-而不必把：
-
-```text
-Supervisor
-```
-
-硬编码进每一个 Actor 内部。
-
-这仍然符合：
-
-```text
-小 primitive
-+
-显式组合
-```
-
-的设计方向。
-
----
-
-## 25. Actor Message 本身也可以拥有 Effects / Contracts
-
-因为消息最终对应：
-
-```text
-Machine Transition
-```
-
-所以可以进一步分析：
-
-```text
-这个 Message 会不会触发 IO？
-是否可能失败？
-是否改变 external resource？
-```
-
-例如：
-
-```text
-GetStatus
-```
-
-可能是：
-
-```text
-read-only
-```
-
-而：
-
-```text
-Persist
-```
-
-可能具有：
-
-```text
-IO | MAY_FAIL
-```
-
-这为以后更高层的：
-
-```text
-Scheduling
-Observability
-Testing
-Formal Analysis
-```
-
-提供语义信息。
-
-但这些仍然来自：
-
-```text
-Callable / Action Metadata
-```
-
-而不是 Actor 再造一套 property system。
-
----
-
-## 26. Actor 和传统 Object 的区别开始变得很清楚
-
-普通 Object API 通常是：
-
-```c
-account_deposit(account, amount);
-account_withdraw(account, amount);
-```
-
-调用者：
-
-```text
-直接进入对象代码
-```
-
-并可能：
-
-```text
-直接等待调用结束
-```
-
-Actor API 更接近：
-
-```text
-send(actor, Deposit(amount));
-```
-
-调用者表达的是：
-
-```text
-一个事实/意图
-```
-
-而不是：
-
-```text
-立即同步进入对象内部执行
-```
-
-这让：
-
-```text
-Temporal Decoupling
-```
-
-成为可能。
-
-即：
-
-```text
-发送时间
-≠
-执行时间
-```
-
-这也是 Actor 适合异步系统的关键原因之一。
-
----
-
-## 27. Actor 和 Reactive 其实共享了很多结构
-
-现在回头看 Reactive：
-
-```text
-Publisher
- ↓
-WAIT
- ↓
-Wake
- ↓
-Scheduler
- ↓
-Subscription
-```
-
-Actor：
-
-```text
-Mailbox
- ↓
-Message Arrival
- ↓
-Scheduler
- ↓
-Subscription
- ↓
-Machine
-```
-
-两者都存在：
-
-```text
-外部事件
-    ↓
-computation becomes ready
-    ↓
-scheduler
-    ↓
-resume/run
-```
-
-差别主要是：
-
-```text
-Reactive
-    关注 Value Flow
-
-Actor
-    关注 Private State + Message
-```
-
-底层：
-
-```text
-Scheduling
-Lifecycle
-Wakeup
-Bounded Resources
-```
-
-则高度相似。
-
----
-
-## 28. Stream、Reactive、Machine、Actor 开始显露出共同结构
-
-到这里，可以重新审视前面的几个高级模型。
-
-### Stream
-
-```text
-Graph
-+
-Borrowed Range / Array Input
-```
-
-### Reactive
-
-```text
-Graph
-+
-Publisher
-+
-Subscription
-+
-WAIT / Wake
-+
-Demand
-+
-Scheduler
-```
-
-### State Machine
-
-```text
-State
-+
-Typed Event
-+
-Transition
-+
-Serial Executor
-```
-
-### Actor
-
-```text
-Machine
-+
-Bounded Mailbox
-+
-Serial Executor
-+
-Subscription
-+
-Scheduler
-+
-Lifecycle
-```
-
-可以画成：
-
-```mermaid
-flowchart TD
-    T["Type / Callable"]
-    G["Graph"]
-    E["Executor"]
-    S["Scheduler / WAIT"]
-    V["Typed Event"]
-    M["Machine"]
-    B["Bounded Mailbox"]
-    L["Lifecycle"]
-
-    ST["Stream"]
-    RX["Reactive"]
-    SM["State Machine"]
-    A["Actor"]
-
-    T --> G
-    T --> V
-
-    G --> ST
-
-    G --> RX
-    S --> RX
-    E --> RX
-
-    V --> M
-    E --> M
-    M --> SM
-
-    M --> A
-    B --> A
-    E --> A
-    S --> A
-    L --> A
-```
-
-这时一个非常重要的结论开始出现：
-
-> **这些并不是四套独立 Runtime。**
-
-它们只是：
-
-> **同一批更小 execution primitive 的不同组合。**
-
----
-
-## 29. 这可能是 CFlow 过程中最重要的发现之一
-
-如果按照传统 framework 思路，可能分别设计：
-
-```text
-CStream
-CReactive
-CStateMachine
-CActor
-```
-
-每个都有：
-
-```text
-自己的 scheduler
-自己的 callback
-自己的 lifecycle
-自己的 queue
-自己的 type system
-```
-
-最后整个项目会迅速膨胀。
-
-但真正逐层实现以后发现：
-
-```text
-Type
-Callable
-Graph
-Executor
-Scheduler
-Event
-Machine
-Subscription
-Mailbox
-```
-
-已经足以组合出这些高级模型。
-
-所以 CFlow 的价值开始从：
-
-```text
-实现很多高级 feature
-```
-
-转变成：
-
-> **寻找这些高级模型共同的最小执行语言。**
-
----
-
-## 30. Actor 再次反向验证 CMeta
-
-Actor 也继续给底层提出新的压力。
-
-例如：
-
-### Producer Reference
-
-要求：
-
-```text
-Identity
-Lifetime
-Stale Detection
-```
-
-### Typed Message
-
-要求：
-
-```text
-Type Metadata
-```
-
-### Machine Action
-
-要求：
-
-```text
-Callable
-Effects
-Properties
-```
-
-### Runtime Boundary
-
-要求：
-
-```text
-Interface
-```
-
-### Mailbox
-
-要求：
-
-```text
-Value Lifecycle / Copy / Move / Destroy
-```
-
-也就是说：
-
-```text
-CFlow Real Requirement
-    ↓
-暴露 CMeta abstraction 的不足
-    ↓
-强化 CMeta
-```
-
-然后强化后的 CMeta 又反过来让：
-
-```text
-CFlow implementation
-```
-
-更简单。
-
-这形成一个非常重要的设计循环：
-
-```mermaid
-flowchart LR
-    A["CMeta Abstraction"]
-    B["CFlow Real Use"]
-    C["Gap Exposed"]
-    D["CMeta Strengthened"]
-    E["CFlow Simplified"]
-
-    A --> B --> C --> D --> E --> B
-```
-
-所以 CFlow 一直不仅是：
-
-```text
-CMeta 的用户
-```
-
-还是：
-
-```text
-CMeta 的压力测试
-```
-
----
-
-## 31. Actor 之后，继续增加大型模型反而不再是最重要的事
-
-到这一阶段已经能够组合：
-
-```text
-Stream
-Reactive
-Machine
-Actor
-```
-
-继续列举：
-
-```text
-Workflow
-Event Bus
-Command Bus
-Service Runtime
-```
-
-当然都可以。
-
-但更重要的问题已经改变了。
-
-现在真正需要回答的是：
-
-> **这些高级抽象最终会不会让 C 的运行时越来越重？**
-
-因为目前已经拥有：
-
-```text
-Type Metadata
-Callable
-Graph
-Optimizer
-Subscription
-Executor
-Scheduler
-Machine
-Actor
-```
-
-如果每一个 abstraction 最终都留在 hot path，那么整个设计就会背离最开始的目标：
-
-```text
-简单
-快速
-显式
-```
-
-因此下一阶段的核心不应该再是：
-
-```text
-还能做什么 framework？
-```
-
-而应该是：
-
-> **怎样让这些复杂信息主要存在于编译期、构建期和 admission/control plane，而让真正执行路径重新变回简单 C？**
-
----
-
-## 32. 从这里开始进入另一个核心主题：Rich Control Plane，Simple Execution Plane
-
-例如：
-
-```text
-Stream API
-    ↓
-Graph
-    ↓
-Type Validation
-    ↓
-Optimization
-    ↓
-Plan
-    ↓
-Execution
-```
-
-理想情况是：
-
-```text
-Graph 查询
-Type 推导
-Signature 匹配
-Effect 分析
-Topology 分析
-```
-
-都发生在：
-
-```text
-执行之前
-```
-
-而真正处理每一个 Value 时只剩：
-
-```text
-load
-call
-branch
-store
-```
-
-同样：
-
-```text
-Machine
-```
-
-也可以在 build 时完成：
-
-```text
-Transition normalization
-Type validation
-Reachability analysis
-```
-
-运行时只做：
-
-```text
-lookup accepted event
-guard
-action
-commit
-```
-
-这将成为整个设计是否真正适合 Modern C 的关键。
-
----
-
-## 小结：Actor 不是新的 Runtime，而是已有执行原语的组合
-
-从 State Machine 向 Actor 的发展并没有增加一个新的基础世界。
-
-真正增加的主要是：
-
-```text
-Mailbox
-Producer Reference
-Lifecycle
-Identity
-Failure Boundary
-```
-
-而底层继续复用：
-
-```text
-Type
-Callable
-Machine / Statechart Instance
-Serial Executor
-Scheduler
-Subscription
-```
-
-所以 Actor 可以总结为：
-
-```text
-Actor
-=
-Private Typed State
-+
-Typed Messages
-+
-Bounded Mailbox
-+
-Serialized Mutation
-+
-Concurrent Producers
-+
-Explicit Lifecycle
-```
-
-最关键的是：
-
-```text
-Serialized Mutation
-≠
-One OS Thread Per Actor
-```
-
-大量 Actor 可以共享少量执行资源，同时仍然保持每个 Actor 私有状态的串行语义。
-
-做到这里，CFlow 已经从最早的：
-
-```text
-“能不能用 Graph 表达复杂计算？”
-```
-
-一路自然扩展到了：
-
-```text
-Data Transformation
-Stream
-Reactive
-Event
-State Machine
-Actor
-```
-
-而真正值得注意的结果并不是功能数量。
-
-而是我们逐渐发现：
-
-> **这些看起来完全不同的高级编程模型，可以由少量正交 primitive 组合出来。**
-
-这意味着下一阶段应该反过来重新审视整个执行体系：
-
-```text
-Type / Callable / Graph / Machine
-        ↓
-这些丰富信息到底应该什么时候使用？
-        ↓
-哪些必须留在 runtime？
-哪些可以在执行前彻底消掉？
-```
-
-下一章将进入这个问题：**为什么高级 Meta 和 Graph 并不意味着更重的运行时——如何通过 Control Plane、Direct Execution、Compiled Plan 和静态优化，把复杂性提前，把 hot path 重新降低成普通 C。**
-
----
-
-
-## 33. Canonical Actor：给同一个 Connection Machine 加并发外壳
+## 20. Canonical Actor：给同一个 Connection Machine 加并发外壳
 
 第八章的 Machine 已经解决：
 
@@ -2256,9 +1289,9 @@ Connection Machine SmallStep
 
 ---
 
-## 34. Semantic Contract：Actor 只增加 lifecycle/admission，不增加 transition meaning
+## 21. Semantic Contract：Actor 只增加 lifecycle/admission，不增加 transition meaning
 
-## 34.1 Lifecycle 是 Actor 自己的新语义
+## 21.1 Lifecycle 是 Actor 自己的新语义
 
 Machine 有自己的 terminal state。
 
@@ -2310,7 +1343,7 @@ runtime admission
 
 必须能同时存在。
 
-## 34.2 Send 第一阶段只做 Actor-gated admission
+## 21.2 Send 第一阶段只做 Actor-gated admission
 
 Producer ref 的 send 不应该直接运行 Machine transition。
 
@@ -2345,7 +1378,7 @@ STALE
 
 它们是 producer policy 的输入。
 
-## 34.3 Rejected send 必须保持 queue 不变
+## 21.3 Rejected send 必须保持 queue 不变
 
 如果 send 返回：
 
@@ -2378,7 +1411,7 @@ mailbox before
 
 这与 Executor 的 rejected task ownership 是同一种设计。
 
-## 34.4 Multiple Producers 不改变 FIFO / single-consumer semantics
+## 21.4 Multiple Producers 不改变 FIFO / single-consumer semantics
 
 多 producer 只意味着：
 
@@ -2409,7 +1442,7 @@ concurrent enqueue
 serialized mutation
 ~~~
 
-## 34.5 Actor Owner 与 Producer Ref 必须分开
+## 21.5 Actor Owner 与 Producer Ref 必须分开
 
 如果 producer 直接持有 Actor owner pointer，那么 destroy 以后最危险的问题是：
 
@@ -2444,7 +1477,7 @@ reclaim control block
 
 这样 STALE 就成为显式 semantic status，而不是野指针行为。
 
-## 34.6 Stale classification 应先于 Event validation
+## 21.6 Stale classification 应先于 Event validation
 
 一个已经 stale 的 producer ref 收到：
 
@@ -2463,7 +1496,7 @@ this reference no longer targets a live Actor
 
 这使 caller 不会从一个已经失效的 runtime capability 中继续推断 schema/lifecycle 状态。
 
-## 34.7 STOPPING 必须先关闭 admission
+## 21.7 STOPPING 必须先关闭 admission
 
 request_stop 的第一个效果应该是：
 
@@ -2481,7 +1514,7 @@ transition to STOPPED
 
 否则在 shutdown 过程中 producer 仍然不断加入新消息，系统就没有有限的 settlement boundary。
 
-## 34.8 FAILED 应成为 terminal lifecycle，而不是隐式 restart
+## 21.8 FAILED 应成为 terminal lifecycle，而不是隐式 restart
 
 如果底层 Machine/Subscription/runtime 失败：
 
@@ -2507,7 +1540,7 @@ restart with old/new state
 
 ---
 
-## 35. Lean：Actor formal model只增加 lifecycle gate，并复用 Machine semantics
+## 22. Lean：Actor formal model只增加 lifecycle gate，并复用 Machine semantics
 
 本版 formal calculus 已经包含：
 
@@ -2536,7 +1569,7 @@ Machine/Mailbox remain authoritative
 Actor adds lifecycle admission boundary
 ~~~
 
-## 35.1 State.Valid：Lifecycle 与 Mailbox terminal 必须一致
+## 22.1 State.Valid：Lifecycle 与 Mailbox terminal 必须一致
 
 formal Actor.Valid 要求：
 
@@ -2562,7 +1595,7 @@ STOPPING/STOPPED/FAILED
 
 它直接约束 admission substrate。
 
-## 35.2 start / requestStop / settle / fail 全部 preserve Valid
+## 22.2 start / requestStop / settle / fail 全部 preserve Valid
 
 已有：
 
@@ -2597,7 +1630,7 @@ Mailbox OPEN
 
 在模型里就不属于 Valid state。
 
-## 35.3 requestStop_cancels_pending
+## 22.3 requestStop_cancels_pending
 
 已有 theorem：
 
@@ -2624,7 +1657,7 @@ state = STOPPING
 
 而是要把消息入口同时终止。
 
-## 35.4 send_accepted_only_running
+## 22.4 send_accepted_only_running
 
 已有：
 
@@ -2641,7 +1674,7 @@ lifecycle = RUNNING
 
 这给 producer API 一个非常强的 semantic statement。
 
-## 35.5 send_accepted_appends_once
+## 22.5 send_accepted_appends_once
 
 已有 theorem：
 
@@ -2665,7 +1698,7 @@ no duplicate insertion
 no hidden reordering at abstract admission layer
 ~~~
 
-## 35.6 send_rejected_preserves_queue
+## 22.6 send_rejected_preserves_queue
 
 对应地：
 
@@ -2683,7 +1716,7 @@ queue_before
 
 这就是 bounded non-blocking admission 最核心的 correctness property。
 
-## 35.7 STOPPED / FAILED 是 absorbing lifecycle
+## 22.7 STOPPED / FAILED 是 absorbing lifecycle
 
 已有：
 
@@ -2700,7 +1733,7 @@ failed_is_terminal
 
 > 创建新 Actor / 使用更高层 Supervisor protocol。
 
-## 35.8 accepted_handoff_refines_machine：Actor 不发明新的 transition
+## 22.8 accepted_handoff_refines_machine：Actor 不发明新的 transition
 
 最关键的 theorem 是：
 
@@ -2739,7 +1772,7 @@ before.trace ++ Machine traceSuffix
 
 ---
 
-## 36. Current C Implementation：Actor ownership 与 Producer Ref 已经分离
+## 23. Current C Implementation：Actor ownership 与 Producer Ref 已经分离
 
 本版 CFlow 实现 Actor API 明确有：
 
@@ -2753,7 +1786,7 @@ cflow_actor_ref
 
 两者都是 opaque handle，但 ownership 不同。
 
-## 36.1 Actor owns runtime shell
+## 23.1 Actor owns runtime shell
 
 Actor owner 持有：
 
@@ -2779,7 +1812,7 @@ type descriptors
 
 这让 destroy 顺序可以被明确写出来。
 
-## 36.2 Scheduler 必须提供 CONCURRENT capability
+## 23.2 Scheduler 必须提供 CONCURRENT capability
 
 为什么 Actor 外层 Scheduler 要 concurrent，而内部 Machine transition 仍然 Serial？
 
@@ -2804,7 +1837,7 @@ serialization inside
 
 这是 Actor scalability 的核心。
 
-## 36.3 Actor send 明确禁止隐藏行为
+## 23.3 Actor send 明确禁止隐藏行为
 
 当前 producer send contract 直接写明：
 
@@ -2833,7 +1866,7 @@ apply upstream backpressure
 
 必须自己决定。
 
-## 36.4 Owner destroy 先让 refs stale，再回收 root
+## 23.4 Owner destroy 先让 refs stale，再回收 root
 
 destroy contract：
 
@@ -2861,11 +1894,11 @@ STALE
 
 ---
 
-## 37. Identity：为什么 Actor 不能只靠 pointer address
+## 24. Identity：为什么 Actor 不能只靠 pointer address
 
 Actor identity 至少有两层。
 
-## 37.1 Runtime object identity
+## 24.1 Runtime object identity
 
 一个 producer ref 必须知道自己是否仍绑定到：
 
@@ -2883,7 +1916,7 @@ pointer-shaped capability
 
 STALE 是 identity/lifetime 的联合结果。
 
-## 37.2 Domain identity
+## 24.2 Domain identity
 
 更高层系统还可能需要：
 
@@ -2908,9 +1941,9 @@ Actor runtime 可以更换/重建，但 domain identity 是否延续是 Supervis
 
 ---
 
-## 38. Evidence：Actor 必须验证 concurrent admission + serialized mutation + lifecycle
+## 25. Evidence：Actor 必须验证 concurrent admission + serialized mutation + lifecycle
 
-## 38.1 Bounded multi-producer admission
+## 25.1 Bounded multi-producer admission
 
 并发 producer 同时 send，必须验证：
 
@@ -2923,7 +1956,7 @@ no silent drop
 
 队列顺序应按 documented mailbox commit/FIFO contract 验证，而不是假设 producer call-start 顺序。
 
-## 38.2 Single mutable owner
+## 25.2 Single mutable owner
 
 Machine transition instrumentation 应验证：
 
@@ -2943,7 +1976,7 @@ shared worker pool
 
 这比“没有 crash”更能证明 Actor semantic isolation。
 
-## 38.3 Lifecycle admission matrix
+## 25.3 Lifecycle admission matrix
 
 分别测试：
 
@@ -2967,7 +2000,7 @@ owner destroyed + retained ref
     send → STALE
 ~~~
 
-## 38.4 Ref lifetime / stale stress
+## 25.4 Ref lifetime / stale stress
 
 必须覆盖：
 
@@ -2984,7 +2017,7 @@ last ref frees control block
 
 这是 Actor C implementation 最容易出 use-after-free 的地方。
 
-## 38.5 Actor-to-Machine refinement evidence
+## 25.5 Actor-to-Machine refinement evidence
 
 选定第八章 Connection Machine，发送同一串：
 
@@ -3015,7 +2048,7 @@ first error
 
 这就是 accepted_handoff_refines_machine 的 C-side differential counterpart。
 
-## 38.6 Failure evidence
+## 25.6 Failure evidence
 
 人为让：
 
@@ -3037,7 +2070,7 @@ settles ownership
 
 ---
 
-## 39. What We Learned
+## 26. What We Learned
 
 Actor 看起来像一个很大的并发模型，但走到这里，它实际上只新增少数内容：
 

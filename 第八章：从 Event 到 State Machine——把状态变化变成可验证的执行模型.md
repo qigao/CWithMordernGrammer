@@ -63,7 +63,7 @@ Actor
 
 这时候，一个新的共同对象开始变得明显：
 
-## Event
+**Event**
 
 因为很多系统真正处理的，并不是连续的数据流，而是：
 
@@ -1542,586 +1542,15 @@ Machine 与 Statechart 最终都可以投影成 Publisher，并由 Actor facade 
 
 ---
 
-## 23. State Machine 让 Graph 思想扩展到“控制状态”
+## 23. 从 Machine 结构进入 SmallStep Contract
 
-前面的 Graph 主要处理：
+前面的设计已经把关键边界分开：Event 是 typed value，Machine 是 immutable/validated definition，Instance 才拥有 mutable state；Guard 只判断 enable，Action 使用已有 Callable，Serial Executor 提供 mutation isolation，Machine 与更高层 Statechart 也不是同一个抽象。
 
-```text
-Value Transformation
-```
-
-例如：
-
-```text
-User
- ↓
-String
- ↓
-Result
-```
-
-Machine 则处理：
-
-```text
-Control State Transformation
-```
-
-例如：
-
-```text
-Idle
- ↓ Start
-Running
- ↓ Stop
-Stopped
-```
-
-于是 CFlow 的“Flow”开始不仅表示：
-
-```text
-Data Flow
-```
-
-还开始覆盖：
-
-```text
-State Flow
-Event Flow
-Control Flow
-```
-
-这让它逐渐从：
-
-```text
-数据转换 library
-```
-
-变成：
-
-```text
-typed execution model
-```
+后半章不再继续泛化“Machine 可以扩展到什么”，而是用一个 canonical connection machine 固定一次 Event 如何被 admission、select、guard、stage、commit。Lean small-step semantics 与 C implementation 都围绕同一条 transition contract 展开，最后由 build、typed event、serial mutation、close/cancel race 和 sanitizer evidence 约束实现。
 
 ---
 
-## 24. WAIT 也会再次出现在 Machine 中
-
-现实中的 Transition 不一定一次就能完成。
-
-例如：
-
-```text
-State = Connecting
-Event = Connect
-```
-
-Action 可能发起一个异步操作：
-
-```text
-socket connect
-```
-
-然后等待：
-
-```text
-ConnectedEvent
-```
-
-或者：
-
-```text
-TimeoutEvent
-```
-
-所以：
-
-```text
-WAIT
-```
-
-并不是 Reactive Stream 独有的概念。
-
-它实际上是一种非常一般的：
-
-```text
-Computation Suspension
-```
-
-语义。
-
-这说明前面建立的：
-
-```text
-WAIT / Wake
-```
-
-同样可以服务：
-
-```text
-Machine
-```
-
-而不需要为 State Machine 再造一套：
-
-```text
-async transition protocol
-```
-
----
-
-## 25. 这也是 Formalization 开始变得非常有价值的地方
-
-State Machine 本身就是：
-
-```text
-State
-+
-Transition Relation
-```
-
-这种结构天然适合形式化。
-
-例如可以定义：
-
-```text
-MachineState
-Event
-Step
-```
-
-然后：
-
-```text
-step :
-    MachineState
-    ->
-    Event
-    ->
-    MachineState
-```
-
-更复杂一点：
-
-```text
-Running
-Waiting
-Done
-Error
-```
-
-都可以进入 small-step semantics。
-
-当前 formal model 已经对 Machine small-step、WAIT、Demand、Terminal 等执行语义进行建模，runtime step 被设计为这些语义规则的实现细化。
-
----
-
-## 26. Lean 可以证明什么
-
-例如可以证明：
-
-```text
-Terminal State
-    不再产生合法 transition
-```
-
-或者：
-
-```text
-每次成功 Transition
-    新 State 类型与 Target State 一致
-```
-
-也可以进一步讨论：
-
-```text
-WAIT 后 Wake
-    是否恢复到合法 machine configuration
-```
-
-甚至对于某些机器：
-
-```text
-特定 Error State 是否最终可达
-某个 forbidden State 是否永远不可达
-```
-
-这些已经超出了普通单元测试很容易覆盖的范围。
-
----
-
-## 27. 但 Lean 仍然不应该执行 State Machine
-
-这里仍然坚持和前面一样的边界。
-
-Lean 可以描述：
-
-```text
-Transition Semantics
-```
-
-并证明：
-
-```text
-规则成立
-```
-
-但真正运行时：
-
-```text
-Event
- ↓
-Guard
- ↓
-Action
- ↓
-Commit
-```
-
-仍然应该是：
-
-```text
-普通 C
-```
-
-也就是说：
-
-```text
-Lean
-    证明模型
-
-C
-    执行模型
-```
-
-而不是：
-
-```text
-把 theorem prover 放进 production event loop
-```
-
----
-
-## 28. Machine 进一步暴露了一个更通用的组合
-
-做到这里以后，可以把 Machine 拆成：
-
-```text
-Typed State
-Typed Event
-Typed Callable
-Transition Relation
-Serial Execution
-Bounded Admission
-```
-
-也就是说：
-
-```text
-State Machine
-```
-
-不是一种神秘的大 runtime。
-
-它只是几个更小 primitive 的组合：
-
-```mermaid
-flowchart TD
-    T["Type"]
-    C["Callable"]
-    E["Typed Event"]
-    X["Serial Executor"]
-    B["Bounded Mailbox"]
-
-    M["State Machine"]
-
-    T --> M
-    C --> M
-    E --> M
-    X --> M
-    B --> M
-```
-
-这进一步支持了前面一直出现的设计方向：
-
-> **复杂 framework 应该尽量被分解成少数可复用的机制。**
-
----
-
-## 29. 下一步：Machine 已经非常接近 Actor
-
-现在假设已经有一个 Machine Instance：
-
-```text
-private State
-```
-
-它拥有：
-
-```text
-Bounded Event Mailbox
-```
-
-所有 Event 通过：
-
-```text
-Serial Executor
-```
-
-顺序执行。
-
-同时允许：
-
-```text
-多个 Producer
-```
-
-从不同线程发送 Event。
-
-那么它已经拥有：
-
-```text
-Actor
-```
-
-最核心的几个性质：
-
-```text
-Private State
-Message Passing
-Serialized Mutation
-Concurrent Senders
-```
-
-剩下主要缺的是：
-
-```text
-Identity
-Lifecycle
-Scheduling
-Producer Reference
-Failure Boundary
-```
-
-也就是说：
-
-> **Actor 并不需要从零重新设计。**
-
-它已经可以自然地建立在 Machine 之上。
-
----
-
-## 30. Actor 不应该等于“一个线程”
-
-传统上提到 Actor，很容易想到：
-
-```text
-每个 Actor
-    一个 Mailbox
-    一个 Thread
-```
-
-但通过前面的 Serial Executor，我们已经知道：
-
-```text
-串行语义
-```
-
-并不等于：
-
-```text
-独占 OS Thread
-```
-
-真正需要的是：
-
-> **同一个 Actor 的 State Mutation 不能并发。**
-
-所以：
-
-```text
-100,000 Actor
-```
-
-完全可以共享：
-
-```text
-少量 Worker
-```
-
-只要每个 Actor 自己仍然保持：
-
-```text
-serial transition ownership
-```
-
-这将成为下一章真正的核心。
-
----
-
-## 31. 从 Event 到 Machine 的演进再次验证了整个基础层
-
-本章使用到的几乎所有能力都不是专门为 Machine 发明的。
-
-```text
-Event Payload
-    使用 Type
-
-Guard / Action
-    使用 Callable
-
-状态能力
-    使用 Metadata
-
-Execution
-    使用 Executor
-
-Concurrency Boundary
-    使用 Serial Capability
-
-Admission
-    使用 bounded queue
-
-Async
-    复用 WAIT / Wake
-```
-
-这说明：
-
-```text
-CMeta
-+
-CFlow primitives
-```
-
-开始真正表现出：
-
-```text
-compositional architecture
-```
-
----
-
-## 32. 完整路线继续延伸
-
-目前整个故事已经变成：
-
-```text
-Macro
- ↓
-Type
- ↓
-Generic / Inference
- ↓
-CMeta
- ↓
-Callable
- ↓
-Lambda / Bind
- ↓
-Graph
- ↓
-Stream
- ↓
-Reactive
- ↓
-Executor
- ↓
-Typed Event
- ↓
-State Machine
-```
-
-下一步则非常自然：
-
-```text
-State Machine
-+
-Mailbox
-+
-Serial Executor
-+
-Concurrent Producers
-+
-Lifecycle
-+
-Scheduler
-    ↓
-Actor
-```
-
-这里也会出现另一个很重要的结果：
-
-> **Actor 不再是一种独立的大型 runtime，而只是已有执行 primitive 的组合。**
-
----
-
-## 小结：State Machine 是“有状态的 Typed Computation”
-
-前面的 Stream 可以理解为：
-
-```text
-Value
- ↓
-Transformation
- ↓
-Value
-```
-
-Reactive 则加入：
-
-```text
-Time
-WAIT
-Demand
-```
-
-Machine 则进一步把：
-
-```text
-State
-```
-
-引入计算：
-
-```text
-State + Event
-      ↓
-   Guard
-      ↓
-   Action
-      ↓
-New State
-```
-
-因此 State Machine 可以理解成：
-
-> **一种有状态、有类型、具有明确 transition semantics 的 computation。**
-
-因为 Type、Callable 和 Executor 已经存在，它不需要重新创造：
-
-```text
-函数模型
-类型系统
-线程模型
-异步模型
-```
-
-而只需要定义新的：
-
-```text
-Transition Relation
-```
-
-这也是整个系统逐渐成熟的重要信号：
-
-> **越往上层走，新功能越应该主要来自组合，而不是增加新的基础机制。**
-
-下一章将继续这一组合过程：**从 State Machine 到 Actor——为什么 Actor 本质上是 Machine、Mailbox、Serial Executor、Scheduler 和 Lifecycle 的组合，以及为什么它不需要“一个 Actor 一个线程”。**
-
----
-
-
-## 33. Canonical Machine：把连接状态机变成 Typed Control Program
+## 24. Canonical Machine：把连接状态机变成 Typed Control Program
 
 本章前面已经出现：
 
@@ -2203,7 +1632,7 @@ reusable observation/runtime adapters
 
 ---
 
-## 34. Semantic Contract：一次 Event 到底如何改变 State
+## 25. Semantic Contract：一次 Event 到底如何改变 State
 
 把 Machine 变成 IR 后，最重要的不是 struct 长什么样，而是明确一次 transition 的顺序。
 
@@ -2227,7 +1656,7 @@ Observation Publication
 
 每一步都有不同的 ownership 和 failure boundary。
 
-## 34.1 Event Admission 不等于 Event Execution
+## 25.1 Event Admission 不等于 Event Execution
 
 Producer 调用 send 时，首先发生的是：
 
@@ -2258,7 +1687,7 @@ one serialized mutable owner
 
 同时避免 caller stack 成为 Machine transition stack。
 
-## 34.2 Event identity 与 payload type 必须同时匹配
+## 25.2 Event identity 与 payload type 必须同时匹配
 
 一个 Event 的合法性至少包含：
 
@@ -2287,7 +1716,7 @@ payload type alone
 
 不能取代 event identity。
 
-## 34.3 Transition Selection 必须 deterministic
+## 25.3 Transition Selection 必须 deterministic
 
 对于当前：
 
@@ -2308,7 +1737,7 @@ lowest explicit priority wins
 
 并且 priority key 本身必须唯一到足以避免 unresolved tie。
 
-## 34.4 Guard 只决定 enable，不拥有 commit
+## 25.4 Guard 只决定 enable，不拥有 commit
 
 Guard 可以读取：
 
@@ -2346,7 +1775,7 @@ NO_ALIAS
 
 > 这些 metadata 是 admission contract；如果要依赖更强的数学性质，仍需要 trusted implementation/proof。
 
-## 34.5 Action 应先构造 staged target，再 commit
+## 25.5 Action 应先构造 staged target，再 commit
 
 Action 不应该一边运行一边直接覆写 current state。
 
@@ -2378,7 +1807,7 @@ current Machine state unchanged
 
 外部 I/O side effect 是否可回滚，则属于另一个 contract，不能被 Machine 假装解决。
 
-## 34.6 Commit 是 transition 的线性化点
+## 25.6 Commit 是 transition 的线性化点
 
 对于并发 close/cancel 与正在执行的 transition，需要有一个明确问题：
 
@@ -2400,7 +1829,7 @@ staged state/observation
 
 这个 linearization boundary 比“用 mutex 包住整个函数”更重要，因为它定义 observable semantics。
 
-## 34.7 Terminal State 必须阻止后续 SmallStep
+## 25.7 Terminal State 必须阻止后续 SmallStep
 
 Closed/Done/Error 等 terminal state 不是普通名字。
 
@@ -2420,7 +1849,7 @@ CLOSED / CANCELLED / terminal status
 
 ---
 
-## 35. Lean：Machine 已经有真正的 SmallStep semantics
+## 26. Lean：Machine 已经有真正的 SmallStep semantics
 
 本版 Salts 快照 formal calculus 中：
 
@@ -2448,7 +1877,7 @@ SmallStep
 
 这和本章 C design 的对应关系非常直接。
 
-## 35.1 Machine.Valid：把 build-time validation 变成 proof premise
+## 26.1 Machine.Valid：把 build-time validation 变成 proof premise
 
 formal Machine.Valid 要求：
 
@@ -2489,7 +1918,7 @@ Machine.Valid
 
 > **Pay Before Execution.**
 
-## 35.2 smallStep_deterministic
+## 26.2 smallStep_deterministic
 
 当前 theorem：
 
@@ -2545,7 +1974,7 @@ guard/action contract
 
 说清楚。
 
-## 35.3 smallStep_requires_event_typing
+## 26.3 smallStep_requires_event_typing
 
 已有 theorem：
 
@@ -2565,7 +1994,7 @@ payload type matches declared event schema
 
 它直接成为 transition semantics 的前置条件。
 
-## 35.4 step_consumes_once
+## 26.4 step_consumes_once
 
 现有：
 
@@ -2592,7 +2021,7 @@ one admitted/selected event
 
 后面把 Machine 放进 Actor mailbox 后，这条性质会成为 message accounting 的基础。
 
-## 35.5 step_preserves_state_typing
+## 26.5 step_preserves_state_typing
 
 现有 theorem：
 
@@ -2627,7 +2056,7 @@ enum state + void *
 
 真正增加的价值。
 
-## 35.6 terminal_no_step / terminal_state_no_step
+## 26.6 terminal_no_step / terminal_state_no_step
 
 这两个 theorem 说明：
 
@@ -2641,7 +2070,7 @@ no next Machine step
 
 所以 terminal 不是文档约定，而是 transition relation 的结构约束。
 
-## 35.7 Action failure 保持 Machine-owned state
+## 26.7 Action failure 保持 Machine-owned state
 
 已有 theorem：
 
@@ -2665,7 +2094,7 @@ terminal = error(message)
 
 ---
 
-## 36. Current C Implementation：Machine 定义与 Instance 已经严格分层
+## 27. Current C Implementation：Machine 定义与 Instance 已经严格分层
 
 对照本版 Salts 实现快照：
 
@@ -2686,7 +2115,7 @@ cflow_machine_instance
 
 这比把所有字段塞进一个 Machine struct 清楚很多。
 
-## 36.1 Immutable Machine 是 transactional build artifact
+## 27.1 Immutable Machine 是 transactional build artifact
 
 当前 Machine definition 输入：
 
@@ -2731,7 +2160,7 @@ limit exceeded
 
 这说明大量错误已经真正从 runtime transition 前移到 build/admission。
 
-## 36.2 Transition row 是普通、可检查的数据
+## 27.2 Transition row 是普通、可检查的数据
 
 当前 transition 直接保存：
 
@@ -2756,7 +2185,7 @@ transition relation
 
 Build、diagnostics、formal model、test tooling 都可以讨论同一个结构。
 
-## 36.3 State / Guard / Action 全部带类型信息
+## 27.3 State / Guard / Action 全部带类型信息
 
 State row：
 
@@ -2788,7 +2217,7 @@ observation kind/type
 
 这使 State Machine 真正继承前几章的 CMeta/Callable vocabulary，而不是重新造一套弱类型 callback system。
 
-## 36.4 Instance 才拥有 mutable state
+## 27.4 Instance 才拥有 mutable state
 
 Machine Instance config 包含：
 
@@ -2816,7 +2245,7 @@ stats
 
 这正对应 formal Config / runtime layer。
 
-## 36.5 Instance 明确要求 non-manual SerialExecutor
+## 27.5 Instance 明确要求 non-manual SerialExecutor
 
 当前 init contract 要求：
 
@@ -2842,7 +2271,7 @@ serialized execution capability
 
 从而保证 transition mutation 单 owner。
 
-## 36.6 Mailbox 是 bounded typed admission boundary
+## 27.6 Mailbox 是 bounded typed admission boundary
 
 当前 Event/Mailbox API 使用有限 schema：
 
@@ -2881,7 +2310,7 @@ closed/cancelled
 
 ---
 
-## 37. Close / Cancel 与正在执行的 Transition
+## 28. Close / Cancel 与正在执行的 Transition
 
 真实 stateful runtime 最难的部分，往往不是正常 transition，而是 shutdown race。
 
@@ -2892,7 +2321,7 @@ close
 cancel
 ~~~
 
-## 37.1 Close
+## 28.1 Close
 
 Close：
 
@@ -2908,7 +2337,7 @@ preserve an already executing transition commit
 
 这更接近 graceful shutdown。
 
-## 37.2 Cancel
+## 28.2 Cancel
 
 Cancel 同样停止 admission 并取消 queued Events，但与正在执行 transition 的 commit 竞争：
 
@@ -2924,7 +2353,7 @@ commit wins first
 
 Lock 只是实现机制。
 
-## 37.3 External Action Effects 不自动 rollback
+## 28.3 External Action Effects 不自动 rollback
 
 当前 contract 也明确：
 
@@ -2954,9 +2383,9 @@ external hardware effect
 
 ---
 
-## 38. Evidence：Machine 需要同时验证 build、step、race 和 refinement
+## 29. Evidence：Machine 需要同时验证 build、step、race 和 refinement
 
-## 38.1 Build-time evidence
+## 29.1 Build-time evidence
 
 对每类 invalid Machine，应该有明确测试：
 
@@ -2978,7 +2407,7 @@ failed build
     → destination remains empty
 ~~~
 
-## 38.2 Small-step conformance
+## 29.2 Small-step conformance
 
 C tests 应构造与 Lean fixture 对应的 Machine：
 
@@ -2999,7 +2428,7 @@ C Instance observed trace/state
 
 这比只测试某几个业务结果更接近 refinement。
 
-## 38.3 Typed Event evidence
+## 29.3 Typed Event evidence
 
 Mailbox tests需要确认：
 
@@ -3019,7 +2448,7 @@ capacity exhausted
 
 并且失败不能部分写入 mailbox。
 
-## 38.4 Serial mutation evidence
+## 29.4 Serial mutation evidence
 
 多 producer 并发发送 Event 时，Machine current state 的 mutation 仍应满足：
 
@@ -3038,7 +2467,7 @@ stress test
 
 验证，而不是假设用了 mutex 就等价。
 
-## 38.5 Close / cancel race evidence
+## 29.5 Close / cancel race evidence
 
 至少覆盖：
 
@@ -3061,7 +2490,7 @@ first error
 terminal flags
 ~~~
 
-## 38.6 Sanitizer evidence
+## 29.6 Sanitizer evidence
 
 Guard/action binding 和 typed state copy 涉及：
 
@@ -3079,7 +2508,7 @@ Lean 证明 WellTyped，不会替 C 发现 buffer lifetime bug。
 
 ---
 
-## 39. What We Learned
+## 30. What We Learned
 
 第八章让全书第一次拥有真正的长期 mutable domain state，但仍然没有引入一个“大 runtime”。
 
