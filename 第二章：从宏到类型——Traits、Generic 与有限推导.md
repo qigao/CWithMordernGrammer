@@ -1785,13 +1785,13 @@ Lean 属于可信 control plane，不属于应用 hot path。
 ---
 
 
-### 31.1 对照当前 Salts：这些抽象已经怎样落成真实 C
+### 31.1 对照本版 Salts 实现快照：这些抽象已经怎样落成真实 C
 
-为了避免这一节停留在概念伪代码，可以直接看当前 Salts 的 CMeta implementation snapshot：
+为了避免这一节停留在概念伪代码，可以直接看本版 Salts 快照 的 CMeta implementation snapshot：
 
 ~~~text
 qigao/salts
-master: ad389928b437c0612c1c60844fe53677f3ed27a6
+snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
 当前基础 type descriptor 已经明确区分：
