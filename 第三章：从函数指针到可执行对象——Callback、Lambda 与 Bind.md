@@ -1,87 +1,81 @@
 # 第三章：从函数指针到可执行对象——Callback、Lambda 与 Bind
 
-
 > **本章路线**
 >
-> 前两章让“数据”拥有了类型和有限推导能力。这一章开始处理“行为”：从最普通的 function pointer 出发，只在确实需要组合、捕获环境和语义分析时，逐步增加 Callable。
+> 前两章把重复的类型契约收敛成 Generic / typed C。第三章处理 C 中另一类更常见的契约丢失：callback。
 >
-> ~~~text
-> Function Pointer
->    → Normalized Signature
->    → Callable Representation
->    → Capture / Lambda / Bind
->    → Effects / Property Claims
->    → Semantic Laws
->    → Lean-checked Composition
->    → Graph-ready Computation
+> 先看一个完全正常的 C 接口：
+>
+> ~~~c
+> typedef void (*task_fn)(void *ctx);
+>
+> typedef struct task {
+>     task_fn fn;
+>     void *ctx;
+> } task;
+>
+> static void task_run(const task *t)
+> {
+>     t->fn(t->ctx);
+> }
 > ~~~
 >
-> 本章的关键不是模仿 C++ Lambda 语法，而是建立一个以后 Graph、Stream、Executor 和 Optimizer 都能共同消费的**有限可执行对象模型**。
+> 这个接口非常灵活，也非常 C。
+>
+> 但调用方真正想表达的行为可能是：
+>
+> ~~~c
+> typedef struct square_ctx {
+>     int value;
+>     long *result;
+> } square_ctx;
+>
+> static void square_task(void *ctx)
+> {
+>     square_ctx *s = ctx;
+>     *s->result = (long)s->value * s->value;
+> }
+> ~~~
+>
+> 一旦行为进入 `task_fn + void *`，library 本身已经不知道：
+>
+> ~~~text
+> 输入是什么类型？
+> 输出是什么类型？
+> capture 的 lifetime 由谁负责？
+> 两个 callback 能不能组合？
+> 它是否允许作为 Filter / Map / Reduce？
+> optimizer 能否依赖 PURE / IDEMPOTENT / ASSOCIATIVE 之类的性质？
+> ~~~
+>
+> 所以本章不是要“给 C 发明 Lambda 语法”，而是解决一个具体问题：
+>
+> **怎样让 callback 在被保存和组合以后，仍然保留足够的类型、capture 和 dispatch 契约。**
+>
+> 演进仍然保持有限：
+>
+> ~~~text
+> typed function pointer
+>     ↓
+> normalized finite signature
+>     ↓
+> callable representation
+>     ↓
+> capture / bind / generator
+>     ↓
+> effects / property claims
+>     ↓
+> Graph-ready behavior
+> ~~~
+>
+> Plain C function pointer 始终是 baseline；只有在组合、保存、分析这些需求真实出现时，才增加 Callable。
 
-前两章解决了两个问题。
+这一步把前两章的“typed data”推进成“typed behavior”。
 
-第一步，是让宏从简单的文本复用逐渐变成：
-
-```text
-结构化的编译期描述
-```
-
-第二步，是让这些描述真正获得：
-
-```text
-Type
-Traits
-Generic
-Identity
-Finite Relation
-Inference
-```
-
-走到这里以后，数据已经不再只是：
-
-```text
-一块不知道含义的内存
-```
-
-而可以成为：
-
-```text
-一个具有类型、能力和语义身份的对象
-```
-
-接下来很自然会遇到另一个更重要的问题：
-
-> **函数怎么办？**
-
-C 当然有函数。
-
-而且 C 的函数调用非常简单、高效。
-
-问题不在于：
-
-```text
-C 能不能执行函数？
-```
-
-而在于：
-
-> **一个函数一旦被当成 callback 保存、传递和组合以后，我们还能不能知道它是什么？**
-
-这一步最终把系统从：
-
-```text
-Typed Data
-```
-
-推进到了：
-
-```text
-Typed Behavior
-```
-
-也是以后 Graph、Flow 和 Executor 能够出现的直接前提。
+下一章会直接利用这些 Callable，不再重新解释 callback，而是把多个行为之间的关系保存成 Graph。
 
 ---
+
 
 ## 1. 普通函数指针非常快，但知道得太少
 
