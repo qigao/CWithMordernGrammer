@@ -11,8 +11,6 @@
 >    → Callable Representation
 >    → Capture / Lambda / Bind
 >    → Effects / Property Claims
->    → Semantic Laws
->    → Lean-checked Composition
 >    → Graph-ready Computation
 > ~~~
 >
@@ -330,54 +328,7 @@ ABI surface
 
 ---
 
-## 5. Lean 在这里第一次直接帮助“函数类型系统”
-
-当函数 signature 变多以后，很适合让 Lean 检查这套有限关系。
-
-Lean 可以确认：
-
-```text
-每一个 input/output type 都存在
-没有重复 signature
-relation 没有引用未知类型
-生成顺序稳定
-```
-
-然后把已经验证过的有限 signature manifest 输出成普通 C header。
-
-整个过程可以理解为：
-
-```mermaid
-flowchart LR
-    A["Finite Type Universe"]
-    B["Finite Signature Relations"]
-    C["Lean Validation"]
-    D["Generated C Header"]
-    E["Typed C Functions"]
-
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-```
-
-这里 Lean 并不参与函数执行。
-
-它做的是：
-
-> **帮助我们确定“哪些函数类型是合法且存在的”。**
-
-真正运行：
-
-```c
-result = fn(value);
-```
-
-时，仍然是普通 C。
-
----
-
-## 6. 从 Function Pointer 到 Callable
+## 5. 从 Function Pointer 到 Callable
 
 有了 signature 后，就可以进一步把：
 
@@ -468,7 +419,7 @@ square
 
 ---
 
-## 7. Effects 和 Properties 为什么必须分开
+## 6. Effects 和 Properties 为什么必须分开
 
 这两个概念很容易混在一起。
 
@@ -542,7 +493,7 @@ ASSOCIATIVE
 
 ---
 
-## 8. 第一种执行形式：直接调用普通 C 函数
+## 7. 第一种执行形式：直接调用普通 C 函数
 
 虽然现在已经有 Callable，但最重要的原则仍然是：
 
@@ -584,7 +535,7 @@ Typed C Function Pointer
 
 ---
 
-## 9. 第二种执行形式：Adapter
+## 8. 第二种执行形式：Adapter
 
 并不是每一个场景都可以在编译时直接知道具体 C function type。
 
@@ -651,7 +602,7 @@ Typed Function
 
 ---
 
-## 10. 传统 C callback 最大的问题之一：context
+## 9. 传统 C callback 最大的问题之一：context
 
 当 callback 需要外部参数时，C 通常写成：
 
@@ -713,7 +664,7 @@ callback 运行时它是否还活着
 
 ---
 
-## 11. C++ Lambda 给了一个很好的答案
+## 10. C++ Lambda 给了一个很好的答案
 
 C++ 可以写：
 
@@ -753,7 +704,7 @@ struct Closure {
 
 ---
 
-## 12. 在 C 中构造一个有限 Lambda
+## 11. 在 C 中构造一个有限 Lambda
 
 例如概念上：
 
@@ -809,7 +760,7 @@ result = x * factor;
 
 ---
 
-## 13. 为什么 Capture 使用 Inline Storage
+## 12. 为什么 Capture 使用 Inline Storage
 
 如果为了 lambda 立刻引入：
 
@@ -866,7 +817,7 @@ copy Capture
 
 ---
 
-## 14. 多个 Capture 可以先组成普通 Struct
+## 13. 多个 Capture 可以先组成普通 Struct
 
 如果 callback 需要：
 
@@ -908,7 +859,7 @@ Meta 层只负责把这个普通 C object：
 
 ---
 
-## 15. Lambda 的重点不是语法，而是 Callable Representation
+## 14. Lambda 的重点不是语法，而是 Callable Representation
 
 例如以后可能提供：
 
@@ -949,7 +900,7 @@ flowchart TD
 
 ---
 
-## 16. 第三种执行形式：Bind
+## 15. 第三种执行形式：Bind
 
 当 Capture 已经存在以后，又会自然发现另一个非常实用的操作：
 
@@ -1000,7 +951,7 @@ std::bind(
 
 ---
 
-## 17. Bind 本质上仍然只是 Capture
+## 16. Bind 本质上仍然只是 Capture
 
 例如：
 
@@ -1051,7 +1002,7 @@ Callable + Capture
 
 ---
 
-## 18. Bind 比单纯“保存参数”更有意思
+## 17. Bind 比单纯“保存参数”更有意思
 
 因为它实际上改变了：
 
@@ -1099,7 +1050,7 @@ Finite Inference
 
 ---
 
-## 19. 第四种形式：Generator
+## 18. 第四种形式：Generator
 
 普通函数通常是：
 
@@ -1174,7 +1125,7 @@ T -> 0..N U
 
 ---
 
-## 20. Generator 为什么也要使用同一个 Callable 模型
+## 19. Generator 为什么也要使用同一个 Callable 模型
 
 很容易为 Generator 再造：
 
@@ -1217,7 +1168,7 @@ generator
 
 ---
 
-## 21. 最终只有少数真正的执行路径
+## 20. 最终只有少数真正的执行路径
 
 从用户角度，可以有很多形式：
 
@@ -1253,7 +1204,7 @@ Generator
 
 ---
 
-## 22. 为什么还要给 Callable 加 Effect 和 Property
+## 21. 为什么还要给 Callable 加 Effect 和 Property
 
 如果 Callable 只是为了调用函数：
 
@@ -1314,7 +1265,7 @@ Effects / Properties
 
 ---
 
-## 23. 一个例子：为什么 PURE 很重要
+## 22. 一个例子：为什么 PURE 很重要
 
 假设：
 
@@ -1367,7 +1318,7 @@ Graph optimization legality
 
 ---
 
-## 24. 一个例子：为什么 ASSOCIATIVE 很重要
+## 23. 一个例子：为什么 ASSOCIATIVE 很重要
 
 假设：
 
@@ -1427,7 +1378,7 @@ ASSOCIATIVE
 
 ---
 
-## 25. 但 Property 声明不是数学证明
+## 24. 但 Property 声明不是数学证明
 
 这里有一个非常重要的边界。
 
@@ -1463,74 +1414,32 @@ metadata 本身并不能阻止这个谎言。
 所以必须区分：
 
 ```text
-Property Declaration
+Property Claim
 ```
 
 和：
 
 ```text
-Semantic Law
+真正可以授权 transformation 的 Semantic Law
 ```
+
+Part I 到这里先停在 claim：C API 可以携带这些信息，但不会因为一个 bit 被设置就自动改写程序。等 Chapter 4–5 把计算保存成 Graph 后，Chapter 6 才会讨论怎样用 semantic law 与 machine-checked theorem 授权具体 rewrite。
 
 ---
 
-## 26. Lean 在这里开始承担更深的角色
-
-例如真正的 Idempotent Law：
-
-```text
-∀x, f(f(x)) = f(x)
-```
-
-可以在 Lean 中被精确定义。
-
-然后证明：
-
-```text
-如果 f 满足这个 Law
-那么
-f ∘ f
-可以安全简化成
-f
-```
-
-这样：
-
-```text
-C Metadata
-```
-
-负责：
-
-> 程序声明自己具有什么性质。
-
-而：
-
-```text
-Lean
-```
-
-负责：
-
-> 这种性质在数学模型中究竟允许什么推导。
-
-这是后面 verified optimization 的基础。
-
----
-
-## 27. 从 Callable 表达进入可验证 Contract
+## 25. 从 Callable 表达进入可验证 Contract
 
 到这里，行为已经从裸函数地址扩展成有限、可检查的 Callable representation：signature 负责类型边界，capture/context 负责环境，dispatch authority 说明真实调用路径，effects/properties 提供后续分析需要的 metadata，而 Plain C function pointer 仍然是 baseline。
 
-Callable composition、Bind 与 property law 的意义将在后面的 Graph/optimizer 里继续出现，因此这里不再单独做一轮“Callable Algebra → Graph”的概念复述。后半章直接把这些能力收紧成可实现 contract，再核对 Lean law、当前 C representation、lifetime/ABI/performance evidence，以及后续 Graph 持续复用的 canonical callables。
+Callable composition、Bind 与 property claim 的意义会在后面的 Graph/optimizer 里继续出现，因此这里不提前讨论 proof。后半章只把这些能力收紧成可实现的 C contract，并核对当前 representation、lifetime/ABI/performance evidence，以及后续 Graph 持续复用的 canonical callables。
 
 ---
 
-## 28. Semantic Contract：Callable 到底承诺什么
+## 26. Semantic Contract：Callable 到底承诺什么
 
 到这里，需要把“Callable 很方便”进一步收紧成可实现、可验证的 contract。
 
-### 31.1 Signature 是可组合性的第一道门
+### 26.1 Signature 是可组合性的第一道门
 
 一个 Callable 首先拥有有限、明确的函数类型：
 
@@ -1556,7 +1465,7 @@ build / admission
 
 而不是等到运行时拿 void * 猜。
 
-### 31.2 Capture 必须拥有明确的生命周期
+### 26.2 Capture 必须拥有明确的生命周期
 
 Lambda / Bind 的核心不是语法糖，而是：
 
@@ -1578,7 +1487,7 @@ captured environment
 
 如果这些问题没有答案，所谓“Lambda”只是把传统 void * context 的问题藏了起来。
 
-### 31.3 Callable Instance 不等于 Function Address
+### 26.3 Callable Instance 不等于 Function Address
 
 例如两个 Callable：
 
@@ -1613,7 +1522,7 @@ semantic type identity
 
 是同一个设计模式。
 
-### 31.4 Effects 与 Properties 都首先是 metadata
+### 26.4 Effects 与 Properties 都首先是 metadata
 
 即使我们把它们分开：
 
@@ -1660,119 +1569,7 @@ ASSOCIATIVE
 
 ---
 
-## 29. Lean：从“属性标签”进入可验证 Callable Algebra
-
-这一章 Lean 的价值比上一章更进一步。
-
-上一章主要验证有限 relation 是否 well formed。
-
-这一章开始验证：
-
-> **一个函数关系在什么前提下可以安全组合、简化或重排。**
-
-### 32.1 Signature composition
-
-如果：
-
-~~~text
-f : A -> B
-g : B -> C
-~~~
-
-可以建立：
-
-~~~text
-compose g f : A -> C
-~~~
-
-而：
-
-~~~text
-f : A -> B
-g : X -> C
-B != X
-~~~
-
-则 composition 不应该进入合法 graph。
-
-这部分可以由 finite signature model + C build-time checks共同承担。
-
-### 32.2 Idempotent law
-
-真正的 law 是：
-
-~~~text
-forall x, f (f x) = f x
-~~~
-
-然后才能证明：
-
-~~~text
-f ∘ f
-=
-f
-~~~
-
-注意证明的是：
-
-> 如果 f 满足 law，那么 rewrite preserve semantics。
-
-它不是证明任意被标记 IDEMPOTENT 的 C function 真的满足这个 law。
-
-### 32.3 Associative law
-
-类似：
-
-~~~text
-op (op a b) c
-=
-op a (op b c)
-~~~
-
-可以授权特定 reduction tree 的重组。
-
-但如果真实 C operation 存在：
-
-~~~text
-floating-point rounding
-overflow
-external state
-error ordering
-~~~
-
-就必须先定义 observable semantics，再决定 theorem 是否真的适用。
-
-这正是 Lean 能反过来改善 API 的地方：
-
-> 一个过于宽泛的 ASSOCIATIVE bit，可能根本不足以描述真正可安全重排的执行条件。
-
-### 32.4 Proof-carrying admission
-
-后面的 Optimizer 可以逐渐采用这样的思路：
-
-~~~text
-metadata claim
-      ↓
-admission condition
-      +
-trusted primitive / proof / certificate
-      ↓
-semantic rewrite enabled
-~~~
-
-而不是：
-
-~~~text
-bit is set
-      ↓
-rewrite blindly
-~~~
-
-这样 Lean 不进入 hot path，却真正改变了 C optimizer 的安全边界。
-
----
-
-## 30. C Implementation：有限表达形式，少数执行路径
+## 27. C Implementation：有限表达形式，少数执行路径
 
 这一章的实现目标不是创造越来越多 Runtime object。
 
@@ -1813,7 +1610,7 @@ effects / claims
     → analysis metadata, not automatic proof
 ~~~
 
-### 33.1 Raw function remains the baseline
+### 27.1 Raw function remains the baseline
 
 如果用户只有：
 
@@ -1829,7 +1626,7 @@ square(x);
 
 Callable 不应该成为“所有函数必须经过的对象层”。
 
-### 33.2 Adapter path 必须可解释成本
+### 27.2 Adapter path 必须可解释成本
 
 当需要 erased dispatch 或 capture 时，才进入 adapter：
 
@@ -1851,7 +1648,7 @@ ordinary C function
 - alignment 是否静态已知；
 - destructor 是否存在。
 
-### 33.3 Inline capture 必须 bounded
+### 27.3 Inline capture 必须 bounded
 
 Inline storage 的价值不是“更像 lambda”。
 
@@ -1870,7 +1667,7 @@ predictable ownership
 这与后面的 bounded mailbox、bounded executor queue 是同一设计哲学。
 
 
-### 33.4 对照本版 Salts 实现快照：Callable 已经是明确的 C value representation
+### 27.4 对照本版 Salts 实现快照：Callable 已经是明确的 C value representation
 
 为了让这一章不只停留在概念 representation，可以直接对照当前实现：
 
@@ -1930,7 +1727,7 @@ CMETA_CAPTURE_INLINE = 32 bytes
 
 的具体例子。
 
-### 33.5 Dispatch Authority 必须是数据，而不是猜测
+### 27.5 Dispatch Authority 必须是数据，而不是猜测
 
 该快照的 representation 显式保存 dispatch tag。
 
@@ -1969,7 +1766,7 @@ follow one known path
 
 也就是说，复杂度在进入 hot path 以前被支付。
 
-### 33.6 后面的 Direct Path 已经在消费这些知识
+### 27.6 后面的 Direct Path 已经在消费这些知识
 
 本版 CFlow 实现 direct admission 已经会利用 Callable 的结构知识。
 
@@ -2000,11 +1797,11 @@ simpler execution path
 
 ---
 
-## 31. Evidence：Callable 必须和 Plain C baseline 比较
+## 28. Evidence：Callable 必须和 Plain C baseline 比较
 
 本章的证据不能只有“能调用”。
 
-### 34.1 Compile-time evidence
+### 28.1 Compile-time evidence
 
 验证：
 
@@ -2019,7 +1816,7 @@ unsupported capture form
     → explicit failure
 ~~~
 
-### 34.2 Lifetime evidence
+### 28.2 Lifetime evidence
 
 至少测试：
 
@@ -2030,11 +1827,11 @@ unsupported capture form
 - borrowed capture 的生命周期边界；
 - sanitizer 下无 use-after-free。
 
-### 34.3 Multi-TU / ABI evidence
+### 28.3 Multi-TU / ABI evidence
 
 Named Callable 或 generated signature information 应该能够跨 TU 使用，而不是依赖某个 header-local object address。
 
-### 34.4 Performance evidence
+### 28.4 Performance evidence
 
 至少比较：
 
@@ -2060,7 +1857,7 @@ capturing callable
 > **什么时候它等价于普通调用，什么时候确实为表达能力付出了一次 dispatch/capture 成本。**
 
 
-### 34.5 Contract-admission evidence
+### 28.5 Contract-admission evidence
 
 除了“调用结果正确”，还必须测试 metadata 自己不会形成矛盾状态。
 
@@ -2077,7 +1874,7 @@ oversized capture
 
 本版 CMeta 实现 已经存在共享 effect/property consistency boundary；这类测试以后应该成为“semantic metadata 不是随便几个 bit”的最直接工程证据。
 
-### 34.6 Runtime invocation evidence
+### 28.6 Runtime invocation evidence
 
 同一个 Callable contract 应至少覆盖：
 
@@ -2098,7 +1895,7 @@ invalid metadata path
 
 ---
 
-## 32. Canonical Example：为 Graph 准备三个 Callable
+## 29. Canonical Example：为 Graph 准备三个 Callable
 
 从这一章开始，我们建立后面会持续复用的数据流例子。
 
@@ -2122,7 +1919,7 @@ int sum(int a, int b);
 signature
 effects
 property claims
-optional certificate / trusted law
+capture / dispatch information
 ~~~
 
 但执行函数本身仍然可以是普通 C。
@@ -2143,7 +1940,7 @@ Reduce(sum)
 
 ---
 
-## 33. What We Learned
+## 30. What We Learned
 
 这一章完成了从：
 
@@ -2165,10 +1962,9 @@ typed behavior
 2. **Signature makes behavior type-aware.**
 3. **Capture makes environment explicit.**
 4. **Finite dispatch prevents surface features from multiplying runtime mechanisms.**
-5. **Effects / Properties are not automatically proofs.**
-6. **Semantic laws are what authorize verified rewrites.**
-7. **Lean lives in the control/trust plane, not the call hot path.**
-8. **Costs such as indirect dispatch and capture storage must be measured, not hidden.**
+5. **Effects / Properties are claims carried by the C representation.**
+6. **Claims alone do not authorize rewrite or reordering.**
+7. **Costs such as indirect dispatch and capture storage must be measured, not hidden.**
 
 因此 Graph 的出现不再像“添加一个 framework”。
 
@@ -2232,14 +2028,7 @@ Generator Callback
 
 但它们最终仍然收敛成少数几种简单的 C 调用方式。
 
-Lean 则不参与 callback 的实际执行，而帮助验证：
-
-```text
-有限 Signature Universe
-函数关系
-Semantic Law
-允许的推导和优化
-```
+这些 property claim 暂时只作为 C metadata 保留下来。Chapter 6 会在 Graph 已经存在以后，再回答哪些 claim 可以通过 semantic law / proof 变成安全 transformation。
 
 从这一章开始，Meta 系统已经不只是描述：
 
