@@ -17,7 +17,7 @@
 >   → Evidence
 > ~~~
 >
-> Lean 在这里不会被强行加入。第一章最重要的是先建立一个原则：**形式化只应该出现在存在明确 semantic question 的地方。**
+> 本章只使用 C、preprocessor、`_Generic` 与真实 toolchain evidence。先把重复定义和重复契约的问题解决清楚，再讨论更高层的语义证明。
 
 C 是一门非常直接的语言。
 
@@ -1089,70 +1089,11 @@ predictable
 
 ---
 
-## 16. Lean 在第一章应该做什么——以及不应该做什么
-
-这一章第一次引入全书非常重要的一条方法论：
-
-> **不是所有正确性问题都应该交给 Lean。**
-
-当前阶段的问题主要是：
-
-- preprocessor 是否按预期展开；
-- compiler 是否接受生成的 C；
-- 不同 compiler 是否具有一致行为；
-- generated symbol 是否符合预期；
-- macro 是否减少了重复知识。
-
-这些首先是 toolchain 和 engineering evidence 问题。
-
-我们不需要为了显得“形式化”而写一个 theorem 去证明：
-
-~~~text
-DEFINE_COMPARE(int)
-~~~
-
-会被某个具体 compiler 正确预处理。
-
-那不是这里最有价值的 proof obligation。
-
-Lean 真正开始有价值，是下一章出现这样的 semantic question 时：
-
-~~~text
-给定有限类型集合，
-一个 type mapping 是否唯一？
-
-给定几个输入类型，
-推导规则是否 total / deterministic？
-
-两个 descriptor 在不同 Translation Unit 中，
-怎样表示同一个 semantic type？
-~~~
-
-也就是说：
-
-~~~text
-Macro problem
-    ↓
-engineering evidence
-
-Type relation
-    ↓
-semantic model
-    ↓
-Lean
-~~~
-
-这一区分非常重要。
-
-**Lean 不是装饰，也不是测试替代品。**
-
----
-
-## 17. Implementation Evidence：怎样证明这层抽象没有偷偷变重
+## 16. Implementation Evidence：怎样证明这层抽象没有偷偷变重
 
 如果本章是一套真正可以用于 Modern C 工程的方法，而不是宏技巧展示，就应该能够拿出具体证据。
 
-### 17.1 Preprocess evidence
+### 16.1 Preprocess evidence
 
 对于关键宏，可以观察预处理结果：
 
@@ -1166,7 +1107,7 @@ ordinary C
 
 读者应该能够确认生成结果仍然是自己愿意手写和维护的 C。
 
-### 17.2 Compile-pass / compile-fail
+### 16.2 Compile-pass / compile-fail
 
 应该同时测试：
 
@@ -1180,7 +1121,7 @@ ordinary C
 
 真正专业的类型化 C API，不只是“正确时可以工作”，还应该让错误尽早发生。
 
-### 17.3 Cross-compiler evidence
+### 16.3 Cross-compiler evidence
 
 Preprocessor 是 C 中最容易出现 compiler-specific corner case 的区域之一。
 
@@ -1196,7 +1137,7 @@ MSVC / compatible preprocessing mode
 
 > 哪些语法属于我们真正依赖的 contract。
 
-### 17.4 Runtime evidence
+### 16.4 Runtime evidence
 
 这一章的理想结果反而很简单：
 
@@ -1210,7 +1151,7 @@ MSVC / compatible preprocessing mode
 
 ---
 
-## 18. What We Learned
+## 17. What We Learned
 
 第一章真正得到的不是“宏可以写得很复杂”。
 
@@ -1239,7 +1180,7 @@ attach type knowledge
 3. **Single source of truth**：事实只维护一份。
 4. **Finite / explicit / bounded**：不把 preprocessor 变成第二门语言。
 5. **No hidden runtime**：宏层最终仍然落回普通 C。
-6. **Use the right evidence**：toolchain 问题用 compiler/test 证明，semantic law 才进入 Lean。
+6. **Use the right evidence**：这一阶段的 toolchain / expansion / ABI 问题用 compiler、test 和真实构建证据回答；更高层 semantic law 留到 Graph transformation 出现以后再处理。
 
 因此下一章的问题就变得非常自然：
 
