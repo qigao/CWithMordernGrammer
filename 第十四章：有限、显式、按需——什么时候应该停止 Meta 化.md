@@ -1408,1014 +1408,11 @@ Machine Semantics
 
 ---
 
-## 25. 一个很有用的判断方法：这个 abstraction 能不能删除一份知识？
-
-未来考虑加入一个 Meta Feature 时，可以先问：
-
-> 它是否删除了一份现在正在重复维护的知识？
-
-例如：
-
-```text
-Struct Schema
-```
-
-删除：
-
-```text
-struct declaration
-field metadata
-serializer field list
-```
-
-之间的重复。
-
-```text
-Callable
-```
-
-删除：
-
-```text
-function pointer
-signature
-effects
-```
-
-分散维护。
-
-```text
-Graph
-```
-
-删除：
-
-```text
-每个 execution backend
-分别重新理解 operator relation
-```
-
-的重复。
-
-如果新 abstraction 只是：
-
-```text
-让某段代码写短一点
-```
-
-但并没有删除重复知识，
-
-它进入 core 的理由就弱很多。
+前面 1–24 节已经把核心纪律与 non-goals 说明清楚。早期草稿随后又用二十多节重复总结“如何判断是否抽象、为什么要克制、为什么仍然是 C”。出版稿不再重复这些结论，而是直接进入反例实验：让每条纪律对应一个真实的失败模式。
 
 ---
 
-## 26. 第二个判断方法：普通 C 是否已经足够好？
-
-例如想增加：
-
-```text
-MetaIf
-MetaWhile
-MetaRecursion
-```
-
-首先应该问：
-
-> 这些 compile-time control structure 解决了什么普通 C + finite generation 无法解决的问题？
-
-如果回答只是：
-
-```text
-因为 C++ template 也有
-```
-
-那么不应该加入。
-
-CMeta 不是：
-
-```text
-Feature Parity Project
-```
-
-它没有必要证明：
-
-```text
-C 也能做一切 C++ Template 做的事情
-```
-
----
-
-## 27. 第三个判断方法：是否能够保持有限、可检查
-
-如果一个新 feature 需要：
-
-```text
-无限递归
-```
-
-或者：
-
-```text
-runtime arbitrary expression evaluator
-```
-
-应该非常谨慎。
-
-因为它可能破坏：
-
-```text
-finite universe
-```
-
-这一整套基础假设。
-
-而如果一个需求可以重新表达成：
-
-```text
-有限 row
-有限 relation
-显式 registration
-```
-
-通常更符合整个体系。
-
----
-
-## 28. 第四个判断方法：错误会出现在哪里？
-
-一个 abstraction 不只是要看：
-
-```text
-成功时多漂亮
-```
-
-还要看：
-
-```text
-失败时会发生什么
-```
-
-例如新的宏 DSL 如果用户写错后只得到：
-
-```text
-expected ')' before token
-```
-
-那么虽然语法看起来简洁，
-
-实际工程价值可能很差。
-
-所以新 primitive 必须同时考虑：
-
-```text
-Happy Path
-+
-Error Path
-```
-
-特别是在宏环境中。
-
----
-
-## 29. 第五个判断方法：它能跨 TU、跨 Library 吗？
-
-很多 Macro Trick 在：
-
-```text
-single .c file
-```
-
-非常漂亮。
-
-但一进入：
-
-```text
-multiple TUs
-shared library
-installed header
-```
-
-就失效。
-
-如果一个 abstraction 无法回答：
-
-```text
-identity
-ABI
-ownership
-generation boundary
-```
-
-问题，
-
-它可能还没有成熟到：
-
-```text
-public primitive
-```
-
-阶段。
-
----
-
-## 30. 第六个判断方法：它会不会进入 Hot Path？
-
-一个 abstraction 在 build 阶段复杂一点并不可怕。
-
-但如果它要求：
-
-```text
-每个 Value
-每个 Event
-每次 Callback
-```
-
-都执行大量：
-
-```text
-type lookup
-string lookup
-dynamic dispatch
-```
-
-就需要非常谨慎。
-
-可以问：
-
-> **这个 abstraction 能不能在执行之前被部分或完全消掉？**
-
-如果答案是：
-
-```text
-可以
-```
-
-通常更适合整个设计。
-
----
-
-## 31. 第七个判断方法：它属于哪个 Module？
-
-假设某功能很好，但：
-
-```text
-不知道应该放 CMeta
-还是 CFlow
-还是 Container
-```
-
-往往说明：
-
-```text
-它的语义边界还没有想清楚
-```
-
-一个成熟 abstraction 应该能够清楚回答：
-
-```text
-谁拥有它
-谁依赖它
-谁不能依赖它
-```
-
-而不是：
-
-```text
-先找一个方便的目录放进去
-```
-
----
-
-## 32. Meta Primitive 应该很少，而且生命周期很长
-
-业务 API 可以快速变化。
-
-Meta Primitive 不应该。
-
-因为一旦：
-
-```text
-Type
-Schema
-Callable
-Interface
-```
-
-进入大量模块，
-
-它就会形成巨大的：
-
-```text
-dependency fan-out
-```
-
-改变它的成本很高。
-
-因此最底层 primitive 应该：
-
-```text
-少
-稳定
-通用
-语义明确
-```
-
-而不是：
-
-```text
-feature-rich
-```
-
----
-
-## 33. 上层可以快速实验，底层应该慢慢收敛
-
-一个健康架构可以允许：
-
-```text
-workflow/
-rpc/
-query/
-```
-
-快速尝试不同 API。
-
-但 CMeta Core 只在发现：
-
-```text
-多个上层
-长期反复需要同一种机制
-```
-
-以后才吸收。
-
-可以表示成：
-
-```text
-Experimental Layer
-
-Workflow
-RPC
-Query
-   ↓
-发现重复 primitive
-   ↓
-验证是否稳定
-   ↓
-Core
-```
-
-而不是：
-
-```text
-Core
-   ↓
-先设计大量 abstraction
-   ↓
-要求所有上层使用
-```
-
----
-
-## 34. CFlow 的存在本身就是这种方法的例子
-
-CMeta 不是在最初就预先设计：
-
-```text
-Effect
-Property
-Callable
-Interface
-```
-
-所有细节。
-
-而是在 CFlow 真正需要：
-
-```text
-typed callback
-async boundary
-optimization
-```
-
-时，发现：
-
-```text
-底层缺少什么
-```
-
-再回头强化 CMeta。
-
-所以形成：
-
-```text
-Real Use
-   ↓
-Pressure
-   ↓
-Better Primitive
-```
-
-而不是：
-
-```text
-Theoretical Completeness
-   ↓
-Large Framework
-```
-
-这应该继续成为未来设计方法。
-
----
-
-## 35. “少”可能比“强”更重要
-
-如果 CMeta 最终只有：
-
-```text
-10 个核心 abstraction
-```
-
-但：
-
-```text
-Container
-Flow
-Serialization
-Binding
-RPC
-```
-
-都能使用，
-
-这比拥有：
-
-```text
-100 个高级宏
-```
-
-却互相依赖、难以理解，更有价值。
-
-底层库真正重要的是：
-
-```text
-Composability
-```
-
-而不是：
-
-```text
-Feature Count
-```
-
----
-
-## 36. 可以把整个设计纪律总结成一张图
-
-```mermaid
-flowchart TD
-    A["Ordinary C First"]
-
-    B["Repeated Stable Pattern"]
-
-    C{"值得抽象吗？"}
-
-    D["Finite?"]
-    E["Explicit?"]
-    F["Bounded?"]
-    G["Fail-fast?"]
-    H["Cross-TU / ABI Safe?"]
-    I["Can leave Hot Path?"]
-
-    J["Promote to Meta Primitive"]
-
-    K["Keep as Ordinary C / Domain Layer"]
-
-    A --> B --> C
-
-    C --> D
-    D --> E
-    E --> F
-    F --> G
-    G --> H
-    H --> I
-
-    I -->|"Yes"| J
-    I -->|"No / Not yet"| K
-```
-
-这比：
-
-```text
-“能不能用宏实现？”
-```
-
-是一个更完整的判断标准。
-
----
-
-## 37. 为什么这套原则仍然非常“C”
-
-C 的一个重要特点是：
-
-```text
-语言本身提供很少
-```
-
-但这些基础能力：
-
-```text
-struct
-function
-pointer
-array
-```
-
-可以组合出很多系统。
-
-CMeta/CFlow 最理想的方向也应该类似：
-
-```text
-提供少数更高层 primitive
-```
-
-例如：
-
-```text
-Type
-Traits
-Callable
-Interface
-Graph
-Executor
-Machine
-```
-
-然后：
-
-```text
-让用户组合
-```
-
-而不是：
-
-```text
-提供一个巨大的预制世界
-```
-
----
-
-## 38. CMeta 最终不应该让 C 失去自己的特点
-
-目标从来不是：
-
-```text
-C + Meta
-    =
-Poor Man's C++
-```
-
-更不是：
-
-```text
-C + Runtime
-    =
-另一种 Java
-```
-
-它应该继续保留：
-
-```text
-明确布局
-明确 ABI
-明确 ownership
-明确 resource boundary
-低 runtime overhead
-```
-
-而 Meta 只补充：
-
-```text
-C 自己没有保存的知识
-```
-
-例如：
-
-```text
-Generic Type Identity
-Callable Signature
-Traits
-Semantic Relation
-```
-
----
-
-## 39. 从这个角度看，C++ 只是参考，而不是目标
-
-C++ 提供：
-
-```text
-Template
-Concept
-Lambda
-std::bind
-Ranges
-```
-
-其中很多思想非常有价值。
-
-但这不意味着：
-
-```text
-必须在 C 中完整重现
-```
-
-更好的做法是问：
-
-> 其中哪一部分真正解决了我们的 C 工程问题？
-
-例如：
-
-```text
-Lambda
-```
-
-最重要的可能不是语法：
-
-```cpp
-[x](...) {}
-```
-
-而是：
-
-```text
-Code + Capture
-```
-
-所以实现有限 capture callable 就够了。
-
-Template 最重要的可能是：
-
-```text
-typed instantiation
-```
-
-所以有限 Generic 就够了。
-
-Concept 最重要的可能是：
-
-```text
-capability constraints
-```
-
-所以 Traits / Require 就够了。
-
----
-
-## 40. “像 C++”不应该成为 API 的评价标准
-
-用户 API 是否优秀，不应该看：
-
-```text
-它有多像 C++ / Java / Rust
-```
-
-而应该看：
-
-```text
-是否减少错误
-是否减少重复
-是否明确成本
-是否保持 C 可读性
-```
-
-有时：
-
-```text
-->filter(...)
-```
-
-形式很好。
-
-有时一个普通：
-
-```c
-filter_range(...)
-```
-
-反而更简单。
-
-所以 syntax 应该服务：
-
-```text
-Problem
-```
-
-而不是服务：
-
-```text
-Language Imitation
-```
-
----
-
-## 41. 可以提出一个最终准则：Meta 必须最终能够“消失”
-
-一个好的 Meta abstraction 在生成/构建以后：
-
-```text
-最好能够被消掉
-```
-
-例如：
-
-```text
-Struct
-    ↓
-ordinary struct + metadata
-```
-
-```text
-typed
-    ↓
-ordinary C API
-```
-
-```text
-lambda
-    ↓
-ordinary function + capture storage
-```
-
-```text
-Stream
-    ↓
-Graph
-    ↓
-Plan / direct loop
-```
-
-也就是说：
-
-> **Meta 应该更多存在于描述阶段，而不是执行阶段。**
-
-这是判断 abstraction 是否符合整个方向的一条非常强的标准。
-
----
-
-## 42. 如果一个 Meta Feature 无法消失，就要问它是不是 Runtime Feature
-
-例如某个设计要求：
-
-```text
-每次调用
-```
-
-都必须：
-
-```text
-解析字符串
-lookup type registry
-动态构造 AST
-```
-
-那么它可能已经不是：
-
-```text
-Meta Feature
-```
-
-而是：
-
-```text
-Runtime Framework Feature
-```
-
-这并不代表它一定不好。
-
-但应该：
-
-```text
-放在正确层次
-```
-
-而不是悄悄进入 CMeta Core。
-
----
-
-## 43. 到这里可以得到一个完整设计哲学
-
-整个体系可以用几个词概括：
-
-```text
-Ordinary C First
-
-Finite
-
-Explicit
-
-Bounded
-
-Fail-fast
-
-No Silent Fallback
-
-Static When Possible
-
-Dynamic Only at Boundaries
-
-One Source of Truth
-
-Module Owns Meaning
-
-Meta Should Disappear Before Hot Path
-```
-
-这些原则并不是附加规则。
-
-它们实际上共同回答：
-
-> **如何在增加高级能力的同时，不失去 C 最有价值的东西。**
-
----
-
-## 44. 最重要的目标始终是减少复杂度，而不是增加能力
-
-回到第一章，问题只是：
-
-```text
-C 宏太难维护
-```
-
-如果最后得到：
-
-```text
-一个功能极强
-但没人敢改
-也没人知道失败时为什么失败
-```
-
-的 Meta System，
-
-那么整个项目就是失败的。
-
-所以最终评价标准应该非常简单：
-
-> **整个系统是不是比没有这些 abstraction 时更容易理解和维护？**
-
-如果答案不是：
-
-```text
-Yes
-```
-
-那就应该删除 abstraction，而不是继续增加 abstraction。
-
----
-
-## 45. 从这里开始，全文已经接近最终收束
-
-前面的章节已经回答：
-
-```text
-为什么会有 CMeta？
-```
-
-因为普通 C 宏和重复类型知识逐渐难以维护。
-
-回答：
-
-```text
-CMeta 能做什么？
-```
-
-Type、Traits、Generic、Inference、Callable。
-
-回答：
-
-```text
-为什么会有 CFlow？
-```
-
-为了用一个真正复杂的可执行对象验证这些能力。
-
-回答：
-
-```text
-Graph 后来发现了什么？
-```
-
-Stream、Reactive、Executor、Machine、Actor 可以共享大量基础模型。
-
-回答：
-
-```text
-如何保持性能？
-```
-
-Rich Control Plane，Simple Execution Plane。
-
-回答：
-
-```text
-如何建立可信度？
-```
-
-Lean、Semantic Law、Trace、Certificate。
-
-回答：
-
-```text
-如何真正工程化？
-```
-
-ABI、Semantic Identity、Multi-TU、Module Ownership、Fail-fast。
-
-这一章则回答了最后一个架构问题：
-
-> **如何防止这套系统因为能力越来越强，最终重新变成我们最初想消除的复杂度。**
-
----
-
-## 小结：真正成熟的 Meta 系统，最大的能力是克制
-
-CMeta 最初来自一个非常小的问题：
-
-```text
-不要重复写很多 C 代码
-```
-
-一路发展到现在：
-
-```text
-Type
-Generic
-Callable
-Graph
-Formal Proof
-```
-
-能力已经增加了很多。
-
-但最终真正应该保留下来的设计思想反而很简单：
-
-```text
-只有重复而稳定的知识
-才值得被抽象。
-
-只有有限且明确的规则
-才值得进入 Core。
-
-普通 C 能清楚解决的问题
-继续使用普通 C。
-
-动态性只留在真正动态的边界。
-
-高级知识尽量在执行之前被消费掉。
-```
-
-因此最理想的结果不是：
-
-```text
-CMeta everywhere
-```
-
-而是：
-
-```text
-CMeta 在需要它的地方
-帮助 C 知道更多
-
-然后尽量消失
-```
-
-最后真正运行的仍然是：
-
-```text
-简单
-直接
-可预测
-的 C
-```
-
-这可能也是整套设计与很多大型语言级 Meta System 最大的不同。
-
-它不追求：
-
-> **让 C 拥有无限的 Meta 表达能力。**
-
-而追求：
-
-> **让 C 拥有刚好足够的、有限而可信的知识，从而解决那些普通 C 长期需要靠重复、约定和 `void *` 才能解决的问题。**
-
-下一章可以作为全文的最终总结，重新从第一章开始回看整个演化过程：
-
-## 从 Macro Reuse 到 Typed Meta，再到 Typed Computation——CMeta / CFlow 最终到底解决了什么，以及它们对于 Modern C 的真正意义。
-
----
-
-
-## 46. Counterexample Lab：十种“看起来高级，实际上更差”的设计
+## 25. Counterexample Lab：十种“看起来高级，实际上更差”的设计
 
 下面这些反例都不是为了制造稻草人。
 
@@ -2425,7 +1422,7 @@ CMeta 在需要它的地方
 
 ---
 
-## 46.1 Counterexample 1：只有一次重复，也立刻造 Meta DSL
+## 25.1 Counterexample 1：只有一次重复，也立刻造 Meta DSL
 
 假设只有：
 
@@ -2513,7 +1510,7 @@ Field Metadata
 
 ---
 
-## 46.2 Counterexample 2：为了“像 Template”追求无限类型推导
+## 25.2 Counterexample 2：为了“像 Template”追求无限类型推导
 
 假设最初只需要：
 
@@ -2601,7 +1598,7 @@ TypeFunction
 
 ---
 
-## 46.3 Counterexample 3：Descriptor Pointer 当 Type Identity
+## 25.3 Counterexample 3：Descriptor Pointer 当 Type Identity
 
 最简单的实现：
 
@@ -2685,7 +1682,7 @@ pointer/const/application form
 
 ---
 
-## 46.4 Counterexample 4：Lambda Capture 超过 Inline Bound 就偷偷 malloc
+## 25.4 Counterexample 4：Lambda Capture 超过 Inline Bound 就偷偷 malloc
 
 设计一个 C lambda：
 
@@ -2756,7 +1753,7 @@ C. caller-owned external context
 
 ---
 
-## 46.5 Counterexample 5：Actor / Executor Queue 自动无限增长
+## 25.5 Counterexample 5：Actor / Executor Queue 自动无限增长
 
 需求：
 
@@ -2842,7 +1839,7 @@ shed load
 
 ---
 
-## 46.6 Counterexample 6：Parallel Plan 不可用时 Silent Sequential Fallback
+## 25.6 Counterexample 6：Parallel Plan 不可用时 Silent Sequential Fallback
 
 用户显式请求：
 
@@ -2910,7 +1907,7 @@ if parallel failed:
 
 ---
 
-## 46.7 Counterexample 7：Everything Is Virtual
+## 25.7 Counterexample 7：Everything Is Virtual
 
 为了“统一”，把所有东西都变成：
 
@@ -2991,7 +1988,7 @@ Static Interior
 
 ---
 
-## 46.8 Counterexample 8：把 Raw Parser Token 当 Business Stream
+## 25.8 Counterexample 8：把 Raw Parser Token 当 Business Stream
 
 有 JSON parser 输出：
 
@@ -3065,7 +2062,7 @@ business CFlow
 
 ---
 
-## 46.9 Counterexample 9：为了“形式化”让 Lean 证明 ABI / Benchmark
+## 25.9 Counterexample 9：为了“形式化”让 Lean 证明 ABI / Benchmark
 
 团队有了 Lean 后，很容易产生新的形式主义：
 
@@ -3135,7 +2132,7 @@ memory/race bugs
 
 ---
 
-## 46.10 Counterexample 10：因为“上层需要”就把 Domain Semantics 塞进 Core
+## 25.10 Counterexample 10：因为“上层需要”就把 Domain Semantics 塞进 Core
 
 例如 RPC 需要：
 
@@ -3203,7 +2200,7 @@ single semantic ownership
 
 ---
 
-## 47. “普通 C 更好”不是失败，而是设计成功
+## 26. “普通 C 更好”不是失败，而是设计成功
 
 一本讲 Modern C 的书如果最后让读者觉得：
 
@@ -3215,7 +2212,7 @@ single semantic ownership
 
 有大量场景普通 C 明显更好。
 
-## 47.1 一个固定 pipeline
+## 26.1 一个固定 pipeline
 
 如果只有：
 
@@ -3231,7 +2228,7 @@ for (...) {
 
 > 直接写 loop。
 
-## 47.2 一个小状态机
+## 26.2 一个小状态机
 
 只有：
 
@@ -3245,7 +2242,7 @@ no concurrency
 
 一个 switch 可能比 Machine IR 更好。
 
-## 47.3 一个 callback
+## 26.3 一个 callback
 
 不需要：
 
@@ -3262,13 +2259,13 @@ semantic optimization
 void (*fn)(void *);
 ~~~
 
-## 47.4 一个固定 struct 的 parser
+## 26.4 一个固定 struct 的 parser
 
 只有一个 format、一个 object、不需要通用 binding：
 
 > 手写 parser 到 struct。
 
-## 47.5 一个简单同步程序
+## 26.5 一个简单同步程序
 
 不需要：
 
@@ -3295,7 +2292,7 @@ Executor
 
 ---
 
-## 48. Decision Tree：一个新能力是否值得进入 Meta / Core
+## 27. Decision Tree：一个新能力是否值得进入 Meta / Core
 
 可以使用下面的顺序判断。
 
@@ -3345,7 +2342,7 @@ Q10. 加入后系统整体更容易理解吗？
 
 ---
 
-## 49. Anti-Meta Budget：Core 每增加一个 Primitive 都应该付出成本
+## 28. Anti-Meta Budget：Core 每增加一个 Primitive 都应该付出成本
 
 可以把 Core feature 视为有“长期维护预算”。
 
@@ -3389,7 +2386,7 @@ downstream compatibility
 
 ---
 
-## 50. Counterexample Review Checklist
+## 29. Counterexample Review Checklist
 
 代码审查一个新的 Meta/Runtime abstraction 时，可以直接问：
 
@@ -3418,7 +2415,7 @@ downstream compatibility
 
 ---
 
-## 51. What We Learned
+## 30. What We Learned
 
 第十四章真正建立的是：
 
