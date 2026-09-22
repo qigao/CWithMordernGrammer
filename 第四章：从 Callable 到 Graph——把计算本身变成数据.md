@@ -26,7 +26,7 @@
 > 从这一章开始，全书会持续复用同一个数据流例子：
 >
 > ~~~text
-> Source<int>
+> `Source<int>`
 >     ↓
 > Filter(is_even)
 >     ↓
