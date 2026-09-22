@@ -24,8 +24,8 @@ def parse_args() -> argparse.Namespace:
 def normalize_body_horizontal_rules(text: str) -> str:
     """Prevent Pandoc from treating body horizontal rules as YAML metadata.
 
-    Keep the document's initial YAML front matter intact, but rewrite later
-    standalone '---' rules to the equivalent Markdown horizontal rule '***'.
+    Keep the initial YAML front matter intact. After it, rewrite standalone
+    '---' thematic breaks only when they are outside fenced code blocks.
     """
     if not text.startswith("---\n"):
         raise SystemExit("canonical manuscript is missing initial YAML front matter")
@@ -37,8 +37,28 @@ def normalize_body_horizontal_rules(text: str) -> str:
     split = closing + len("\n---\n")
     front = text[:split]
     body = text[split:]
-    body = re.sub(r"(?m)^---\s*$", "***", body)
-    return front + body
+    lines = body.splitlines()
+    normalized: list[str] = []
+    fence: str | None = None
+
+    for line in lines:
+        fence_match = re.match(r"^\\s*([~]{3,}|[\\x60]{3,})", line)
+        if fence_match:
+            marker = fence_match.group(1)[0]
+            if fence is None:
+                fence = marker
+            elif fence == marker:
+                fence = None
+            normalized.append(line)
+            continue
+
+        if fence is None and line.strip() == "---":
+            normalized.append("***")
+        else:
+            normalized.append(line)
+
+    suffix = "\n" if body.endswith("\n") else ""
+    return front + "\n".join(normalized) + suffix
 
 
 def main() -> None:
