@@ -1322,9 +1322,233 @@ typed method/schema relation
 
 ---
 
-## 4. 两个 Deep Case 的共同结构
+## 4. Engineering Cases C–E：Async I/O、CSTL 与 Testing
 
-Serialization/Binding 与 RPC 看起来相差很远。
+前两个 Deep Case 证明了 CMeta/CFlow 可以支撑跨层业务能力。
+
+下面三个更短的工程案例回答另一个问题：
+
+> **这些设计是否也能进入普通基础库，而不是只适合“大 framework”？**
+
+### 4.1 Async file/network：Reactive 定义等待语义，Executor 只负责交付
+
+第八、九章已经建立了一条很重要的边界：
+
+~~~text
+I/O request / readiness
+    owns completion truth
+        ↓
+WAIT / wake
+    transports readiness
+        ↓
+Subscription / Executor
+    owns resumption and execution admission
+~~~
+
+本版 Salts 快照中的 Reactive source outcome 是有限五态：
+
+~~~text
+CFLOW_STEP_VALUE
+CFLOW_STEP_VALUE_AND_DONE
+CFLOW_STEP_WAIT
+CFLOW_STEP_DONE
+CFLOW_STEP_ERROR
+~~~
+
+外部 file/socket driver 不需要知道 Graph，也不应该直接修改 Graph execution state。
+
+它只需要在 completion/readiness 发生时调用已经定义好的 wake boundary；
+`cflow_subscription_wake()` 再把执行重新交回 Subscription / Scheduler。
+
+这让异步文件和网络接入不需要再发明一套：
+
+~~~text
+async operator system
+async type system
+async graph
+async thread ownership model
+~~~
+
+同样的 typed Graph 只是 source 开始拥有时间。
+
+这一点在 RPC stack 中继续向下组合：
+
+~~~text
+CRPC
+  ↓
+CHTTP
+  ↓
+CNet
+  ↓
+NativeIO terminal completion
+~~~
+
+因此“异步能力”不是 Core 多一个 framework，而是 WAIT/Wake、Executor、ownership 与 completion contract 被复用。
+
+### 4.2 CSTL：Generic 只生成 typed contract，算法仍然是普通 C
+
+容器是 Part I 的 Generic 设计最直接的工程验证。
+
+如果每个容器 family 都拥有自己的宏入口，用户很快会面对：
+
+~~~c
+DECLARE_VEC(IntVec, int);
+DECLARE_LIST(IntList, int);
+DECLARE_HASHMAP(IntLongHashMap, int, long);
+~~~
+
+问题不是这些宏不能工作，而是每个 family 都在重新定义“怎样声明一个 typed application”。
+
+本版 Salts 快照的 CSTL 使用同一个 CMeta Generic 入口：
+
+~~~c
+#include <cstl/typed.h>
+
+typed(Vec, IntVec, int);
+typed(List, IntList, int);
+typed(HashMap, IntLongHashMap, int, long);
+typed(Map, IntLongMap, int, long);
+typed(BTree, IntTree, int, long);
+~~~
+
+生成后的使用仍然是普通 C：
+
+~~~c
+IntList values = {0};
+IntLongMap index = {0};
+
+IntList_init(&values, 100u);
+IntList_push_back(&values, 10);
+IntList_push_back(&values, 20);
+
+IntLongMap_init(&index, 100u);
+IntLongMap_put(&index, 7, 70L);
+
+IntLongMap_destroy(&index);
+IntList_destroy(&values);
+~~~
+
+这里最值得注意的不是语法缩短，而是实现边界。
+
+edition snapshot 明确把：
+
+~~~text
+typed wrapper / descriptor / Range traits
+    留在薄的 generated/static-inline surface
+
+vector growth / hashing / tree balancing / allocation
+    留在 compiled CSTL C implementation
+~~~
+
+所以：
+
+> **finite Meta 负责统一契约，不负责把容器算法变成宏。**
+
+这正是本书最核心的方法：Meta 越成熟，真正 runtime C 反而越普通。
+
+CSTL 还能直接进入前面的 Graph/Stream 世界，而不需要第二套 collection pipeline。
+
+### 4.3 TinyTest / TinyMock：测试框架也可以复用有限 typed design
+
+测试框架常见的重复同样不是算法，而是类型分派：
+
+~~~text
+check_int_equal
+check_long_equal
+check_double_equal
+check_string_equal
+check_pointer_equal
+...
+~~~
+
+edition snapshot 的 TinyTest 把它收敛成 strict-C11 generic assertions：
+
+~~~c
+#include "tinytest.h"
+
+spec("strncmp") {
+    it("should return 0 when strings are equal") {
+        check(strncmp("foo", "foo", 12) == 0);
+    }
+}
+
+check_equal(actual, expected);
+check_not_equal(actual, expected);
+check_greater(actual, expected);
+check_within(actual, expected, margin);
+~~~
+
+更有意思的是，自定义 C value 可以只注册它需要的 equality fact：
+
+~~~c
+typedef struct Point {
+    int x, y;
+} Point;
+
+static bool point_equal(const Point *actual, const Point *expected)
+{
+    return actual->x == expected->x && actual->y == expected->y;
+}
+
+#define TTEST_USER_EQUAL_TRAIT_LIST , (POINT, Point, point_equal)
+#include "tinytest.h"
+
+check_equal((Point){1, 2}, (Point){1, 2});
+~~~
+
+这里甚至刻意不要求 production code 依赖 CMeta。
+
+TinyTest 复用的是同一种**有限 trait-map 设计**：
+
+~~~text
+known value kinds
+    ↓
+_Generic admission
+    ↓
+typed comparator
+    ↓
+compiled test runtime
+~~~
+
+这说明真正可复用的不是某个宏名字，而是设计方法。
+
+TinyMock 进一步使用同一 strict-C11 trait map；snapshot 中 runtime state、comparison、formatting、scripting 与 verification 都在 compiled TinyTest library 中，header 只保留必须在调用点生成的 mock wrapper。
+
+它还明确把资源做成有限上界，例如：
+
+~~~c
+#define TINYMOCk_MAX_ARGS 6
+#define TINYMOCk_MAX_EXPECTATIONS 32
+#define TINYMOCk_MAX_CALLS 32
+#define TINYMOCk_MAX_SCRIPTS 32
+~~~
+
+这再次出现全书同一个原则：
+
+> **有限、显式、调用点需要的留 header，其余逻辑回到普通 compiled C。**
+
+CSTL 与 TinyTest 还可以直接组合。snapshot 提供 `<cstl/tinytest.h>`：
+
+~~~c
+#include <cstl/typed.h>
+
+typed(Vec, IntVec, int);
+
+#include <cstl/tinytest.h>
+
+CSTL_TINYTEST_DEFINE_SEQUENCE_EQUAL(IntVec, int)
+
+check_cstl_equal(IntVec, actual, expected);
+~~~
+
+这里 comparator bridge 借用 container，不复制 storage-owning handle。
+
+所以 testing 并不是脱离 CMeta/CSTL 的独立故事；它说明同一份 typed identity / trait contract 可以跨 library boundary 被安全消费。
+
+---
+## 5. 五个案例的共同结构
+
+Serialization/Binding、RPC、Async I/O、CSTL 与 Testing 看起来相差很远。
 
 但把细节拿掉以后，它们共享同一个方法：
 
@@ -1347,11 +1571,11 @@ Serialization/Binding 与 RPC 看起来相差很远。
 
 ---
 
-## 5. Extension Map：其他领域应该怎样复用，而不是进入 Core
+## 6. Extension Map：其他领域应该怎样复用，而不是进入 Core
 
 下面的方向仍然值得研究，但默认应先作为上层组合存在。
 
-## 5.1 Plugin
+## 6.1 Plugin
 
 可复用：
 
@@ -1373,7 +1597,7 @@ Plugin core真正需要的新 primitive只有在：
 
 以后才考虑下沉。
 
-## 5.2 Event Bus / Command Bus
+## 6.2 Event Bus / Command Bus
 
 可复用：
 
@@ -1387,7 +1611,7 @@ Actor refs
 
 Bus-specific routing、fanout、retention、delivery guarantee属于 domain policy。
 
-## 5.3 Workflow
+## 6.3 Workflow
 
 可组合：
 
@@ -1409,7 +1633,7 @@ its own hidden thread runtime
 its own type universe
 ~~~
 
-## 5.4 ECS / Query
+## 6.4 ECS / Query
 
 可复用：
 
@@ -1424,7 +1648,7 @@ Plan/Direct lowering
 
 component storage/layout/query planning属于 ECS/domain implementation。
 
-## 5.5 Parser / Protocol
+## 6.5 Parser / Protocol
 
 Parser拥有 syntax/protocol grammar。
 
@@ -1446,7 +1670,7 @@ raw lexer token
 
 成为业务 Stream item。
 
-## 5.6 Device / UI / Service Runtime
+## 6.6 Device / UI / Service Runtime
 
 可复用：
 
@@ -1463,7 +1687,7 @@ Reactive
 
 ---
 
-## 6. Application Admission Checklist
+## 7. Application Admission Checklist
 
 未来增加一个“高级应用”以前，可以先回答十个问题。
 
@@ -1503,7 +1727,7 @@ Core 的稳定来自：
 
 ---
 
-## 7. What We Learned
+## 8. What We Learned
 
 第十三章真正证明的不是：
 
@@ -1567,6 +1791,23 @@ scheduler
 ~~~
 
 而是在正确 boundary 上组合现有能力。
+
+Engineering Cases C–E 进一步说明：
+
+~~~text
+Async I/O
+    复用 WAIT/Wake + Executor + completion ownership
+
+CSTL
+    复用 typed(...) / Traits，但算法仍是 compiled C
+
+TinyTest/TinyMock
+    复用 finite trait-map / _Generic admission，runtime 仍是 compiled C
+~~~
+
+它们共同证明：
+
+> **有限 Meta 的价值不在“把所有库统一成一个 framework”，而在让不同库共享同一类契约设计，同时保留各自正确的 runtime owner。**
 
 这就是 Modern C infrastructure 真正成熟的表现：
 
