@@ -1,5 +1,24 @@
 # 第一章：CMeta 的起点——从写 C 宏的痛苦开始
 
+
+> **本章路线**
+>
+> 本章刻意从最普通的 C 代码开始，而不是从“怎样写高级宏”开始。我们先保留 Plain C baseline，再观察重复代码如何演化成重复事实；只有当重复已经稳定成为知识时，才引入宏、共享 schema 和类型描述。
+>
+> 本章对应全书的方法链：
+>
+> ~~~text
+> Problem
+>   → Plain C Baseline
+>   → Minimal Macro Reuse
+>   → Reusable Facts
+>   → Type-aware Description
+>   → Semantic Boundary
+>   → Evidence
+> ~~~
+>
+> Lean 在这里不会被强行加入。第一章最重要的是先建立一个原则：**形式化只应该出现在存在明确 semantic question 的地方。**
+
 C 是一门非常直接的语言。
 
 一个函数就是一个函数，一个结构体就是一块明确的内存布局，一个函数指针就是一个地址。编译器做的事情相对透明，生成出来的程序也很容易和最终机器行为对应起来。
@@ -992,5 +1011,238 @@ Derive
 ```
 
 而正是在这个阶段，原本零散的宏实践才开始逐渐形成一套真正的类型化元编程模型。
+
+## 15. Semantic Contract：这一章真正建立了什么
+
+到这里，我们得到的并不是一套新的 Runtime，也不是一种新的“模板语言”。
+
+这一章真正建立的是几个非常有限、但后面会不断复用的语义承诺。
+
+### 15.1 预处理之后仍然是普通 C
+
+这一层抽象的执行语义没有改变：
+
+~~~text
+facts / schema
+      ↓
+preprocessor
+      ↓
+ordinary C declarations / definitions
+      ↓
+ordinary C compiler
+~~~
+
+也就是说，宏层可以帮助我们减少重复知识，但它不应该偷偷拥有：
+
+~~~text
+object runtime
+dynamic dispatcher
+reflection VM
+hidden scheduler
+automatic ownership system
+~~~
+
+如果一个抽象需要这些能力，就已经进入了后面的层次，而不再只是本章讨论的 Macro Reuse。
+
+### 15.2 一个事实应该只有一个权威来源
+
+当我们写：
+
+~~~text
+int
+long
+float
+~~~
+
+真正希望表达的是：
+
+> “系统当前支持这组类型。”
+
+compare、hash、copy、destroy 只是这组事实的不同消费者。
+
+因此本章最重要的 contract 不是某个宏名字，而是：
+
+> **同一份稳定知识不应该被手工复制到多个地方。**
+
+### 15.3 生成能力必须保持有限、显式、可检查
+
+本章不会尝试构造一个无限递归的 preprocessor language。
+
+我们接受一个更小的目标：
+
+~~~text
+finite
+explicit
+bounded
+predictable
+~~~
+
+这意味着：
+
+- 支持的 schema 是有限的；
+- expansion 规则是明确的；
+- 编译器最终看到的 C 可以被检查；
+- 出错时尽量让错误靠近生成点；
+- 不为了“万能”牺牲可调试性。
+
+这些约束后来会成为 CMeta 的基本设计纪律。
+
+---
+
+## 16. Lean 在第一章应该做什么——以及不应该做什么
+
+这一章第一次引入全书非常重要的一条方法论：
+
+> **不是所有正确性问题都应该交给 Lean。**
+
+当前阶段的问题主要是：
+
+- preprocessor 是否按预期展开；
+- compiler 是否接受生成的 C；
+- 不同 compiler 是否具有一致行为；
+- generated symbol 是否符合预期；
+- macro 是否减少了重复知识。
+
+这些首先是 toolchain 和 engineering evidence 问题。
+
+我们不需要为了显得“形式化”而写一个 theorem 去证明：
+
+~~~text
+DEFINE_COMPARE(int)
+~~~
+
+会被某个具体 compiler 正确预处理。
+
+那不是这里最有价值的 proof obligation。
+
+Lean 真正开始有价值，是下一章出现这样的 semantic question 时：
+
+~~~text
+给定有限类型集合，
+一个 type mapping 是否唯一？
+
+给定几个输入类型，
+推导规则是否 total / deterministic？
+
+两个 descriptor 在不同 Translation Unit 中，
+怎样表示同一个 semantic type？
+~~~
+
+也就是说：
+
+~~~text
+Macro problem
+    ↓
+engineering evidence
+
+Type relation
+    ↓
+semantic model
+    ↓
+Lean
+~~~
+
+这一区分非常重要。
+
+**Lean 不是装饰，也不是测试替代品。**
+
+---
+
+## 17. Implementation Evidence：怎样证明这层抽象没有偷偷变重
+
+如果本章是一套真正可以用于 Modern C 工程的方法，而不是宏技巧展示，就应该能够拿出具体证据。
+
+### 17.1 Preprocess evidence
+
+对于关键宏，可以观察预处理结果：
+
+~~~text
+macro/schema input
+      ↓
+compiler -E
+      ↓
+ordinary C
+~~~
+
+读者应该能够确认生成结果仍然是自己愿意手写和维护的 C。
+
+### 17.2 Compile-pass / compile-fail
+
+应该同时测试：
+
+~~~text
+合法 schema
+    → compile
+
+非法 schema / unsupported type
+    → fail close to the declaration site
+~~~
+
+真正专业的类型化 C API，不只是“正确时可以工作”，还应该让错误尽早发生。
+
+### 17.3 Cross-compiler evidence
+
+Preprocessor 是 C 中最容易出现 compiler-specific corner case 的区域之一。
+
+因此应该至少关注：
+
+~~~text
+GCC
+Clang
+MSVC / compatible preprocessing mode
+~~~
+
+这里的目标不是证明所有 compiler 完全相同，而是明确：
+
+> 哪些语法属于我们真正依赖的 contract。
+
+### 17.4 Runtime evidence
+
+这一章的理想结果反而很简单：
+
+> **没有新的 runtime cost center。**
+
+如果两个版本最终都生成相同或等价的普通 C function，那么 Macro Reuse 的价值发生在 build/control plane，而不是 hot path。
+
+这也第一次出现全书后面会不断重复的思想：
+
+> **Know more before execution, do less during execution.**
+
+---
+
+## 18. What We Learned
+
+第一章真正得到的不是“宏可以写得很复杂”。
+
+恰恰相反。
+
+我们得到的是：
+
+~~~text
+Plain C
+   ↓
+observe stable repetition
+   ↓
+reuse code
+   ↓
+reuse facts
+   ↓
+make facts structured
+   ↓
+attach type knowledge
+~~~
+
+以及几条以后不会再改变的原则：
+
+1. **Plain C first**：没有真实重复，不提前抽象。
+2. **Code first, Meta later**：抽象稳定知识，不抽象偶然相似。
+3. **Single source of truth**：事实只维护一份。
+4. **Finite / explicit / bounded**：不把 preprocessor 变成第二门语言。
+5. **No hidden runtime**：宏层最终仍然落回普通 C。
+6. **Use the right evidence**：toolchain 问题用 compiler/test 证明，semantic law 才进入 Lean。
+
+因此下一章的问题就变得非常自然：
+
+> **当“事实”开始包含类型关系时，我们如何从文本复用进入真正的类型化计算？**
 
 下一章将从这里继续：**宏如何从“文本复用”进入类型、Traits、Generic 和有限类型推导。**
