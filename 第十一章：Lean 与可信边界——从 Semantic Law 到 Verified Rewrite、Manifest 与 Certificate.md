@@ -2537,15 +2537,23 @@ clamp (clamp x) = clamp x
 map_idempotent_elimination
 ~~~
 
-以及更一般的：
+它的直接 premise 不是一个裸的 property bit，而是：
+
+~~~text
+IdempotentEndomapPremises Γ ty
+~~~
+
+其中包含被信任/建模的 callable meaning 以及真正的 idempotent law。更一般的：
 
 ~~~text
 certified_rewrite_preserves_observations
 ~~~
 
+则对有限组合的 certified rewrites 建立 observation preservation。
+
 这类 theorem 回答：
 
-> 如果 callable meaning 满足 idempotent law，那么删除重复 Map preserve observable stream semantics。
+> 如果 callable meaning 与对应 semantic law 已经进入 theorem premise，那么删除重复 Map preserve observable stream semantics。
 
 注意 theorem 证明的是 rule。
 

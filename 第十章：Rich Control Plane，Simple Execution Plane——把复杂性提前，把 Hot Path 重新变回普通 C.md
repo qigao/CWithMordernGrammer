@@ -3327,7 +3327,15 @@ parallel_certificate_preserves_observation
 execution_refinement_preserves_semantics
 ~~~
 
-特别是 parallel certificate theorem 明确表达：
+特别是 `parallel_certificate_preserves_observation` 不是无条件结论。它要求：
+
+~~~text
+CertificateValid(...)
+certificate.path = orderedParallelReduce
+ParallelReducePremises Γ K ty
+~~~
+
+在这些前提下，它才同时建立：
 
 ~~~text
 Graph-to-Plan observation equality
@@ -3436,6 +3444,14 @@ costed_refinement_preserves_semantics
 ~~~
 
 但必须准确理解这种 theorem。
+
+例如 `direct_cost_dominates_plan` 还要求：
+
+~~~text
+0 < workload.items * workload.operators
+~~~
+
+也就是 workload 中确实存在 callback work；它不是对空 workload 的“无条件更优”宣传。
 
 它证明的是：
 
