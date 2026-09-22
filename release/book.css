@@ -1,0 +1,105 @@
+:root {
+  color-scheme: light;
+  font-family:
+    "Noto Serif CJK SC",
+    "Source Han Serif SC",
+    "Songti SC",
+    "STSong",
+    serif;
+  line-height: 1.65;
+}
+
+body {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 5rem;
+  overflow-wrap: anywhere;
+}
+
+h1 {
+  margin-top: 3.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #ddd;
+  break-before: page;
+  page-break-before: always;
+}
+
+body > h1:first-of-type {
+  margin-top: 0;
+  border-top: 0;
+  break-before: auto;
+  page-break-before: auto;
+}
+
+h2,
+h3 {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+pre,
+code {
+  font-family:
+    "Noto Sans Mono CJK SC",
+    "Noto Sans Mono",
+    "Sarasa Mono SC",
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+
+pre {
+  max-width: 100%;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid #e3e3e3;
+  border-radius: 0.35rem;
+  background: #f7f7f7;
+  break-inside: avoid-page;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.95em;
+}
+
+th,
+td {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #ddd;
+  vertical-align: top;
+}
+
+img.mermaid-diagram,
+figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25rem auto;
+}
+
+blockquote {
+  margin-left: 0;
+  padding-left: 1rem;
+  border-left: 0.25rem solid #ccc;
+}
+
+@media print {
+  body {
+    max-width: none;
+    padding: 0;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  pre {
+    font-size: 8.5pt;
+  }
+}
