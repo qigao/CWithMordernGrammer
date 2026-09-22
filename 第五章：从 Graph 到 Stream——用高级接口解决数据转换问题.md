@@ -1,5 +1,34 @@
 # 第五章：从 Graph 到 Stream——用高级接口解决数据转换问题
 
+
+> **本章路线**
+>
+> 第四章已经把 canonical pipeline 保存成 Typed Graph。本章不再设计新的执行语义，而只解决一个 API 问题：
+>
+> ~~~text
+> Typed Graph
+>     ↓
+> Stream façade
+>     ↓
+> same Graph
+>     ↓
+> fresh execution state per evaluation
+> ~~~
+>
+> 贯穿示例保持不变：
+>
+> ~~~text
+> Source<int>
+>     ↓
+> Filter(is_even)
+>     ↓
+> Map(square)
+>     ↓
+> Reduce(sum)
+> ~~~
+>
+> 本章需要证明的不是“链式调用很漂亮”，而是 **Stream surface syntax 不改变 Graph semantics，也不引入隐藏 runtime ownership**。
+
 上一章完成了一个重要转变：
 
 ```text
@@ -1800,6 +1829,532 @@ Subscription
 ```
 
 这些模型。
+
+---
+
+
+## 31. Canonical Example：同一张 Graph，换一个更适合用户的入口
+
+第四章已经有了：
+
+~~~text
+Input<int>
+    ↓
+Filter(is_even)
+    ↓
+Map(square)
+    ↓
+Reduce(sum)
+~~~
+
+如果用户每次都直接调用低层 Graph builder，API 会显得很机械。
+
+Stream 的价值是让构造过程更接近数据转换本身：
+
+~~~c
+cflow_stream s = {0};
+
+cflow_stream_init(&s, &cmeta_type_int);
+
+s.filter(&s, is_even)
+ ->map(&s, square)
+ ->reduce(&s, sum);
+~~~
+
+这里最重要的不是 fluent syntax。
+
+真正重要的是：
+
+> **这三次调用最终仍然只是在构造同一套 Graph IR。**
+
+Stream 没有重新拥有一套：
+
+~~~text
+StreamNode
+StreamExecutor
+StreamOptimizer
+StreamTypeSystem
+~~~
+
+而只是：
+
+~~~text
+user-friendly construction surface
+        ↓
+same typed Graph
+~~~
+
+这就是“高级接口不等于新 Runtime”。
+
+---
+
+## 32. Semantic Contract：Stream façade 不能偷偷改变什么
+
+### 32.1 Operator semantics 必须与 Graph 一致
+
+如果 Graph 中：
+
+~~~text
+FILTER
+    output type = input type
+    cardinality = 0..1
+
+MAP
+    output type = callable return
+    cardinality = 1
+
+REDUCE
+    homogeneous fold
+    cardinality = N..1
+~~~
+
+那么 Stream 不能因为 surface API 不同而重新定义这些规则。
+
+因此 Stream method 本质上应该是：
+
+~~~text
+typed Graph builder wrapper
+~~~
+
+而不是：
+
+~~~text
+second semantic authority
+~~~
+
+### 32.2 Stream owns the description, not the source data
+
+Stream 可以拥有：
+
+~~~text
+Graph description
+copied Range view
+evaluation options
+builder/admission state
+~~~
+
+但输入 object/container 的真实数据仍然由原 owner 管理。
+
+所以需要明确：
+
+~~~text
+Stream lifetime
+    ≠
+container lifetime
+~~~
+
+如果绑定的是 borrowed Range，那么 evaluation 期间原 owner 必须继续存活并满足 Range contract。
+
+### 32.3 Evaluation state 必须与 reusable Graph 分离
+
+一个很关键的 contract 是：
+
+> 同一条 Stream/Graph description 可以在条件允许时多次执行，但每次执行拥有新的 cursor/operator state。
+
+不能把：
+
+~~~text
+reduce accumulator
+skip counter
+take counter
+publisher cursor
+~~~
+
+这些 live execution fact 写回 Graph 本身。
+
+否则：
+
+~~~text
+Build Once, Execute Many
+~~~
+
+会立刻失效。
+
+### 32.4 “可链式”不等于“延迟执行对象无限增长”
+
+Stream 只负责 construction。
+
+当用户真正执行时，可以选择：
+
+~~~text
+direct synchronous evaluation
+normalized Graph
+compiled Plan
+Reactive Subscription
+~~~
+
+因此链式 API 不是成本模型。
+
+真正成本取决于：
+
+> **最终选中的 execution backend。**
+
+---
+
+## 33. Lean / Proof Obligation：Stream 这一层应该证明什么
+
+Stream façade 本身不需要拥有一套新的复杂 formal semantics。
+
+更自然的证明目标是：
+
+### 33.1 Surface-to-Graph construction correctness
+
+如果一串 Stream method：
+
+~~~text
+filter f
+map g
+reduce h
+~~~
+
+构造出的 Graph 是：
+
+~~~text
+FILTER(f)
+MAP(g)
+REDUCE(h)
+~~~
+
+那么 Stream 的 observable meaning 应直接继承 Graph。
+
+也就是说可以把证明问题写成：
+
+~~~text
+BuildStream(ops) = g
+→
+StreamSemantics(ops, input)
+=
+GraphSemantics(g, input)
+~~~
+
+如果 Stream 只是 deterministic builder，这个 theorem 应该非常薄。
+
+这正是好事。
+
+> **Façade 越薄，需要独立证明的语义就越少。**
+
+### 33.2 Type-chain preservation
+
+对于：
+
+~~~text
+T
+  --filter--> T
+  --map f--> U
+  --reduce--> U
+~~~
+
+需要确保 surface method 不可能偷偷绕过 Graph admission。
+
+例如：
+
+~~~text
+map : T -> U
+next filter expects V
+U != V
+~~~
+
+应该在 Graph construction/admission 阶段失败。
+
+### 33.3 Reusable description / fresh execution separation
+
+形式模型中最好明确区分：
+
+~~~text
+Program Description
+~~~
+
+与：
+
+~~~text
+Execution State
+~~~
+
+这会在下一章 Reactive 变得更加重要。
+
+如果 formal model 一开始就把 cursor/demand/cancel state 塞进 Graph，就会把 control plane 与 execution plane 混在一起。
+
+---
+
+## 34. Current C Implementation：Stream 真的就是 Graph façade
+
+对照当前 Salts：
+
+~~~text
+qigao/salts
+master: ad389928b437c0612c1c60844fe53677f3ed27a6
+~~~
+
+当前 cflow_stream 的核心形态非常直接：
+
+~~~c
+struct cflow_stream {
+    cflow_graph graph;
+
+    cmeta_range input_range;
+    bool has_input_range;
+
+    cflow_eval_options eval_options;
+    bool failed;
+
+    /* generated explicit-self operator methods */
+    ...
+};
+~~~
+
+这段 representation 本身就回答了很多问题。
+
+### 34.1 Graph 是 Stream 的核心 owned description
+
+Stream 不是指向一个隐藏 Stream runtime。
+
+它直接拥有：
+
+~~~text
+cflow_graph graph
+~~~
+
+operator method 的主要工作就是继续构造它。
+
+因此：
+
+~~~text
+Stream
+    ↓
+Graph
+~~~
+
+不是架构图上的理想关系，而是实际 data layout。
+
+### 34.2 Range 是输入协议，不是 Graph 的一部分
+
+input_range 与 has_input_range 表示：
+
+~~~text
+这个 Stream 当前绑定了哪一种输入 view
+~~~
+
+但它不改变 Graph 的 operator semantics。
+
+这让：
+
+~~~text
+array
+container Range
+channel-like publisher
+other source
+~~~
+
+可以逐步共享后面的计算描述。
+
+### 34.3 Method fields 是显式 self 的 ISO C11 façade
+
+当前 Stream methods 不是 C++ member function。
+
+它们仍然只是 C function pointer fields：
+
+~~~text
+stream.filter(&stream, ...)
+stream.map(&stream, ...)
+~~~
+
+这样的设计有两个价值：
+
+1. 保持 ISO C11；
+2. surface syntax 更接近 fluent API，但没有引入 object runtime。
+
+### 34.4 Public Graph view 是 read-only introspection
+
+当前 API 已经明确：
+
+~~~text
+cflow_stream_graph()
+    → borrowed read-only Graph view
+~~~
+
+普通用户不应该：
+
+~~~text
+stream.graph.nodes[...] = ...
+~~~
+
+来绕过 builder contract。
+
+这延续了第四章的原则：
+
+> **public visibility 不等于 arbitrary mutability。**
+
+---
+
+## 35. Evidence：canonical pipeline 已经存在于真实测试里
+
+当前 CFlow 的 certificate tests 已经使用几乎和本书完全一致的 pipeline：
+
+~~~text
+filter even
+    ↓
+map square
+    ↓
+reduce add
+~~~
+
+测试会继续执行：
+
+~~~text
+Stream
+    ↓
+Surface Graph
+    ↓
+Normalize
+    ↓
+Optimize
+    ↓
+Compile Plan
+    ↓
+Build Certificate
+    ↓
+Check Certificate
+~~~
+
+这说明 canonical example 不是为了书临时发明的 toy example。
+
+它已经是实际 trusted execution path 的测试对象。
+
+### 35.1 Surface/API evidence
+
+需要验证：
+
+~~~text
+filter/map/reduce method
+    ↓
+Graph rows appear with expected operators/types
+~~~
+
+### 35.2 Reuse evidence
+
+同一 Stream description 在合法 Range contract 下多次 evaluation，应拥有独立 execution state。
+
+特别要检查：
+
+~~~text
+reduce accumulator
+take/skip counters
+temporary value storage
+~~~
+
+不能泄漏回 Graph description。
+
+### 35.3 Ownership evidence
+
+测试要区分：
+
+~~~text
+Stream destroys its Graph
+
+but
+
+Stream does not destroy borrowed container/Range owner
+~~~
+
+### 35.4 Certificate / verification evidence
+
+当 Stream 构造完成以后，所有 trusted transformation 都应该针对：
+
+~~~text
+Graph / Plan / Certificate
+~~~
+
+而不是针对 surface syntax。
+
+这再次证明：
+
+> **Stream 不是 semantic center；Graph 才是。**
+
+---
+
+## 36. Performance：不要 benchmark “链式语法”，要 benchmark execution path
+
+Stream API 本身大多发生在 construction/control plane。
+
+因此性能问题不能简单问：
+
+~~~text
+stream.map() 比普通 C 慢多少？
+~~~
+
+更有意义的问题是：
+
+~~~text
+同一条 pipeline 最终如何执行？
+~~~
+
+比较：
+
+~~~text
+hand-written C loop
+surface Graph interpreter
+normalized/optimized Graph
+compiled Plan
+direct/AOT path
+~~~
+
+如果最后 lowering 成与手写 loop 等价的执行形式，那么 Stream 的高级表达能力和 hot-path cost 可以被分离。
+
+这就是本书最重要的观点之一：
+
+> **高级 API 的成本不应该自动等于每个 value 的执行成本。**
+
+---
+
+## 37. What We Learned
+
+第五章真正完成的不是“给 C 加链式 API”。
+
+而是证明一个更重要的架构关系：
+
+~~~text
+Friendly Surface Syntax
+        ↓
+Typed Graph IR
+        ↓
+Independent Execution Backends
+~~~
+
+因此我们得到：
+
+1. **Stream is a façade, not a second runtime.**
+2. **Operator semantics belong to Graph/operator schema.**
+3. **Input Range ownership remains explicit.**
+4. **Program description and execution state are separate.**
+5. **A reusable Stream can create fresh execution state each time.**
+6. **Formal reasoning should target Graph meaning, not surface syntax.**
+7. **Performance evidence must compare execution backends, not API aesthetics.**
+
+到这里，同一条 canonical pipeline 已经拥有两个视角：
+
+~~~text
+user view:
+    filter → map → reduce
+
+compiler/control-plane view:
+    typed Graph
+~~~
+
+下一章真正改变的不是 operator。
+
+改变的是：
+
+> **数据不一定已经在那里。**
+
+当 source 可以回答：
+
+~~~text
+WAIT
+~~~
+
+以后，Graph semantics 开始进入时间、Wake、Demand 与 Backpressure。
+
+这就是 Reactive。
 
 ---
 
