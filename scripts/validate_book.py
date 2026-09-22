@@ -135,33 +135,34 @@ def validate_text_hygiene(path: Path) -> None:
 
 
 def validate_internal_links(path: Path) -> None:
-    text = path.read_text(encoding="utf-8")
-    for raw_target in LINK_RE.findall(text):
-        target = raw_target.strip().strip("<>")
-        if not target or target.startswith("#"):
-            continue
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for _, line in outside_fences(lines):
+        for raw_target in LINK_RE.findall(line):
+            target = raw_target.strip().strip("<>")
+            if not target or target.startswith("#"):
+                continue
 
-        parsed = urlsplit(target)
-        if parsed.scheme or parsed.netloc:
-            continue
+            parsed = urlsplit(target)
+            if parsed.scheme or parsed.netloc:
+                continue
 
-        local = unquote(parsed.path)
-        if not local:
-            continue
+            local = unquote(parsed.path)
+            if not local:
+                continue
 
-        destination = (path.parent / local).resolve()
-        try:
-            destination.relative_to(ROOT.resolve())
-        except ValueError as exc:
-            raise ValidationError(
-                f"{path.name}: internal link escapes repository: {raw_target}"
-            ) from exc
+            destination = (path.parent / local).resolve()
+            try:
+                destination.relative_to(ROOT.resolve())
+            except ValueError as exc:
+                raise ValidationError(
+                    f"{path.name}: internal link escapes repository: {raw_target}"
+                ) from exc
 
-        if not destination.exists():
-            raise ValidationError(
-                f"{path.name}: broken internal link {raw_target} -> "
-                f"{destination.relative_to(ROOT)}"
-            )
+            if not destination.exists():
+                raise ValidationError(
+                    f"{path.name}: broken internal link {raw_target} -> "
+                    f"{destination.relative_to(ROOT)}"
+                )
 
 
 def extract_parts(path: Path) -> list[str]:
