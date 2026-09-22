@@ -125,7 +125,7 @@ REPEAT
 
 ---
 
-# 0. 先看当前实现：CMeta 不是宏集合，而是一条分层的知识路径
+## 0. 先看当前实现：CMeta 不是宏集合，而是一条分层的知识路径
 
 如果只沿历史顺序阅读，很容易把 CMeta 理解成“越来越复杂的一组宏”。当前仓库给出的答案更具体：
 
@@ -250,7 +250,7 @@ lifecycle and statistics
 
 ---
 
-# 1. 第一次真正的跨越：从代码复用到知识复用
+## 1. 第一次真正的跨越：从代码复用到知识复用
 
 最开始：
 
@@ -319,7 +319,7 @@ Macro 只是第一种实现手段。
 
 ---
 
-# 2. 第二次跨越：宏终于开始“知道类型”
+## 2. 第二次跨越：宏终于开始“知道类型”
 
 普通 C preprocessor 最大的问题并不是：
 
@@ -407,7 +407,7 @@ typed generation
 
 ---
 
-# 3. Generic 解决的不是“像 C++”，而是实例化知识重复
+## 3. Generic 解决的不是“像 C++”，而是实例化知识重复
 
 C++ Template 很强。
 
@@ -469,7 +469,7 @@ Type Construction
 
 ---
 
-# 4. 有限推导让系统从 Generate 进入 Derive
+## 4. 有限推导让系统从 Generate 进入 Derive
 
 再向前一步，类型不仅可以：
 
@@ -529,7 +529,7 @@ Derive
 
 也正是在这一步以后，最初零散的宏工具终于开始具有一个统一名字：
 
-# CMeta
+## CMeta
 
 因为它已经不再只是：
 
@@ -543,7 +543,7 @@ Macro Utility
 
 ---
 
-# 5. 第三次跨越：不仅数据有类型，函数也有类型
+## 5. 第三次跨越：不仅数据有类型，函数也有类型
 
 有了 Type 后，下一个自然问题是：
 
@@ -609,7 +609,7 @@ Data
 
 ---
 
-# 6. Lambda 和 Bind 不是为了复制 C++ 语法
+## 6. Lambda 和 Bind 不是为了复制 C++ 语法
 
 C++ Lambda 最有价值的本质不是：
 
@@ -685,7 +685,7 @@ Function Type Transformation
 
 ---
 
-# 7. Callable 出现以后，Graph 变成一个自然结果
+## 7. Callable 出现以后，Graph 变成一个自然结果
 
 当：
 
@@ -740,7 +740,7 @@ Execute
 
 ---
 
-# 8. CFlow 最初的意义，是验证 CMeta 是否真的能支撑复杂对象
+## 8. CFlow 最初的意义，是验证 CMeta 是否真的能支撑复杂对象
 
 Graph 不是因为：
 
@@ -784,11 +784,11 @@ CFlow
 
 最初其实是：
 
-# CMeta 的 Integration / Stress Test
+## CMeta 的 Integration / Stress Test
 
 ---
 
-# 9. Stream 是 Graph 做出来以后才发现的
+## 9. Stream 是 Graph 做出来以后才发现的
 
 Graph 做出来以后，第一个非常自然的应用就是：
 
@@ -838,7 +838,7 @@ Typed Graph
 
 ---
 
-# 10. Stream 的价值不是链式语法，而是分离“变化关系”和“执行机制”
+## 10. Stream 的价值不是链式语法，而是分离“变化关系”和“执行机制”
 
 传统 C：
 
@@ -895,7 +895,7 @@ Collect
 
 ---
 
-# 11. Reactive 同样不是预先设计的第二个 Framework
+## 11. Reactive 同样不是预先设计的第二个 Framework
 
 Graph 做好以后又出现一个发现：
 
@@ -984,7 +984,7 @@ Execution Progression
 
 ---
 
-# 12. Executor 是另一个重要的抽象收敛
+## 12. Executor 是另一个重要的抽象收敛
 
 Reactive 以后，很快又发现：
 
@@ -1051,7 +1051,7 @@ Executor 从这里变成：
 
 ---
 
-# 13. State Machine 又进一步证明了“执行模型可以组合”
+## 13. State Machine 又进一步证明了“执行模型可以组合”
 
 加入：
 
@@ -1100,7 +1100,7 @@ Bounded Mailbox
 
 ---
 
-# 14. Actor 则把这个发现推进到并发对象
+## 14. Actor 则把这个发现推进到并发对象
 
 Machine 已经拥有：
 
@@ -1166,7 +1166,7 @@ One Thread Per Actor
 
 ---
 
-# 15. 做到这里，几个看似完全不同的 Framework 被还原成少数 Primitive
+## 15. 做到这里，几个看似完全不同的 Framework 被还原成少数 Primitive
 
 最终我们发现：
 
@@ -1202,7 +1202,7 @@ Lifecycle
 
 ---
 
-# 16. 但高级能力越多，越必须防止 Runtime 越来越重
+## 16. 但高级能力越多，越必须防止 Runtime 越来越重
 
 一旦拥有：
 
@@ -1225,7 +1225,7 @@ dispatch
 
 所以整个体系又形成一个非常重要的原则：
 
-# Rich Control Plane → Simple Execution Plane
+## Rich Control Plane → Simple Execution Plane
 
 也就是：
 
@@ -1257,7 +1257,7 @@ store
 
 ---
 
-# 17. Meta 最终的目的甚至是让 Runtime“不再需要知道”
+## 17. Meta 最终的目的甚至是让 Runtime“不再需要知道”
 
 这是一个很值得强调的反转。
 
@@ -1316,11 +1316,11 @@ Runtime asks less
 
 这可以概括成：
 
-# Know More, Do Less
+## Know More, Do Less
 
 ---
 
-# 18. Direct 和 Plan 是这个思想的具体结果
+## 18. Direct 和 Plan 是这个思想的具体结果
 
 简单 Graph 可以：
 
@@ -1364,7 +1364,7 @@ pre-decoded execution steps
 
 ---
 
-# 19. Lean 的出现，也不是另一个方向，而是同一主线继续发展
+## 19. Lean 的出现，也不是另一个方向，而是同一主线继续发展
 
 最开始消除：
 
@@ -1429,7 +1429,7 @@ Proof
 
 ---
 
-# 20. Lean 不是为了取代 C
+## 20. Lean 不是为了取代 C
 
 整个 formal layer 始终保持明确边界：
 
@@ -1480,7 +1480,7 @@ development trust infrastructure
 
 ---
 
-# 21. Finite 贯穿了整个体系
+## 21. Finite 贯穿了整个体系
 
 回头看会发现：
 
@@ -1519,7 +1519,7 @@ Rewrite Rules
 
 ---
 
-# 22. 工程化最终把“技巧”变成“Library”
+## 22. 工程化最终把“技巧”变成“Library”
 
 一个 Meta 系统是否成熟，真正考验的不是：
 
@@ -1564,7 +1564,7 @@ type identity
 
 ---
 
-# 23. 到最终阶段，最重要的反而是“不要继续做什么”
+## 23. 到最终阶段，最重要的反而是“不要继续做什么”
 
 能力越来越强以后，最大的风险是：
 
@@ -1604,7 +1604,7 @@ Meta Should Disappear Before Hot Path
 
 ---
 
-# 24. CMeta 最终解决的不是“C 没有 Template”
+## 24. CMeta 最终解决的不是“C 没有 Template”
 
 如果只是回答：
 
@@ -1664,7 +1664,7 @@ RPC
 
 ---
 
-# 25. 所以 CMeta 的最终价值是减少 Knowledge Duplication
+## 25. 所以 CMeta 的最终价值是减少 Knowledge Duplication
 
 最初我们以为在解决：
 
@@ -1716,7 +1716,7 @@ semantic drift
 
 ---
 
-# 26. CFlow 则解决“计算知识”的重复
+## 26. CFlow 则解决“计算知识”的重复
 
 CFlow 做的是相同事情，只是对象从：
 
@@ -1768,7 +1768,7 @@ Map 到底是什么
 
 ---
 
-# 27. Lean 则继续把“为什么正确”也变成共享知识
+## 27. Lean 则继续把“为什么正确”也变成共享知识
 
 最终：
 
@@ -1809,7 +1809,7 @@ Lean
 
 ---
 
-# 28. 可以用一个更完整的演化图总结整个项目
+## 28. 可以用一个更完整的演化图总结整个项目
 
 ```mermaid
 flowchart TD
@@ -1863,7 +1863,7 @@ Prove
 
 ---
 
-# 29. CMeta、CFlow 与 Lean 可以最终被概括成三个角色
+## 29. CMeta、CFlow 与 Lean 可以最终被概括成三个角色
 
 ## CMeta：Know
 
@@ -1912,7 +1912,7 @@ Lean proves.
 
 ---
 
-# 30. 但真正的核心仍然是 C
+## 30. 但真正的核心仍然是 C
 
 尽管整个项目已经涉及：
 
@@ -1968,7 +1968,7 @@ Meta 应该帮助：
 
 ---
 
-# 31. 所以目标从来不是“让 C 变成另一门语言”
+## 31. 所以目标从来不是“让 C 变成另一门语言”
 
 如果最终结果是：
 
@@ -2021,7 +2021,7 @@ callback convention
 
 ---
 
-# 32. 这也解释了“Modern C”在这里意味着什么
+## 32. 这也解释了“Modern C”在这里意味着什么
 
 Modern C 不应该只是：
 
@@ -2064,7 +2064,7 @@ hidden retry
 
 ---
 
-# 33. 对于 Library 设计，最大的变化是“共享语义层”开始出现
+## 33. 对于 Library 设计，最大的变化是“共享语义层”开始出现
 
 过去一个大型 C 项目可能是：
 
@@ -2120,7 +2120,7 @@ Common Semantic Layer
 
 ---
 
-# 34. 这可能比“元编程”本身更重要
+## 34. 这可能比“元编程”本身更重要
 
 如果只看：
 
@@ -2174,7 +2174,7 @@ RPC
 
 ---
 
-# 35. CFlow 则说明这种语义层不是静态装饰
+## 35. CFlow 则说明这种语义层不是静态装饰
 
 如果 CMeta 只有：
 
@@ -2235,7 +2235,7 @@ Execution Decisions
 
 ---
 
-# 36. Lean 又说明这些 Execution Decisions 可以拥有更强的可信基础
+## 36. Lean 又说明这些 Execution Decisions 可以拥有更强的可信基础
 
 当：
 
@@ -2286,7 +2286,7 @@ Proof
 
 ---
 
-# 37. 最终的核心设计循环
+## 37. 最终的核心设计循环
 
 整个项目未来真正应该继续保持的，不是某个固定 Feature List，而是这个循环：
 
@@ -2329,7 +2329,7 @@ Refinement
 
 ---
 
-# 38. CFlow 正是这个方法最重要的证据
+## 38. CFlow 正是这个方法最重要的证据
 
 如果没有 CFlow，很多 CMeta abstraction 可能永远停留在：
 
@@ -2361,7 +2361,7 @@ Effects 到底有什么用？
 
 ---
 
-# 39. 下一阶段也应该继续使用这种方式
+## 39. 下一阶段也应该继续使用这种方式
 
 如果未来想研究：
 
@@ -2407,7 +2407,7 @@ Everything Framework
 
 ---
 
-# 40. 最终愿景：不是“更多代码”，而是“更少的重复知识”
+## 40. 最终愿景：不是“更多代码”，而是“更少的重复知识”
 
 如果需要用一句话概括整个项目的长期方向，可以不是：
 
@@ -2458,7 +2458,7 @@ Formal Model
 
 ---
 
-# 41. 最终可以把整个体系总结成一句更完整的话
+## 41. 最终可以把整个体系总结成一句更完整的话
 
 CMeta 做的事情是：
 
@@ -2513,7 +2513,7 @@ CSerde 与可选 CMeta callable metadata。自定义二进制 RPC
 
 ---
 
-# 结语：让 C 知道更多，但不要让 C 变得更重
+## 结语：让 C 知道更多，但不要让 C 变得更重
 
 从第一行宏开始，这个项目真正不断寻找的是：
 
@@ -2558,11 +2558,11 @@ Formal Semantic Boundary
 
 最终可以把这条路线压缩成：
 
-# Reuse → Describe → Generate → Type → Derive → Execute → Prove
+## Reuse → Describe → Generate → Type → Derive → Execute → Prove
 
 但还有一句更加重要：
 
-# Know More → Do Less
+## Know More → Do Less
 
 让编译期和控制面知道：
 
@@ -2622,7 +2622,7 @@ Law
 ---
 
 
-# 42. 最终方法：Understand → Model → Formalize → Verify → Implement → Lower → Measure
+## 42. 最终方法：Understand → Model → Formalize → Verify → Implement → Lower → Measure
 
 前面的所有章节最终都可以还原成这七步。
 
@@ -2983,7 +2983,7 @@ Understand
 
 ---
 
-# 43. 三个 Worked Synthesis：同一方法怎样得到不同结果
+## 43. 三个 Worked Synthesis：同一方法怎样得到不同结果
 
 这套方法最重要的特点是：
 
@@ -3153,7 +3153,7 @@ Actor 不是起点。
 
 ---
 
-# 44. 最终 Equation：这本书所说的 Modern C
+## 44. 最终 Equation：这本书所说的 Modern C
 
 可以把全书最终压缩成：
 
@@ -3254,7 +3254,7 @@ ordinary C
 
 ---
 
-# 45. CMeta / CFlow / Lean 的最终关系：Know / Structure / Trust
+## 45. CMeta / CFlow / Lean 的最终关系：Know / Structure / Trust
 
 前文曾把三者概括为：
 
@@ -3310,7 +3310,7 @@ ordinary C program
 
 ---
 
-# 46. 真正的 Modern C 不是“语法更像高级语言”
+## 46. 真正的 Modern C 不是“语法更像高级语言”
 
 很多语言比较喜欢问：
 
@@ -3346,7 +3346,7 @@ C 能不能有 actor？
 
 ---
 
-# 47. 给读者的最终 Design Checklist
+## 47. 给读者的最终 Design Checklist
 
 面对一个新的 C 系统问题，可以按下面顺序问。
 
@@ -3382,7 +3382,7 @@ Yes
 
 ---
 
-# 48. 一本 Modern C 书最终应该教会什么
+## 48. 一本 Modern C 书最终应该教会什么
 
 这本书最终希望读者获得的不是：
 
@@ -3463,7 +3463,7 @@ scalable
 
 ---
 
-# 49. 最终闭环
+## 49. 最终闭环
 
 全书最开始只有：
 
@@ -3534,7 +3534,7 @@ Remove
 
 ---
 
-# 50. Final Statement
+## 50. Final Statement
 
 如果需要用一句完整的话总结这本书：
 
@@ -3542,11 +3542,11 @@ Remove
 
 或者压缩成两句：
 
-# Know More → Do Less
+## Know More → Do Less
 
 以及：
 
-# Ordinary C Remains the Execution Language
+## Ordinary C Remains the Execution Language
 
 这也是从第一章到最后一章始终没有改变的目标。
 

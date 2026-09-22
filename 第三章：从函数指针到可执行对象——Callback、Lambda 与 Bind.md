@@ -2393,7 +2393,7 @@ typed behavior
 
 ---
 
-# 小结：函数第一次从“代码地址”变成“程序对象”
+## 小结：函数第一次从“代码地址”变成“程序对象”
 
 传统 C callback 的核心是：
 
@@ -2474,6 +2474,6 @@ Semantic Law
 
 答案就是：
 
-# Graph
+## Graph
 
 而 Graph 也将成为 CFlow 真正出现的起点。

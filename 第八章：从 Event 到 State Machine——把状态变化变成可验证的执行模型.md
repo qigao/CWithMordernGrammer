@@ -63,7 +63,7 @@ Actor
 
 这时候，一个新的共同对象开始变得明显：
 
-# Event
+## Event
 
 因为很多系统真正处理的，并不是连续的数据流，而是：
 
@@ -1043,7 +1043,7 @@ B.input_type
 
 ---
 
-# 15. State Machine 可以看成另一种 Typed Graph
+## 15. State Machine 可以看成另一种 Typed Graph
 
 做到这里以后，会发现 Machine 和前面的 Dataflow Graph 有很多相似之处。
 
@@ -1455,7 +1455,7 @@ State Correctness
 
 ---
 
-# 22. Machine Build 很像一个小型 Compiler Front-end
+## 22. Machine Build 很像一个小型 Compiler Front-end
 
 回头看 Machine 的构建过程：
 
@@ -1604,7 +1604,7 @@ typed execution model
 
 ---
 
-# 24. WAIT 也会再次出现在 Machine 中
+## 24. WAIT 也会再次出现在 Machine 中
 
 现实中的 Transition 不一定一次就能完成。
 
@@ -1801,7 +1801,7 @@ C
 
 ---
 
-# 28. Machine 进一步暴露了一个更通用的组合
+## 28. Machine 进一步暴露了一个更通用的组合
 
 做到这里以后，可以把 Machine 拆成：
 
@@ -1847,7 +1847,7 @@ flowchart TD
 
 ---
 
-# 29. 下一步：Machine 已经非常接近 Actor
+## 29. 下一步：Machine 已经非常接近 Actor
 
 现在假设已经有一个 Machine Instance：
 
@@ -1958,7 +1958,7 @@ serial transition ownership
 
 ---
 
-# 31. 从 Event 到 Machine 的演进再次验证了整个基础层
+## 31. 从 Event 到 Machine 的演进再次验证了整个基础层
 
 本章使用到的几乎所有能力都不是专门为 Machine 发明的。
 
@@ -2001,7 +2001,7 @@ compositional architecture
 
 ---
 
-# 32. 完整路线继续延伸
+## 32. 完整路线继续延伸
 
 目前整个故事已经变成：
 
@@ -2055,7 +2055,7 @@ Actor
 
 ---
 
-# 小结：State Machine 是“有状态的 Typed Computation”
+## 小结：State Machine 是“有状态的 Typed Computation”
 
 前面的 Stream 可以理解为：
 
@@ -2121,7 +2121,7 @@ Transition Relation
 ---
 
 
-# 33. Canonical Machine：把连接状态机变成 Typed Control Program
+## 33. Canonical Machine：把连接状态机变成 Typed Control Program
 
 本章前面已经出现：
 
@@ -2203,7 +2203,7 @@ reusable observation/runtime adapters
 
 ---
 
-# 34. Semantic Contract：一次 Event 到底如何改变 State
+## 34. Semantic Contract：一次 Event 到底如何改变 State
 
 把 Machine 变成 IR 后，最重要的不是 struct 长什么样，而是明确一次 transition 的顺序。
 
@@ -2420,7 +2420,7 @@ CLOSED / CANCELLED / terminal status
 
 ---
 
-# 35. Lean：Machine 已经有真正的 SmallStep semantics
+## 35. Lean：Machine 已经有真正的 SmallStep semantics
 
 当前 Salts formal calculus 中：
 
@@ -2665,7 +2665,7 @@ terminal = error(message)
 
 ---
 
-# 36. Current C Implementation：Machine 定义与 Instance 已经严格分层
+## 36. Current C Implementation：Machine 定义与 Instance 已经严格分层
 
 对照当前 Salts：
 
@@ -2881,7 +2881,7 @@ closed/cancelled
 
 ---
 
-# 37. Close / Cancel 与正在执行的 Transition
+## 37. Close / Cancel 与正在执行的 Transition
 
 真实 stateful runtime 最难的部分，往往不是正常 transition，而是 shutdown race。
 
@@ -2954,7 +2954,7 @@ external hardware effect
 
 ---
 
-# 38. Evidence：Machine 需要同时验证 build、step、race 和 refinement
+## 38. Evidence：Machine 需要同时验证 build、step、race 和 refinement
 
 ## 38.1 Build-time evidence
 
@@ -3079,7 +3079,7 @@ Lean 证明 WellTyped，不会替 C 发现 buffer lifetime bug。
 
 ---
 
-# 39. What We Learned
+## 39. What We Learned
 
 第八章让全书第一次拥有真正的长期 mutable domain state，但仍然没有引入一个“大 runtime”。
 

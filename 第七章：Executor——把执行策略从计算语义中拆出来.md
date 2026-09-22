@@ -135,7 +135,7 @@ Executor 并不需要知道：
 
 ---
 
-# 2. 为什么把 Task Execution 单独抽出来
+## 2. 为什么把 Task Execution 单独抽出来
 
 假设没有 Executor。
 
@@ -195,7 +195,7 @@ statistics
 
 ---
 
-# 3. Executor 回答的是“怎样执行”，而不是“执行什么”
+## 3. Executor 回答的是“怎样执行”，而不是“执行什么”
 
 这条边界非常重要。
 
@@ -274,7 +274,7 @@ Executor
 
 ---
 
-# 4. 第一种 Executor：Manual
+## 4. 第一种 Executor：Manual
 
 最简单的 Executor 甚至不需要线程。
 
@@ -296,7 +296,7 @@ run_ready()
 
 这种 Manual Executor 有一个非常重要的用途：
 
-# 测试
+## 测试
 
 例如希望测试：
 
@@ -339,7 +339,7 @@ assert(state == after)
 
 ---
 
-# 5. Manual Executor 还有另一个意义：与外部 Event Loop 集成
+## 5. Manual Executor 还有另一个意义：与外部 Event Loop 集成
 
 很多程序已经有自己的：
 
@@ -378,7 +378,7 @@ Host-driven execution
 
 ---
 
-# 6. 第二种 Executor：Serial
+## 6. 第二种 Executor：Serial
 
 很多系统真正需要的不是“快”，而是：
 
@@ -454,7 +454,7 @@ flowchart LR
 
 ---
 
-# 7. Serial Executor 的价值是“Single Mutable Owner”
+## 7. Serial Executor 的价值是“Single Mutable Owner”
 
 这是一个非常重要的并发设计原则。
 
@@ -498,7 +498,7 @@ Actor
 
 ---
 
-# 8. 第三种 Executor：Concurrent Worker
+## 8. 第三种 Executor：Concurrent Worker
 
 另一些任务本身没有共享 mutation。
 
@@ -550,7 +550,7 @@ flowchart TD
 
 ---
 
-# 9. 并行不是 Executor 自己决定的
+## 9. 并行不是 Executor 自己决定的
 
 这一点非常重要。
 
@@ -601,7 +601,7 @@ Executor 有 8 个线程
 
 ---
 
-# 10. 这就是 Effects / Properties 开始真正影响 Executor 的地方
+## 10. 这就是 Effects / Properties 开始真正影响 Executor 的地方
 
 例如一个 reducer：
 
@@ -655,7 +655,7 @@ Executor 不做语义推断。
 
 ---
 
-# 11. Executor 必须是 Bounded 的
+## 11. Executor 必须是 Bounded 的
 
 如果：
 
@@ -719,7 +719,7 @@ INVALID
 
 ---
 
-# 12. FULL 是信息，不是异常
+## 12. FULL 是信息，不是异常
 
 当：
 
@@ -788,7 +788,7 @@ FULL
 
 ---
 
-# 13. 为什么要同时存在 `try_post` 和 `post`
+## 13. 为什么要同时存在 `try_post` 和 `post`
 
 两者实际上表达不同的 policy。
 
@@ -838,7 +838,7 @@ submit()
 
 ---
 
-# 14. Executor 的 Shutdown 也必须是明确状态
+## 14. Executor 的 Shutdown 也必须是明确状态
 
 并发系统另一个常见 bug 来源是：
 
@@ -875,7 +875,7 @@ CLOSED
 
 ---
 
-# 15. Statistics 不是附属功能
+## 15. Statistics 不是附属功能
 
 一个 bounded executor 如果没有：
 
@@ -925,7 +925,7 @@ backpressure policy 已经开始触发
 
 ---
 
-# 16. 为什么 Executor 使用 Interface 非常合适
+## 16. 为什么 Executor 使用 Interface 非常合适
 
 现在已经有：
 
@@ -976,7 +976,7 @@ class hierarchy
 
 ---
 
-# 17. Capability 比“具体 Executor 类型”更重要
+## 17. Capability 比“具体 Executor 类型”更重要
 
 上层通常不应该写：
 
@@ -1031,7 +1031,7 @@ SERIAL
 
 ---
 
-# 18. Scheduler 为什么不能直接等于 Executor
+## 18. Scheduler 为什么不能直接等于 Executor
 
 Reactive 中我们已经看到：
 
@@ -1079,7 +1079,7 @@ Delayed Dispatch
 
 ---
 
-# 19. Executor 和 Scheduler 是正交而不是继承关系
+## 19. Executor 和 Scheduler 是正交而不是继承关系
 
 可以简单理解：
 
@@ -1197,7 +1197,7 @@ flowchart LR
 
 ---
 
-# 20. Executor 如何服务 Stream
+## 20. Executor 如何服务 Stream
 
 对于同步 Stream：
 
@@ -1245,7 +1245,7 @@ Executor.try_post(chunk_task)
 
 ---
 
-# 21. Executor 如何服务 Reactive
+## 21. Executor 如何服务 Reactive
 
 Reactive Subscription 在：
 
@@ -1293,7 +1293,7 @@ thread-context drift
 
 ---
 
-# 22. Executor 如何服务 State Machine
+## 22. Executor 如何服务 State Machine
 
 State Machine 则主要需要：
 
@@ -1333,7 +1333,7 @@ State mutation 串行
 
 ---
 
-# 23. Executor 如何服务 Actor
+## 23. Executor 如何服务 Actor
 
 Actor 可以有很多 Producer：
 
@@ -1382,7 +1382,7 @@ send(Event)
 
 ---
 
-# 24. 这也是为什么 Actor 可以共享线程池
+## 24. 这也是为什么 Actor 可以共享线程池
 
 假设有：
 
@@ -1453,7 +1453,7 @@ parallel
 
 ---
 
-# 25. Executor 也让 Machine 与 Actor 不需要重新发明线程系统
+## 25. Executor 也让 Machine 与 Actor 不需要重新发明线程系统
 
 这是整个分层设计非常重要的结果。
 
@@ -1506,7 +1506,7 @@ shared execution primitive
 
 ---
 
-# 26. Executor 其实也是对 CMeta 设计的一次验证
+## 26. Executor 其实也是对 CMeta 设计的一次验证
 
 为什么？
 
@@ -1551,7 +1551,7 @@ Actor
 
 ---
 
-# 27. 从 Executor 又自然走向 Event
+## 27. 从 Executor 又自然走向 Event
 
 做到这里以后，一个很有意思的事情发生了。
 
@@ -1607,7 +1607,7 @@ Event Processing
 
 ---
 
-# 28. Event 一旦加入 State，就自然变成 Machine
+## 28. Event 一旦加入 State，就自然变成 Machine
 
 例如：
 
@@ -1651,11 +1651,11 @@ Executor
 
 这也是下一章的主题：
 
-# Event 与 State Machine
+## Event 与 State Machine
 
 ---
 
-# 29. 这一阶段真正得到的设计原则
+## 29. 这一阶段真正得到的设计原则
 
 从 Executor 的演进中，可以总结出几条非常重要的原则。
 
@@ -1738,7 +1738,7 @@ Actor
 
 ---
 
-# 30. 完整演进链继续向前
+## 30. 完整演进链继续向前
 
 到目前为止，我们已经得到：
 
@@ -1790,7 +1790,7 @@ External input
 ---
 
 
-# 31. Semantic Contract：Executor 最小但并不模糊
+## 31. Semantic Contract：Executor 最小但并不模糊
 
 Executor 的 API 可以很小，但它的 contract 必须非常精确。
 
@@ -2002,7 +2002,7 @@ WOULD_BLOCK
 
 ---
 
-# 32. Lean：Executor 已经有完整协议模型
+## 32. Lean：Executor 已经有完整协议模型
 
 当前 Salts formal calculus 已经包含：
 
@@ -2267,7 +2267,7 @@ user task 一定 return
 
 ---
 
-# 33. Current C Implementation：Task protocol 已经比简单 fn/user 更完整
+## 33. Current C Implementation：Task protocol 已经比简单 fn/user 更完整
 
 对照当前 Salts：
 
@@ -2403,7 +2403,7 @@ wait_idle
 
 ---
 
-# 34. Manual / Serial / Worker：三种实现共享的是协议，不是结构
+## 34. Manual / Serial / Worker：三种实现共享的是协议，不是结构
 
 本章应该避免把三种 Executor 讲成三套 framework。
 
@@ -2463,7 +2463,7 @@ I/O/computation dispatch
 
 ---
 
-# 35. Executor 与 Scheduler 为什么仍然不是同一个对象
+## 35. Executor 与 Scheduler 为什么仍然不是同一个对象
 
 第六章已经看到 Scheduler 还需要：
 
@@ -2520,7 +2520,7 @@ Manual Executor
 
 ---
 
-# 36. Evidence：Executor 必须验证协议，而不仅是“task 跑了”
+## 36. Evidence：Executor 必须验证协议，而不仅是“task 跑了”
 
 这一章至少需要以下证据。
 
@@ -2628,7 +2628,7 @@ Lean 不会替你发现 use-after-free。
 
 ---
 
-# 37. What We Learned
+## 37. What We Learned
 
 第七章完成了 Part II 最后一层拆分：
 

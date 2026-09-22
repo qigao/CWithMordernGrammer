@@ -66,7 +66,7 @@ Protocol
 
 答案应该非常明确：
 
-# 不是。
+## 不是。
 
 如果继续沿着：
 
@@ -90,7 +90,7 @@ Protocol
 
 ---
 
-# 1. Meta 不是目的
+## 1. Meta 不是目的
 
 整个系统最开始不是为了：
 
@@ -164,7 +164,7 @@ Graph 是一个漂亮的抽象
 
 ---
 
-# 2. Ordinary C 永远应该是第一选择
+## 2. Ordinary C 永远应该是第一选择
 
 如果一个问题用：
 
@@ -231,7 +231,7 @@ Meta abstraction 不是默认语法。
 
 ---
 
-# 3. 一个非常重要的原则：先写普通 C，再抽象
+## 3. 一个非常重要的原则：先写普通 C，再抽象
 
 更健康的发展顺序应该是：
 
@@ -259,7 +259,7 @@ Ordinary C Implementation
 
 可以简单概括成：
 
-# Code First, Meta Later
+## Code First, Meta Later
 
 因为只有真实代码出现以后，才能知道：
 
@@ -272,7 +272,7 @@ Ordinary C Implementation
 
 ---
 
-# 4. 过早抽象最大的危险，是把偶然相似变成永久约束
+## 4. 过早抽象最大的危险，是把偶然相似变成永久约束
 
 假设现在有两个模块：
 
@@ -347,11 +347,11 @@ syntactic similarity
 
 ---
 
-# 5. Finite 是第一条核心纪律
+## 5. Finite 是第一条核心纪律
 
 整个体系中最重要的限制之一，就是：
 
-# Finite
+## Finite
 
 例如：
 
@@ -408,7 +408,7 @@ proof
 
 ---
 
-# 6. Finite 也让编译行为更可预测
+## 6. Finite 也让编译行为更可预测
 
 复杂 template/meta 系统一个常见问题是：
 
@@ -452,7 +452,7 @@ error surface
 
 ---
 
-# 7. 第二条核心纪律：Explicit
+## 7. 第二条核心纪律：Explicit
 
 C 之所以长期适合系统编程，一个重要原因就是：
 
@@ -500,7 +500,7 @@ hidden fallback
 
 ---
 
-# 8. Explicit Ownership 比自动“聪明”更重要
+## 8. Explicit Ownership 比自动“聪明”更重要
 
 例如：
 
@@ -556,7 +556,7 @@ shared smart object
 
 ---
 
-# 9. 第三条核心纪律：Bounded
+## 9. 第三条核心纪律：Bounded
 
 所有可能积累资源的地方，都应该优先考虑：
 
@@ -614,7 +614,7 @@ FULL
 
 ---
 
-# 10. Bounded 也让系统更容易证明
+## 10. Bounded 也让系统更容易证明
 
 形式化系统最怕：
 
@@ -660,7 +660,7 @@ Formal Verifiability
 
 ---
 
-# 11. 第四条核心纪律：Fail-fast
+## 11. 第四条核心纪律：Fail-fast
 
 整个体系应该尽量避免：
 
@@ -704,7 +704,7 @@ Unsupported Execution Mode
 
 ---
 
-# 12. Fail-fast 的真正价值，是缩短错误距离
+## 12. Fail-fast 的真正价值，是缩短错误距离
 
 假设用户写：
 
@@ -760,11 +760,11 @@ Error Introduction
 
 ---
 
-# 13. 第五条核心纪律：No Silent Fallback
+## 13. 第五条核心纪律：No Silent Fallback
 
 Fail-fast 之外，还需要更严格的一条：
 
-# 不静默改变语义
+## 不静默改变语义
 
 例如调用方要求：
 
@@ -800,7 +800,7 @@ Unsupported
 
 ---
 
-# 14. Fallback 什么时候才合理
+## 14. Fallback 什么时候才合理
 
 这并不是说所有 fallback 都错误。
 
@@ -849,7 +849,7 @@ Policy
 
 ---
 
-# 15. 第六条核心纪律：Static When Possible, Dynamic When Necessary
+## 15. 第六条核心纪律：Static When Possible, Dynamic When Necessary
 
 CMeta 已经提供：
 
@@ -903,7 +903,7 @@ direct call
 
 ---
 
-# 16. Runtime Reflection 应该只服务真正动态的问题
+## 16. Runtime Reflection 应该只服务真正动态的问题
 
 例如：
 
@@ -949,7 +949,7 @@ sizeof(int)
 
 ---
 
-# 17. 第七条核心纪律：No Hidden Runtime
+## 17. 第七条核心纪律：No Hidden Runtime
 
 如果用户写：
 
@@ -1002,7 +1002,7 @@ Explicit Executor
 
 ---
 
-# 18. 高级语法不能隐藏低级成本
+## 18. 高级语法不能隐藏低级成本
 
 假设未来增加更漂亮的 DSL：
 
@@ -1038,7 +1038,7 @@ users
 
 ---
 
-# 19. 第八条核心纪律：Cross-Compiler Semantics First
+## 19. 第八条核心纪律：Cross-Compiler Semantics First
 
 如果某种 abstraction 只有：
 
@@ -1092,7 +1092,7 @@ Semantic Foundation
 
 ---
 
-# 20. 第九条核心纪律：Meta Layer 不应该泄漏进所有名字
+## 20. 第九条核心纪律：Meta Layer 不应该泄漏进所有名字
 
 如果用户定义：
 
@@ -1138,7 +1138,7 @@ Event
 
 ---
 
-# 21. 第十条核心纪律：Module Owns Meaning
+## 21. 第十条核心纪律：Module Owns Meaning
 
 如果：
 
@@ -1190,7 +1190,7 @@ Vec reserve
 
 这是非常重要的：
 
-# Ownership of Meaning
+## Ownership of Meaning
 
 每个 module 应该拥有：
 
@@ -1208,7 +1208,7 @@ Vec reserve
 
 ---
 
-# 22. 什么不属于 CMeta
+## 22. 什么不属于 CMeta
 
 做到现在，可以比较明确地给 CMeta 列出 Non-goals。
 
@@ -1284,7 +1284,7 @@ C Compiler Replacement
 
 ---
 
-# 23. 什么不属于 CFlow
+## 23. 什么不属于 CFlow
 
 CFlow 同样需要 Non-goals。
 
@@ -1351,7 +1351,7 @@ Application Framework Universe
 
 ---
 
-# 24. 什么不属于 Lean
+## 24. 什么不属于 Lean
 
 Lean 的边界也非常重要。
 
@@ -1408,7 +1408,7 @@ Machine Semantics
 
 ---
 
-# 25. 一个很有用的判断方法：这个 abstraction 能不能删除一份知识？
+## 25. 一个很有用的判断方法：这个 abstraction 能不能删除一份知识？
 
 未来考虑加入一个 Meta Feature 时，可以先问：
 
@@ -1469,7 +1469,7 @@ Graph
 
 ---
 
-# 26. 第二个判断方法：普通 C 是否已经足够好？
+## 26. 第二个判断方法：普通 C 是否已经足够好？
 
 例如想增加：
 
@@ -1505,7 +1505,7 @@ C 也能做一切 C++ Template 做的事情
 
 ---
 
-# 27. 第三个判断方法：是否能够保持有限、可检查
+## 27. 第三个判断方法：是否能够保持有限、可检查
 
 如果一个新 feature 需要：
 
@@ -1541,7 +1541,7 @@ finite universe
 
 ---
 
-# 28. 第四个判断方法：错误会出现在哪里？
+## 28. 第四个判断方法：错误会出现在哪里？
 
 一个 abstraction 不只是要看：
 
@@ -1577,7 +1577,7 @@ Error Path
 
 ---
 
-# 29. 第五个判断方法：它能跨 TU、跨 Library 吗？
+## 29. 第五个判断方法：它能跨 TU、跨 Library 吗？
 
 很多 Macro Trick 在：
 
@@ -1618,7 +1618,7 @@ public primitive
 
 ---
 
-# 30. 第六个判断方法：它会不会进入 Hot Path？
+## 30. 第六个判断方法：它会不会进入 Hot Path？
 
 一个 abstraction 在 build 阶段复杂一点并不可怕。
 
@@ -1654,7 +1654,7 @@ dynamic dispatch
 
 ---
 
-# 31. 第七个判断方法：它属于哪个 Module？
+## 31. 第七个判断方法：它属于哪个 Module？
 
 假设某功能很好，但：
 
@@ -1686,7 +1686,7 @@ dynamic dispatch
 
 ---
 
-# 32. Meta Primitive 应该很少，而且生命周期很长
+## 32. Meta Primitive 应该很少，而且生命周期很长
 
 业务 API 可以快速变化。
 
@@ -1728,7 +1728,7 @@ feature-rich
 
 ---
 
-# 33. 上层可以快速实验，底层应该慢慢收敛
+## 33. 上层可以快速实验，底层应该慢慢收敛
 
 一个健康架构可以允许：
 
@@ -1777,7 +1777,7 @@ Core
 
 ---
 
-# 34. CFlow 的存在本身就是这种方法的例子
+## 34. CFlow 的存在本身就是这种方法的例子
 
 CMeta 不是在最初就预先设计：
 
@@ -1828,7 +1828,7 @@ Large Framework
 
 ---
 
-# 35. “少”可能比“强”更重要
+## 35. “少”可能比“强”更重要
 
 如果 CMeta 最终只有：
 
@@ -1870,7 +1870,7 @@ Feature Count
 
 ---
 
-# 36. 可以把整个设计纪律总结成一张图
+## 36. 可以把整个设计纪律总结成一张图
 
 ```mermaid
 flowchart TD
@@ -1914,7 +1914,7 @@ flowchart TD
 
 ---
 
-# 37. 为什么这套原则仍然非常“C”
+## 37. 为什么这套原则仍然非常“C”
 
 C 的一个重要特点是：
 
@@ -1965,7 +1965,7 @@ Machine
 
 ---
 
-# 38. CMeta 最终不应该让 C 失去自己的特点
+## 38. CMeta 最终不应该让 C 失去自己的特点
 
 目标从来不是：
 
@@ -2010,7 +2010,7 @@ Semantic Relation
 
 ---
 
-# 39. 从这个角度看，C++ 只是参考，而不是目标
+## 39. 从这个角度看，C++ 只是参考，而不是目标
 
 C++ 提供：
 
@@ -2072,7 +2072,7 @@ capability constraints
 
 ---
 
-# 40. “像 C++”不应该成为 API 的评价标准
+## 40. “像 C++”不应该成为 API 的评价标准
 
 用户 API 是否优秀，不应该看：
 
@@ -2119,7 +2119,7 @@ Language Imitation
 
 ---
 
-# 41. 可以提出一个最终准则：Meta 必须最终能够“消失”
+## 41. 可以提出一个最终准则：Meta 必须最终能够“消失”
 
 一个好的 Meta abstraction 在生成/构建以后：
 
@@ -2163,7 +2163,7 @@ Plan / direct loop
 
 ---
 
-# 42. 如果一个 Meta Feature 无法消失，就要问它是不是 Runtime Feature
+## 42. 如果一个 Meta Feature 无法消失，就要问它是不是 Runtime Feature
 
 例如某个设计要求：
 
@@ -2203,7 +2203,7 @@ Runtime Framework Feature
 
 ---
 
-# 43. 到这里可以得到一个完整设计哲学
+## 43. 到这里可以得到一个完整设计哲学
 
 整个体系可以用几个词概括：
 
@@ -2239,7 +2239,7 @@ Meta Should Disappear Before Hot Path
 
 ---
 
-# 44. 最重要的目标始终是减少复杂度，而不是增加能力
+## 44. 最重要的目标始终是减少复杂度，而不是增加能力
 
 回到第一章，问题只是：
 
@@ -2273,7 +2273,7 @@ Yes
 
 ---
 
-# 45. 从这里开始，全文已经接近最终收束
+## 45. 从这里开始，全文已经接近最终收束
 
 前面的章节已经回答：
 
@@ -2337,7 +2337,7 @@ ABI、Semantic Identity、Multi-TU、Module Ownership、Fail-fast。
 
 ---
 
-# 小结：真正成熟的 Meta 系统，最大的能力是克制
+## 小结：真正成熟的 Meta 系统，最大的能力是克制
 
 CMeta 最初来自一个非常小的问题：
 
@@ -2410,12 +2410,12 @@ CMeta 在需要它的地方
 
 下一章可以作为全文的最终总结，重新从第一章开始回看整个演化过程：
 
-# 从 Macro Reuse 到 Typed Meta，再到 Typed Computation——CMeta / CFlow 最终到底解决了什么，以及它们对于 Modern C 的真正意义。
+## 从 Macro Reuse 到 Typed Meta，再到 Typed Computation——CMeta / CFlow 最终到底解决了什么，以及它们对于 Modern C 的真正意义。
 
 ---
 
 
-# 46. Counterexample Lab：十种“看起来高级，实际上更差”的设计
+## 46. Counterexample Lab：十种“看起来高级，实际上更差”的设计
 
 下面这些反例都不是为了制造稻草人。
 
@@ -3203,7 +3203,7 @@ single semantic ownership
 
 ---
 
-# 47. “普通 C 更好”不是失败，而是设计成功
+## 47. “普通 C 更好”不是失败，而是设计成功
 
 一本讲 Modern C 的书如果最后让读者觉得：
 
@@ -3295,7 +3295,7 @@ Executor
 
 ---
 
-# 48. Decision Tree：一个新能力是否值得进入 Meta / Core
+## 48. Decision Tree：一个新能力是否值得进入 Meta / Core
 
 可以使用下面的顺序判断。
 
@@ -3345,7 +3345,7 @@ Q10. 加入后系统整体更容易理解吗？
 
 ---
 
-# 49. Anti-Meta Budget：Core 每增加一个 Primitive 都应该付出成本
+## 49. Anti-Meta Budget：Core 每增加一个 Primitive 都应该付出成本
 
 可以把 Core feature 视为有“长期维护预算”。
 
@@ -3389,7 +3389,7 @@ downstream compatibility
 
 ---
 
-# 50. Counterexample Review Checklist
+## 50. Counterexample Review Checklist
 
 代码审查一个新的 Meta/Runtime abstraction 时，可以直接问：
 
@@ -3418,7 +3418,7 @@ downstream compatibility
 
 ---
 
-# 51. What We Learned
+## 51. What We Learned
 
 第十四章真正建立的是：
 

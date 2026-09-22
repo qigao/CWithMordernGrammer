@@ -118,7 +118,7 @@ Lowering
 
 ---
 
-# 1. 为什么测试不能完全解决这个问题
+## 1. 为什么测试不能完全解决这个问题
 
 测试当然仍然非常重要。
 
@@ -183,7 +183,7 @@ f(x)
 
 ---
 
-# 2. Metadata Claim 不能直接当成 Proof
+## 2. Metadata Claim 不能直接当成 Proof
 
 前面 CMeta 已经允许 Callable 带：
 
@@ -272,7 +272,7 @@ IDEMPOTENT bit
 
 ---
 
-# 3. Semantic Law 才是真正的数学条件
+## 3. Semantic Law 才是真正的数学条件
 
 例如 Idempotent 的真正含义是：
 
@@ -332,7 +332,7 @@ Proof
 
 ---
 
-# 4. Lean 首先应该证明“规则”，而不是证明每一次程序运行
+## 4. Lean 首先应该证明“规则”，而不是证明每一次程序运行
 
 一个很容易走向极端的想法是：
 
@@ -399,7 +399,7 @@ flowchart LR
 
 ---
 
-# 5. 为什么必须先定义“程序的可观察语义”
+## 5. 为什么必须先定义“程序的可观察语义”
 
 要证明两个 Graph 等价，首先必须回答：
 
@@ -465,7 +465,7 @@ run(GraphB, input)
 
 ---
 
-# 6. 这是 Compiler Correctness 的基本思路
+## 6. 这是 Compiler Correctness 的基本思路
 
 传统 compiler optimization 也不会要求：
 
@@ -515,7 +515,7 @@ verified transformation
 
 ---
 
-# 7. 一个完整 Rewrite Rule 可以分成四层
+## 7. 一个完整 Rewrite Rule 可以分成四层
 
 例如：
 
@@ -608,7 +608,7 @@ Theorem
 
 ---
 
-# 8. 这能避免“Property 驱动的危险优化”
+## 8. 这能避免“Property 驱动的危险优化”
 
 如果 optimizer 只是：
 
@@ -650,7 +650,7 @@ optimizer rule 本身
 
 ---
 
-# 9. 形式化不只可以用于 Optimizer
+## 9. 形式化不只可以用于 Optimizer
 
 Lean 最早也可以用于更简单、更有限的事情：
 
@@ -685,7 +685,7 @@ C manifest
 
 ---
 
-# 10. Manifest 模式解决的是“重复事实源”问题
+## 10. Manifest 模式解决的是“重复事实源”问题
 
 假设：
 
@@ -741,7 +741,7 @@ Many Uses
 
 ---
 
-# 11. Lean 因此也是一种更高层的 Code Generator
+## 11. Lean 因此也是一种更高层的 Code Generator
 
 早期：
 
@@ -811,7 +811,7 @@ Lean 并不是突然加入的一个完全不同方向。
 
 ---
 
-# 12. 为什么普通 C Build 不应该依赖 Lean
+## 12. 为什么普通 C Build 不应该依赖 Lean
 
 即使 Lean 很有价值，也不应该让普通使用者：
 
@@ -875,7 +875,7 @@ C Compiler
 
 ---
 
-# 13. Operator Policy 也非常适合这种方式
+## 13. Operator Policy 也非常适合这种方式
 
 前面 Graph 中存在：
 
@@ -948,7 +948,7 @@ local policy
 
 ---
 
-# 14. 这让 CMeta 和 CFlow 的责任边界更加清楚
+## 14. 这让 CMeta 和 CFlow 的责任边界更加清楚
 
 CMeta 可以说：
 
@@ -994,7 +994,7 @@ Policy 是否只引用 Universe 中存在的 relation
 
 ---
 
-# 15. Machine Schema 同样可以进入 Formal Model
+## 15. Machine Schema 同样可以进入 Formal Model
 
 State Machine 中已经有：
 
@@ -1053,7 +1053,7 @@ runtime semantics
 
 ---
 
-# 16. Small-step Semantics 为什么重要
+## 16. Small-step Semantics 为什么重要
 
 如果只写：
 
@@ -1111,7 +1111,7 @@ Waiting
 
 ---
 
-# 17. Runtime 的目标变成“Refine Formal Semantics”
+## 17. Runtime 的目标变成“Refine Formal Semantics”
 
 到了这里，C runtime 和 Lean model 的关系也可以更准确地描述。
 
@@ -1173,7 +1173,7 @@ formal small-step relation
 
 ---
 
-# 18. Refinement 是连接 Proof 和 Implementation 的关键词
+## 18. Refinement 是连接 Proof 和 Implementation 的关键词
 
 形式证明最容易陷入一个问题：
 
@@ -1226,7 +1226,7 @@ C:
 
 ---
 
-# 19. Certificate 是另一种更轻的 Refinement Bridge
+## 19. Certificate 是另一种更轻的 Refinement Bridge
 
 不是所有东西都需要：
 
@@ -1287,7 +1287,7 @@ Runtime
 
 ---
 
-# 20. 为什么 Certificate 比“相信 Compiler”更有价值
+## 20. 为什么 Certificate 比“相信 Compiler”更有价值
 
 假设：
 
@@ -1341,7 +1341,7 @@ independent validation boundary
 
 ---
 
-# 21. Proof Trace 与 Certificate 解决的是两个不同问题
+## 21. Proof Trace 与 Certificate 解决的是两个不同问题
 
 两者很容易混淆。
 
@@ -1395,7 +1395,7 @@ Certificate
 
 ---
 
-# 22. 这形成了一条完整可信链
+## 22. 这形成了一条完整可信链
 
 可以把整个过程表示成：
 
@@ -1440,7 +1440,7 @@ trust boundary
 
 ---
 
-# 23. 形式化最重要的不是“证明得越多越好”
+## 23. 形式化最重要的不是“证明得越多越好”
 
 这是一个非常重要的工程原则。
 
@@ -1489,7 +1489,7 @@ Ownership Invariant
 
 ---
 
-# 24. 形式证明本身也是一种“去重复”
+## 24. 形式证明本身也是一种“去重复”
 
 例如没有 theorem 时，每增加一个 optimizer case，都可能需要写：
 
@@ -1543,7 +1543,7 @@ implementation
 
 ---
 
-# 25. Tests、Proofs 和 Runtime Checks 各自解决不同问题
+## 25. Tests、Proofs 和 Runtime Checks 各自解决不同问题
 
 这三者并不互相替代。
 
@@ -1603,7 +1603,7 @@ Proof instead of testing
 
 ---
 
-# 26. 这也是为什么 Lean 不应该取代 TinyTest / CI
+## 26. 这也是为什么 Lean 不应该取代 TinyTest / CI
 
 例如 Lean 可以证明：
 
@@ -1652,7 +1652,7 @@ Windows CI
 
 ---
 
-# 27. Finite Model 是这条路线能够成立的根本原因
+## 27. Finite Model 是这条路线能够成立的根本原因
 
 为什么这种 Lean + C 的组合在这里可行？
 
@@ -1692,7 +1692,7 @@ prove
 
 ---
 
-# 28. 从这里可以重新理解 CMeta 中的“限制”
+## 28. 从这里可以重新理解 CMeta 中的“限制”
 
 例如：
 
@@ -1739,7 +1739,7 @@ Verifiability
 
 ---
 
-# 29. 这也解释了为什么不应该把 CMeta 扩展成“万能模板语言”
+## 29. 这也解释了为什么不应该把 CMeta 扩展成“万能模板语言”
 
 假设未来不断加入：
 
@@ -1774,7 +1774,7 @@ generated surface 更难审计
 
 ---
 
-# 30. Lean 还能帮助生成 Optimization Policy
+## 30. Lean 还能帮助生成 Optimization Policy
 
 除了证明：
 
@@ -1832,7 +1832,7 @@ Property-driven Optimization
 
 ---
 
-# 31. 最终可以形成一个“Proof-Carrying Optimization”模型
+## 31. 最终可以形成一个“Proof-Carrying Optimization”模型
 
 不一定要使用这个术语实现成复杂系统，但概念上可以理解为：
 
@@ -1891,7 +1891,7 @@ formal validation
 
 ---
 
-# 32. 这会让 Optimizer Bug 更容易定位
+## 32. 这会让 Optimizer Bug 更容易定位
 
 假设某次结果错误。
 
@@ -1945,7 +1945,7 @@ debuggability
 
 ---
 
-# 33. Formalization 不应该和用户 API 混在一起
+## 33. Formalization 不应该和用户 API 混在一起
 
 普通 C 用户最理想的体验仍然应该是：
 
@@ -2004,7 +2004,7 @@ Builtin Rule Boundary
 
 ---
 
-# 34. 这形成三个不同的用户层级
+## 34. 这形成三个不同的用户层级
 
 可以粗略分成：
 
@@ -2061,7 +2061,7 @@ Manifest Generation
 
 ---
 
-# 35. 整个可信边界可以概括成四层
+## 35. 整个可信边界可以概括成四层
 
 可以把整个体系看成：
 
@@ -2104,7 +2104,7 @@ Lean 不是最底层 Runtime。
 
 ---
 
-# 36. 从 CMeta 到 Lean 的路线其实非常自然
+## 36. 从 CMeta 到 Lean 的路线其实非常自然
 
 回头看整个发展过程：
 
@@ -2172,7 +2172,7 @@ C compiler / macro 已经不擅长表达的那部分关系
 
 ---
 
-# 37. 但最终输出仍然应该回到 C
+## 37. 但最终输出仍然应该回到 C
 
 这是整个体系始终不能丢失的一点。
 
@@ -2228,7 +2228,7 @@ Ordinary C Runtime
 
 ---
 
-# 38. 可以把整个思想总结成：Proof Before Optimization
+## 38. 可以把整个思想总结成：Proof Before Optimization
 
 上一章提出：
 
@@ -2238,7 +2238,7 @@ Pay Before Execution
 
 这一章可以再增加一个原则：
 
-# Proof Before Optimization
+## Proof Before Optimization
 
 不是说：
 
@@ -2268,7 +2268,7 @@ Optimization Rule 发布前
 
 ---
 
-# 39. CMeta / CFlow / Lean 的职责到这里已经非常清楚
+## 39. CMeta / CFlow / Lean 的职责到这里已经非常清楚
 
 可以用三句话概括：
 
@@ -2312,7 +2312,7 @@ Trust
 
 ---
 
-# 40. 下一步应该重新回到工程边界
+## 40. 下一步应该重新回到工程边界
 
 做到这里以后，整个系统看起来已经非常丰富：
 
@@ -2358,7 +2358,7 @@ GCC / Clang / MSVC
 
 ---
 
-# 小结：Lean 的价值不是“把 C 变成形式语言”，而是建立可信的语义边界
+## 小结：Lean 的价值不是“把 C 变成形式语言”，而是建立可信的语义边界
 
 这一章最重要的关系可以压缩成：
 
@@ -2455,12 +2455,12 @@ Prove
 
 而下一章将讨论：
 
-# 这些能力怎样真正跨过“实验性 Meta Framework”的边界，成为一个可安装、可链接、跨 Translation Unit、跨编译器并且具有稳定 ABI 的 Modern C Library。
+## 这些能力怎样真正跨过“实验性 Meta Framework”的边界，成为一个可安装、可链接、跨 Translation Unit、跨编译器并且具有稳定 ABI 的 Modern C Library。
 
 ---
 
 
-# 41. Trusted Boundary Matrix：不同证据到底证明什么
+## 41. Trusted Boundary Matrix：不同证据到底证明什么
 
 到了这一章，最容易犯的错误已经不是“没有证明”。
 
@@ -2487,7 +2487,7 @@ Prove
 
 ---
 
-# 42. Case Study A：Idempotent Map——从 Property Claim 到 Verified Rewrite
+## 42. Case Study A：Idempotent Map——从 Property Claim 到 Verified Rewrite
 
 第十章使用过：
 
@@ -2619,7 +2619,7 @@ optimizer deletes node
 
 ---
 
-# 43. Case Study B：Reactive——Proof 直接改变 Runtime State Machine
+## 43. Case Study B：Reactive——Proof 直接改变 Runtime State Machine
 
 Reactive 是另一种 proof 使用方式。
 
@@ -2748,7 +2748,7 @@ cancel waits until old callback waker is quiescent
 
 ---
 
-# 44. Case Study C：Machine——Proof 把“状态机设计”变成 Typed Program Contract
+## 44. Case Study C：Machine——Proof 把“状态机设计”变成 Typed Program Contract
 
 第八章的 Machine 提供第三种用法。
 
@@ -2845,7 +2845,7 @@ atomic commit
 
 ---
 
-# 45. Manifest：Lean 怎样进入普通 C，而不进入普通 C Build
+## 45. Manifest：Lean 怎样进入普通 C，而不进入普通 C Build
 
 形式化如果要求每个应用 consumer 都安装 Lean，工程边界就失败了。
 
@@ -2948,7 +2948,7 @@ C consumer interpretation
 
 ---
 
-# 46. Certificate 与 Proof Trace：两个不同的 Runtime Bridge
+## 46. Certificate 与 Proof Trace：两个不同的 Runtime Bridge
 
 这两个概念经常被混在一起。
 
@@ -3030,7 +3030,7 @@ generator provenance
 
 ---
 
-# 47. Formal Trusted Base 与 Execution Trusted Base 必须分开
+## 47. Formal Trusted Base 与 Execution Trusted Base 必须分开
 
 讨论“trusted computing base”时必须指定层次。
 
@@ -3115,7 +3115,7 @@ user callback eventually returns
 
 ---
 
-# 48. Proof / Test / Runtime Check 的协作方式
+## 48. Proof / Test / Runtime Check 的协作方式
 
 一个成熟 feature 不应该问：
 
@@ -3193,7 +3193,7 @@ Measurement
 
 ---
 
-# 49. What We Learned
+## 49. What We Learned
 
 第十一章真正建立的是全书的可信方法，而不是“Lean 章节”。
 

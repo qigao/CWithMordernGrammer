@@ -197,7 +197,7 @@ VALUE / DONE
 
 我们需要第三种状态：
 
-# WAIT
+## WAIT
 
 也就是：
 
@@ -655,7 +655,7 @@ value
 
 这就是：
 
-# Backpressure
+## Backpressure
 
 ---
 
@@ -2933,11 +2933,11 @@ parallel reduce 也需要提交 task。
 
 ---
 
-# Executor
+## Executor
 
 ---
 
-# 小结：Reactive 是给 Graph 增加“时间”和“流量”
+## 小结：Reactive 是给 Graph 增加“时间”和“流量”
 
 Stream 的世界主要是：
 

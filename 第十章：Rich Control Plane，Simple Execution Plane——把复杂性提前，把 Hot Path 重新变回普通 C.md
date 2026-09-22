@@ -87,7 +87,7 @@ Actor
 
 因此到了这个阶段，一个越来越明确的原则开始形成：
 
-# Rich Control Plane, Simple Execution Plane
+## Rich Control Plane, Simple Execution Plane
 
 也就是：
 
@@ -95,7 +95,7 @@ Actor
 
 ---
 
-# 1. 高级抽象真正昂贵的地方，往往不应该发生在每个 Value 上
+## 1. 高级抽象真正昂贵的地方，往往不应该发生在每个 Value 上
 
 假设用户写了一条高级数据转换：
 
@@ -188,7 +188,7 @@ operator decode
 
 ---
 
-# 2. Build Once, Execute Many
+## 2. Build Once, Execute Many
 
 因此执行体系应该围绕一个非常简单的经济原则建立：
 
@@ -241,7 +241,7 @@ N
 
 ---
 
-# 3. Graph 应该是分析对象，不一定是最终执行对象
+## 3. Graph 应该是分析对象，不一定是最终执行对象
 
 Graph 的价值很大。
 
@@ -309,7 +309,7 @@ Erase
 
 ---
 
-# 4. 第一层：Surface Graph 与 Primitive Graph 分开
+## 4. 第一层：Surface Graph 与 Primitive Graph 分开
 
 用户最适合操作的 Graph 和 runtime 最适合执行的 Graph，不一定相同。
 
@@ -364,7 +364,7 @@ Primitive Graph 优先解决：
 
 ---
 
-# 5. 为什么 Normalize 要产生独立 Snapshot
+## 5. 为什么 Normalize 要产生独立 Snapshot
 
 假设：
 
@@ -425,7 +425,7 @@ Transformation
 
 ---
 
-# 6. 第二层：Optimize——利用已经存在的语义信息
+## 6. 第二层：Optimize——利用已经存在的语义信息
 
 Primitive Graph 得到以后，下一步就可以开始：
 
@@ -480,7 +480,7 @@ Execution Performance
 
 ---
 
-# 7. Optimizer 不是看到形状一样就改
+## 7. Optimizer 不是看到形状一样就改
 
 这一点非常重要。
 
@@ -550,7 +550,7 @@ Semantic Law
 
 ---
 
-# 8. Property Bit 与 Semantic Law 必须区分
+## 8. Property Bit 与 Semantic Law 必须区分
 
 CMeta 可以让 Callable 声明：
 
@@ -606,7 +606,7 @@ Semantic Transformation Engine
 
 ---
 
-# 9. Optimizer 最重要的任务之一，是为执行阶段“删除知识”
+## 9. Optimizer 最重要的任务之一，是为执行阶段“删除知识”
 
 这听起来有点反直觉。
 
@@ -682,7 +682,7 @@ Parallel Reduce
 
 ---
 
-# 10. 第三层：Direct Execution
+## 10. 第三层：Direct Execution
 
 对于足够简单、足够明确的 Graph，最理想的结果是：
 
@@ -735,7 +735,7 @@ Graph Node
 
 ---
 
-# 11. Direct Path 的目标不是“更快的解释器”，而是“不解释”
+## 11. Direct Path 的目标不是“更快的解释器”，而是“不解释”
 
 这点很关键。
 
@@ -788,7 +788,7 @@ case CFLOW_MAP:
 
 ---
 
-# 12. Direct Eligibility 为什么必须严格
+## 12. Direct Eligibility 为什么必须严格
 
 Direct path 不能因为：
 
@@ -841,7 +841,7 @@ Optimization
 
 ---
 
-# 13. 如果不能 Direct，并不意味着退回笨重 Graph Interpreter
+## 13. 如果不能 Direct，并不意味着退回笨重 Graph Interpreter
 
 很多 Graph 不适合完全静态直接执行。
 
@@ -854,7 +854,7 @@ Optimization
 
 这时可以使用第二条路线：
 
-# Compiled Plan
+## Compiled Plan
 
 也就是：
 
@@ -876,7 +876,7 @@ Plan 的目标不是保留全部 Graph 信息。
 
 ---
 
-# 14. Plan 可以提前消除哪些工作
+## 14. Plan 可以提前消除哪些工作
 
 假设直接执行 Graph 时需要：
 
@@ -929,7 +929,7 @@ Simple Execution Plane
 
 ---
 
-# 15. Graph 和 Plan 的区别就像“程序”和“机器准备好的程序”
+## 15. Graph 和 Plan 的区别就像“程序”和“机器准备好的程序”
 
 Graph 适合回答：
 
@@ -977,7 +977,7 @@ Step2(handler2, callable2)
 
 ---
 
-# 16. Plan 不是另一个 Graph
+## 16. Plan 不是另一个 Graph
 
 如果 Plan 只是把：
 
@@ -1033,7 +1033,7 @@ execution_mode = PARALLEL_REDUCE
 
 ---
 
-# 17. 并行执行也应该由 Plan 明确决定
+## 17. 并行执行也应该由 Plan 明确决定
 
 如果用户给了一个：
 
@@ -1073,7 +1073,7 @@ PARALLEL_REDUCE
 
 ---
 
-# 18. 为什么不应该静默 Fallback
+## 18. 为什么不应该静默 Fallback
 
 假设调用者要求：
 
@@ -1126,7 +1126,7 @@ Do not silently fallback.
 
 ---
 
-# 19. Control Plane 的复杂度是可以接受的
+## 19. Control Plane 的复杂度是可以接受的
 
 现在控制面已经越来越丰富：
 
@@ -1196,11 +1196,11 @@ generic dispatch
 
 ---
 
-# 20. 一个很重要的原则：Pay Before Execution
+## 20. 一个很重要的原则：Pay Before Execution
 
 可以把这种设计总结成：
 
-# Pay Before Execution
+## Pay Before Execution
 
 也就是：
 
@@ -1251,7 +1251,7 @@ systems programming
 
 ---
 
-# 21. CMeta 的 Runtime Metadata 也不应该被滥用
+## 21. CMeta 的 Runtime Metadata 也不应该被滥用
 
 有了：
 
@@ -1295,7 +1295,7 @@ hot path 直接执行
 
 ---
 
-# 22. Dynamic Boundary 与 Static Interior
+## 22. Dynamic Boundary 与 Static Interior
 
 这是整个系统很值得明确的一条架构原则。
 
@@ -1367,7 +1367,7 @@ Collector Interface
 
 ---
 
-# 23. 这和传统“Everything is Virtual”完全不同
+## 23. 这和传统“Everything is Virtual”完全不同
 
 一些通用 framework 会把：
 
@@ -1417,7 +1417,7 @@ Universal Dynamicism
 
 ---
 
-# 24. 编译成 Plan 以后，Graph 甚至应该可以完全不参与执行
+## 24. 编译成 Plan 以后，Graph 甚至应该可以完全不参与执行
 
 这是 Plan 最重要的边界之一。
 
@@ -1462,7 +1462,7 @@ recompile
 
 ---
 
-# 25. 这也使 Cache-Friendly Execution 更容易
+## 25. 这也使 Cache-Friendly Execution 更容易
 
 Graph 往往是：
 
@@ -1527,7 +1527,7 @@ branch prediction
 
 ---
 
-# 26. 对最简单的情况，Plan 甚至仍然太多
+## 26. 对最简单的情况，Plan 甚至仍然太多
 
 如果：
 
@@ -1580,7 +1580,7 @@ Interpreter
 
 ---
 
-# 27. Interpreter 仍然有价值
+## 27. Interpreter 仍然有价值
 
 强调 Direct / Plan 并不意味着：
 
@@ -1628,7 +1628,7 @@ Direct
 
 ---
 
-# 28. 这就引出一个新问题：怎么知道 Plan 还是对应那个 Graph？
+## 28. 这就引出一个新问题：怎么知道 Plan 还是对应那个 Graph？
 
 假设：
 
@@ -1690,7 +1690,7 @@ Compiled Artifact
 
 ---
 
-# 29. Version 还不够时，可以加入 Fingerprint
+## 29. Version 还不够时，可以加入 Fingerprint
 
 Version 适合：
 
@@ -1745,7 +1745,7 @@ Optimization Trace
 
 ---
 
-# 30. 为什么需要 Certificate
+## 30. 为什么需要 Certificate
 
 做到这里以后：
 
@@ -1811,7 +1811,7 @@ Output Type
 
 ---
 
-# 31. Certificate 不是为了增加 Runtime 负担
+## 31. Certificate 不是为了增加 Runtime 负担
 
 Certificate 的目标不是：
 
@@ -1854,7 +1854,7 @@ Execute
 
 ---
 
-# 32. Proof Trace 则记录“为什么 Graph 被改成这样”
+## 32. Proof Trace 则记录“为什么 Graph 被改成这样”
 
 Certificate 更关注：
 
@@ -1919,7 +1919,7 @@ Optimized Graph Version:
 
 ---
 
-# 33. Lean 可以证明 Rewrite Rule，而 C 记录 Rewrite Instance
+## 33. Lean 可以证明 Rewrite Rule，而 C 记录 Rewrite Instance
 
 这时 Lean 和 C 的分工开始非常清晰。
 
@@ -1978,7 +1978,7 @@ Trace:
 
 ---
 
-# 34. 这其实已经很像一个小型 Verified Compiler
+## 34. 这其实已经很像一个小型 Verified Compiler
 
 到这里，CFlow execution pipeline 已经逐渐具备：
 
@@ -2023,7 +2023,7 @@ verified / proof-assisted compiler
 
 ---
 
-# 35. Finite 在这里再次成为优势
+## 35. Finite 在这里再次成为优势
 
 如果 Graph language 允许：
 
@@ -2072,7 +2072,7 @@ Finite
 
 ---
 
-# 36. Control Plane 可以越来越强
+## 36. Control Plane 可以越来越强
 
 整个 Control Plane 可以逐渐拥有：
 
@@ -2129,7 +2129,7 @@ Answered before execution.
 
 ---
 
-# 37. Execution Plane 则应该越来越“笨”
+## 37. Execution Plane 则应该越来越“笨”
 
 理想的 Execution Plane 可以简单到：
 
@@ -2176,7 +2176,7 @@ step2(plan, ...);
 
 ---
 
-# 38. 这形成整个体系最核心的性能哲学
+## 38. 这形成整个体系最核心的性能哲学
 
 可以把它总结为：
 
@@ -2196,7 +2196,7 @@ Less Work During Execution
 
 甚至可以更简洁地表达：
 
-# Know More, Do Less
+## Know More, Do Less
 
 CMeta 让系统：
 
@@ -2218,7 +2218,7 @@ CFlow 利用这些知识：
 
 ---
 
-# 39. 这也是为什么高级 API 不一定意味着高 Runtime Cost
+## 39. 这也是为什么高级 API 不一定意味着高 Runtime Cost
 
 用户看到：
 
@@ -2269,7 +2269,7 @@ Execution Plane
 
 ---
 
-# 40. 同样的原则也适用于 Machine 和 Actor
+## 40. 同样的原则也适用于 Machine 和 Actor
 
 Machine Build 可以提前完成：
 
@@ -2320,7 +2320,7 @@ Rich Control Plane
 
 ---
 
-# 41. 为什么这仍然是一套 C 风格的系统
+## 41. 为什么这仍然是一套 C 风格的系统
 
 虽然已经出现：
 
@@ -2366,7 +2366,7 @@ runtime reflection engine
 
 ---
 
-# 42. 完整执行链现在已经变得清楚
+## 42. 完整执行链现在已经变得清楚
 
 到这里，可以把 CFlow 的 execution pipeline 概括为：
 
@@ -2420,7 +2420,7 @@ Execution Plane
 
 ---
 
-# 43. 从最开始看，这其实仍然是在解决“重复复杂度”
+## 43. 从最开始看，这其实仍然是在解决“重复复杂度”
 
 回到第一章：
 
@@ -2480,7 +2480,7 @@ runtime decision
 
 ---
 
-# 44. 下一步：当优化越来越强，可信度变成新的问题
+## 44. 下一步：当优化越来越强，可信度变成新的问题
 
 做到这里以后，我们已经可以：
 
@@ -2531,7 +2531,7 @@ Refinement
 
 ---
 
-# 小结：高级抽象的最终目的，是让执行阶段更简单
+## 小结：高级抽象的最终目的，是让执行阶段更简单
 
 这一章最核心的思想可以压缩成：
 
@@ -2577,7 +2577,7 @@ Rich Runtime
 
 而是：
 
-# Rich Control Plane → Simple Execution Plane
+## Rich Control Plane → Simple Execution Plane
 
 CMeta 让程序：
 
@@ -2611,7 +2611,7 @@ CFlow 利用这些知识：
 ---
 
 
-# 45. End-to-End Case：canonical pipeline 从 Surface API 走到 Plan
+## 45. End-to-End Case：canonical pipeline 从 Surface API 走到 Plan
 
 回到 Part II 一直使用的 pipeline：
 
@@ -2831,7 +2831,7 @@ decide rewrite
 
 ---
 
-# 46. 一个真实 Rewrite：为什么 Metadata Bit 还不够
+## 46. 一个真实 Rewrite：为什么 Metadata Bit 还不够
 
 canonical pipeline 本身只有一个 Map，不适合为了展示 rewrite 硬造第二个 stage。
 
@@ -2956,7 +2956,7 @@ certified_rewrite_preserves_observations
 
 ---
 
-# 47. Direct / AOT：最简单的路径应该连 Plan 都不需要
+## 47. Direct / AOT：最简单的路径应该连 Plan 都不需要
 
 Plan 已经比 Graph Interpreter 简单很多。
 
@@ -3111,7 +3111,7 @@ compiled Plan
 
 ---
 
-# 48. Parallel Reduce：并行是 Execution Refinement，不是 Graph Rewrite
+## 48. Parallel Reduce：并行是 Execution Refinement，不是 Graph Rewrite
 
 Reduce 是一个特别好的例子。
 
@@ -3224,7 +3224,7 @@ quietly rerun sequentially
 
 ---
 
-# 49. Certificate：Execution artifact 为什么仍然需要被绑定到 Graph
+## 49. Certificate：Execution artifact 为什么仍然需要被绑定到 Graph
 
 Plan 预解码以后，Graph topology 不再进入 execution。
 
@@ -3351,7 +3351,7 @@ C runtime witness
 
 ---
 
-# 50. Proof Trace：为什么还需要记录“发生了哪一次 Rewrite”
+## 50. Proof Trace：为什么还需要记录“发生了哪一次 Rewrite”
 
 Certificate 主要回答：
 
@@ -3408,7 +3408,7 @@ optimizer says success
 
 ---
 
-# 51. Cost Model：Lean 也不应该“证明 benchmark 数字”
+## 51. Cost Model：Lean 也不应该“证明 benchmark 数字”
 
 形式化可以讨论：
 
@@ -3462,7 +3462,7 @@ empirical evidence
 
 ---
 
-# 52. Performance Evidence：第十章必须建立 measurement discipline
+## 52. Performance Evidence：第十章必须建立 measurement discipline
 
 当前 CFlow 已经有专门 benchmark targets：
 
@@ -3553,7 +3553,7 @@ execution
 
 ---
 
-# 53. Machine / Actor 也遵循同一条 Control/Execution Plane 原则
+## 53. Machine / Actor 也遵循同一条 Control/Execution Plane 原则
 
 第八、九章看起来与 Graph optimizer 不同，其实原则完全一致。
 
@@ -3609,7 +3609,7 @@ Do Less
 
 ---
 
-# 54. What We Learned
+## 54. What We Learned
 
 第十章终于把前面看起来很多的组件压缩成一条统一原则。
 

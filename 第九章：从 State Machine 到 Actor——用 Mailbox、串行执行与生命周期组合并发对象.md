@@ -112,7 +112,7 @@ Serialized
 
 那么它实际上已经非常接近：
 
-# Actor
+## Actor
 
 所以 Actor 并不是在这个阶段突然决定重新设计的一套并发框架。
 
@@ -134,7 +134,7 @@ Actor
 
 ---
 
-# 1. Actor 真正重要的并不是“线程”
+## 1. Actor 真正重要的并不是“线程”
 
 很多人第一次接触 Actor Model 时，很容易把它理解成：
 
@@ -204,7 +204,7 @@ Executor
 
 ---
 
-# 2. 为什么 State Machine 已经提供了 Actor 最核心的东西
+## 2. 为什么 State Machine 已经提供了 Actor 最核心的东西
 
 一个 Machine Instance 本身已经拥有：
 
@@ -265,7 +265,7 @@ New BalanceState
 
 ---
 
-# 3. Actor 可以看成 Machine 的一个 Lifecycle / Admission Boundary
+## 3. Actor 可以看成 Machine 的一个 Lifecycle / Admission Boundary
 
 因此更准确的定义不是：
 
@@ -324,7 +324,7 @@ Actor 真正新增的是外围边界。
 
 ---
 
-# 4. Message 和 Event 可以使用同一个类型模型
+## 4. Message 和 Event 可以使用同一个类型模型
 
 Actor 文献里通常说：
 
@@ -385,7 +385,7 @@ Payload 类型是否正确？
 
 ---
 
-# 5. Send 的第一阶段应该只是 Admission
+## 5. Send 的第一阶段应该只是 Admission
 
 假设：
 
@@ -469,7 +469,7 @@ Machine Transition
 
 ---
 
-# 6. Send 应该是 Bounded、Non-blocking 的
+## 6. Send 应该是 Bounded、Non-blocking 的
 
 如果 Actor 的 Mailbox 可以：
 
@@ -533,7 +533,7 @@ Reactive Demand
 
 ---
 
-# 7. 为什么底层绝不能替用户偷偷 Drop Message
+## 7. 为什么底层绝不能替用户偷偷 Drop Message
 
 当 Mailbox 满了时，有很多可能 policy：
 
@@ -596,7 +596,7 @@ Policy
 
 ---
 
-# 8. 多 Producer 不意味着多 State Owner
+## 8. 多 Producer 不意味着多 State Owner
 
 Actor 最重要的并发结构可以画成：
 
@@ -653,7 +653,7 @@ Concurrent Shared-State Mutation
 
 ---
 
-# 9. Actor 的价值之一，就是把 Locking 问题变成 Queueing 问题
+## 9. Actor 的价值之一，就是把 Locking 问题变成 Queueing 问题
 
 传统共享对象可能写成：
 
@@ -709,7 +709,7 @@ Serialized Transition
 
 ---
 
-# 10. 但 Actor 并不意味着所有问题都应该消息化
+## 10. 但 Actor 并不意味着所有问题都应该消息化
 
 这一点也非常重要。
 
@@ -754,7 +754,7 @@ Service Coordinator
 
 ---
 
-# 11. Actor Lifecycle 为什么必须显式存在
+## 11. Actor Lifecycle 为什么必须显式存在
 
 普通函数调用的生命周期非常简单：
 
@@ -807,7 +807,7 @@ stateDiagram-v2
 
 ---
 
-# 12. Lifecycle 直接影响 Admission
+## 12. Lifecycle 直接影响 Admission
 
 Lifecycle 不应该只是：
 
@@ -862,7 +862,7 @@ false
 
 ---
 
-# 13. STOPPING 和 STOPPED 必须区分
+## 13. STOPPING 和 STOPPED 必须区分
 
 这是一个很容易被忽略的区别。
 
@@ -918,7 +918,7 @@ STOPPED
 
 ---
 
-# 14. Actor Owner 和 Producer Reference 应该分开
+## 14. Actor Owner 和 Producer Reference 应该分开
 
 如果任何持有：
 
@@ -986,7 +986,7 @@ Capability-based ownership
 
 ---
 
-# 15. 为什么需要 STALE
+## 15. 为什么需要 STALE
 
 Actor 被销毁以后，某些其他线程可能仍然持有旧 Producer Reference。
 
@@ -1034,7 +1034,7 @@ protocol error
 
 ---
 
-# 16. Identity 因此不是可有可无的名字
+## 16. Identity 因此不是可有可无的名字
 
 Actor Identity 不只是：
 
@@ -1087,7 +1087,7 @@ semantic type identity
 
 ---
 
-# 17. Actor 不需要自己的线程
+## 17. Actor 不需要自己的线程
 
 这一点现在就可以更严格地说明。
 
@@ -1169,7 +1169,7 @@ Actor 2
 
 ---
 
-# 18. Concurrency 与 Parallelism 在这里彻底分开
+## 18. Concurrency 与 Parallelism 在这里彻底分开
 
 Actor 系统可以是高度：
 
@@ -1229,7 +1229,7 @@ Actor 并不要求二者一一对应。
 
 ---
 
-# 19. Scheduler 在 Actor 中解决的是“何时获得执行机会”
+## 19. Scheduler 在 Actor 中解决的是“何时获得执行机会”
 
 当 Actor Mailbox 从：
 
@@ -1271,7 +1271,7 @@ drain / step mailbox
 
 ---
 
-# 20. 为什么 Actor 可以复用 Reactive 的 Subscription
+## 20. 为什么 Actor 可以复用 Reactive 的 Subscription
 
 这一点非常有意思。
 
@@ -1337,7 +1337,7 @@ Actor
 
 ---
 
-# 21. Actor 可以通过一个 Identity Graph 接入已有执行框架
+## 21. Actor 可以通过一个 Identity Graph 接入已有执行框架
 
 如果 Actor 核心行为已经在：
 
@@ -1388,7 +1388,7 @@ Graph 一定要参与所有事情
 
 ---
 
-# 22. Actor 的 Failure 应该成为生命周期状态
+## 22. Actor 的 Failure 应该成为生命周期状态
 
 如果某次 Machine Transition 返回：
 
@@ -1444,7 +1444,7 @@ Actor lifecycle fact
 
 ---
 
-# 23. Actor 也应该避免隐式 Restart Policy
+## 23. Actor 也应该避免隐式 Restart Policy
 
 一些 Actor Framework 会自动提供：
 
@@ -1499,7 +1499,7 @@ escalate
 
 ---
 
-# 24. 这为未来的 Supervisor 提供了很自然的基础
+## 24. 这为未来的 Supervisor 提供了很自然的基础
 
 如果以后需要 supervision，可以建立在：
 
@@ -1545,7 +1545,7 @@ Supervisor
 
 ---
 
-# 25. Actor Message 本身也可以拥有 Effects / Contracts
+## 25. Actor Message 本身也可以拥有 Effects / Contracts
 
 因为消息最终对应：
 
@@ -1606,7 +1606,7 @@ Callable / Action Metadata
 
 ---
 
-# 26. Actor 和传统 Object 的区别开始变得很清楚
+## 26. Actor 和传统 Object 的区别开始变得很清楚
 
 普通 Object API 通常是：
 
@@ -1665,7 +1665,7 @@ Temporal Decoupling
 
 ---
 
-# 27. Actor 和 Reactive 其实共享了很多结构
+## 27. Actor 和 Reactive 其实共享了很多结构
 
 现在回头看 Reactive：
 
@@ -1730,7 +1730,7 @@ Bounded Resources
 
 ---
 
-# 28. Stream、Reactive、Machine、Actor 开始显露出共同结构
+## 28. Stream、Reactive、Machine、Actor 开始显露出共同结构
 
 到这里，可以重新审视前面的几个高级模型。
 
@@ -1834,7 +1834,7 @@ flowchart TD
 
 ---
 
-# 29. 这可能是 CFlow 过程中最重要的发现之一
+## 29. 这可能是 CFlow 过程中最重要的发现之一
 
 如果按照传统 framework 思路，可能分别设计：
 
@@ -1885,7 +1885,7 @@ Mailbox
 
 ---
 
-# 30. Actor 再次反向验证 CMeta
+## 30. Actor 再次反向验证 CMeta
 
 Actor 也继续给底层提出新的压力。
 
@@ -1980,7 +1980,7 @@ CMeta 的压力测试
 
 ---
 
-# 31. Actor 之后，继续增加大型模型反而不再是最重要的事
+## 31. Actor 之后，继续增加大型模型反而不再是最重要的事
 
 到这一阶段已经能够组合：
 
@@ -2042,7 +2042,7 @@ Actor
 
 ---
 
-# 32. 从这里开始进入另一个核心主题：Rich Control Plane，Simple Execution Plane
+## 32. 从这里开始进入另一个核心主题：Rich Control Plane，Simple Execution Plane
 
 例如：
 
@@ -2112,7 +2112,7 @@ commit
 
 ---
 
-# 小结：Actor 不是新的 Runtime，而是已有执行原语的组合
+## 小结：Actor 不是新的 Runtime，而是已有执行原语的组合
 
 从 State Machine 向 Actor 的发展并没有增加一个新的基础世界。
 
@@ -2204,7 +2204,7 @@ Type / Callable / Graph / Machine
 ---
 
 
-# 33. Canonical Actor：给同一个 Connection Machine 加并发外壳
+## 33. Canonical Actor：给同一个 Connection Machine 加并发外壳
 
 第八章的 Machine 已经解决：
 
@@ -2256,7 +2256,7 @@ Connection Machine SmallStep
 
 ---
 
-# 34. Semantic Contract：Actor 只增加 lifecycle/admission，不增加 transition meaning
+## 34. Semantic Contract：Actor 只增加 lifecycle/admission，不增加 transition meaning
 
 ## 34.1 Lifecycle 是 Actor 自己的新语义
 
@@ -2507,7 +2507,7 @@ restart with old/new state
 
 ---
 
-# 35. Lean：Actor formal model只增加 lifecycle gate，并复用 Machine semantics
+## 35. Lean：Actor formal model只增加 lifecycle gate，并复用 Machine semantics
 
 当前 formal calculus 已经包含：
 
@@ -2739,7 +2739,7 @@ before.trace ++ Machine traceSuffix
 
 ---
 
-# 36. Current C Implementation：Actor ownership 与 Producer Ref 已经分离
+## 36. Current C Implementation：Actor ownership 与 Producer Ref 已经分离
 
 当前 CFlow Actor API 明确有：
 
@@ -2861,7 +2861,7 @@ STALE
 
 ---
 
-# 37. Identity：为什么 Actor 不能只靠 pointer address
+## 37. Identity：为什么 Actor 不能只靠 pointer address
 
 Actor identity 至少有两层。
 
@@ -2908,7 +2908,7 @@ Actor runtime 可以更换/重建，但 domain identity 是否延续是 Supervis
 
 ---
 
-# 38. Evidence：Actor 必须验证 concurrent admission + serialized mutation + lifecycle
+## 38. Evidence：Actor 必须验证 concurrent admission + serialized mutation + lifecycle
 
 ## 38.1 Bounded multi-producer admission
 
@@ -3037,7 +3037,7 @@ settles ownership
 
 ---
 
-# 39. What We Learned
+## 39. What We Learned
 
 Actor 看起来像一个很大的并发模型，但走到这里，它实际上只新增少数内容：
 
