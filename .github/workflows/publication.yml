@@ -1,0 +1,40 @@
+name: Publication
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  manuscript:
+    name: Validate and build manuscript
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Validate book
+        run: python scripts/validate_book.py
+
+      - name: Build canonical manuscript
+        run: python scripts/build_book.py
+
+      - name: Upload manuscript
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-with-modern-grammar-manuscript
+          path: dist/C-with-Modern-Grammar.md
+          if-no-files-found: error
+          retention-days: 14
