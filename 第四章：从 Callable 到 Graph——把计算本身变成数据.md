@@ -1795,7 +1795,7 @@ Deferred Computation Description
 
 ---
 
-## 29. 这也为后面的 Zero-Cost 路线创造了条件
+## 29. 这也为后面的“可消除运行时抽象”路线创造了条件
 
 一旦完整 Graph 已经知道：
 
