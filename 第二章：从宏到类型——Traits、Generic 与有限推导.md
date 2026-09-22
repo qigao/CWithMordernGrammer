@@ -1540,7 +1540,7 @@ verification
 
 ### 29.2 Type Identity 不等于 Descriptor Address
 
-如果两个 Translation Unit 都描述 Vec<int>，它们可以拥有不同 descriptor object：
+如果两个 Translation Unit 都描述 `Vec<int>`，它们可以拥有不同 descriptor object：
 
 ~~~text
 TU A: descriptor @ A
