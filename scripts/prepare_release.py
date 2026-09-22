@@ -16,6 +16,7 @@ SOURCE = ROOT / "dist" / "C-with-Modern-Grammar.md"
 OUT_DIR = ROOT / "dist" / "release"
 DIAGRAM_DIR = OUT_DIR / "diagrams"
 OUTPUT = OUT_DIR / "C-with-Modern-Grammar.release.md"
+EPUB_OUTPUT = OUT_DIR / "C-with-Modern-Grammar.epub.md"
 
 FENCE_RE = re.compile(r"(?ms)^(?P<fence>`{3}|~{3})mermaid\s*\n(?P<body>.*?)(?:\n)(?P=fence)\s*$")
 
@@ -48,7 +49,14 @@ def main() -> None:
         raise SystemExit("Mermaid fence remained after preparation")
 
     OUTPUT.write_text(prepared, encoding="utf-8", newline="\n")
-    print(f"prepared {OUTPUT.relative_to(ROOT)} with {len(diagrams)} Mermaid diagrams")
+    epub_prepared = re.sub(
+        r"(diagrams/diagram-\\d{3})\\.svg", r"\\1.png", prepared
+    )
+    EPUB_OUTPUT.write_text(epub_prepared, encoding="utf-8", newline="\n")
+    print(
+        f"prepared {OUTPUT.relative_to(ROOT)} and "
+        f"{EPUB_OUTPUT.relative_to(ROOT)} with {len(diagrams)} Mermaid diagrams"
+    )
 
 if __name__ == "__main__":
     main()
