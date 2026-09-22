@@ -2276,13 +2276,13 @@ qigao/salts
 snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
-当前 built-in Executor 的 task descriptor 已经明确为：
+本版 snapshot 中 built-in Executor 的 task descriptor 定义为：
 
 ~~~c
 typedef struct cflow_executor_task {
-    task_fn run;
-    task_fn cancel;
-    task_fn finalize;
+    cflow_task_fn run;
+    cflow_task_fn cancel;
+    cflow_task_fn finalize;
     void *user;
 } cflow_executor_task;
 ~~~
