@@ -2233,14 +2233,14 @@ semantic preservation
 
 ## 34. Current C Implementation：Graph 已经是一个真正的 owning IR
 
-对照当前 Salts：
+对照本版 Salts 实现快照：
 
 ~~~text
 qigao/salts
-master: ad389928b437c0612c1c60844fe53677f3ed27a6
+snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
-当前 CFlow Graph 已经不是抽象伪代码。
+本版 CFlow 实现 Graph 已经不是抽象伪代码。
 
 它有明确的：
 
@@ -2455,7 +2455,7 @@ C differential tests 则负责检查：
 
 Graph 作为 control-plane IR，并不意味着 Graph traversal cost 可以忽略。
 
-当前 CFlow 已经有专门的 graph-path benchmark，覆盖不同 operator 数量：
+本版 CFlow 实现 已经有专门的 graph-path benchmark，覆盖不同 operator 数量：
 
 ~~~text
 1
