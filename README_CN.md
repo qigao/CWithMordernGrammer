@@ -180,7 +180,15 @@ python3 scripts/build_book.py
 
 生成结果位于 `dist/C-with-Modern-Grammar.md`，不会提交到仓库。GitHub Actions 的 `Publication` workflow 会在 Pull Request 与 `master` 上执行同样的校验/构建，并把合并后的书稿上传为 workflow artifact。
 
-PDF / EPUB 排版刻意保持为下一层能力，这样日常写作和 review 不需要安装 Pandoc、LaTeX、Node 或 Lean。
+HTML / EPUB / PDF 排版刻意保持为独立层，这样日常写作和 review 不需要安装 Pandoc、Typst、Docker、Node 或 Lean。
+
+发布维护者可以在已经通过内容 QA 的 canonical manuscript 上运行：
+
+```bash
+bash scripts/render_release.sh
+```
+
+该脚本要求固定版本的 Pandoc、Docker 与 Noto CJK 字体；CI 是权威的 Linux/amd64 渲染环境。独立的 `Release Formats` workflow 会先把 Mermaid 确定性渲染为 SVG，再生成 HTML、EPUB 与 PDF；创建 `v*` tag 时会把这些格式发布为 GitHub Release。
 
 ## 仓库历史
 
