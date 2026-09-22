@@ -97,7 +97,7 @@ CRPC？
 
 ---
 
-# 1. 很多现代 C Library 面临的是同一类问题
+## 1. 很多现代 C Library 面临的是同一类问题
 
 表面上：
 
@@ -176,7 +176,7 @@ Retry / Error Policy
 
 ---
 
-# 2. Serialization 是最自然的应用之一
+## 2. Serialization 是最自然的应用之一
 
 假设定义：
 
@@ -423,7 +423,7 @@ DataBind、schema compiler 与多格式 facade 也属于 TurboParser 的上层�
 
 ---
 
-# 3. Serialization 真正需要的并不是 Reflection VM
+## 3. Serialization 真正需要的并不是 Reflection VM
 
 很多 Serialization Framework 最后会发展成：
 
@@ -482,7 +482,7 @@ Runtime Reflection Language
 
 ---
 
-# 4. Traits 可以解决 Value Lifecycle
+## 4. Traits 可以解决 Value Lifecycle
 
 真正麻烦的 Serialization 往往不是：
 
@@ -554,7 +554,7 @@ Traits / Construction Protocol
 
 ---
 
-# 5. Nested Generic 是真正检验 Serialization 能力的地方
+## 5. Nested Generic 是真正检验 Serialization 能力的地方
 
 例如：
 
@@ -634,7 +634,7 @@ Vec
 
 ---
 
-# 6. 这使 Data Binding 也自然出现
+## 6. 这使 Data Binding 也自然出现
 
 如果 Serializer 只是：
 
@@ -700,7 +700,7 @@ target.name = source.name;
 
 ---
 
-# 7. Range 与 Collector 可以成为 Binding 的通用桥梁
+## 7. Range 与 Collector 可以成为 Binding 的通用桥梁
 
 前面 Stream 中已经建立：
 
@@ -774,7 +774,7 @@ N + M
 
 ---
 
-# 8. RPC 同样首先是一个 Typed Callable 问题
+## 8. RPC 同样首先是一个 Typed Callable 问题
 
 考虑一个 RPC：
 
@@ -820,7 +820,7 @@ CMeta Callable Signature
 
 ---
 
-# 9. RPC Schema 可以从 Callable Metadata 派生
+## 9. RPC Schema 可以从 Callable Metadata 派生
 
 例如：
 
@@ -880,7 +880,7 @@ Serialization
 
 ---
 
-# 10. RPC Framework 不应该重新拥有 Type System
+## 10. RPC Framework 不应该重新拥有 Type System
 
 如果 RPC 自己定义：
 
@@ -931,7 +931,7 @@ Flow
 
 ---
 
-# 11. Plugin ABI 也是 Interface 的直接应用
+## 11. Plugin ABI 也是 Interface 的直接应用
 
 传统 C Plugin 常见模式是：
 
@@ -991,7 +991,7 @@ Storage
 
 ---
 
-# 12. Capability 对 Plugin 尤其重要
+## 12. Capability 对 Plugin 尤其重要
 
 例如一个 Storage provider 可能支持：
 
@@ -1050,7 +1050,7 @@ CONCURRENT
 
 ---
 
-# 13. Plugin Loading 也可以提前做 Admission
+## 13. Plugin Loading 也可以提前做 Admission
 
 Plugin 最危险的问题之一是：
 
@@ -1100,7 +1100,7 @@ Pay Before Execution
 
 ---
 
-# 14. Event Bus 可以直接建立在 Typed Event 上
+## 14. Event Bus 可以直接建立在 Typed Event 上
 
 前面的 Machine 已经定义：
 
@@ -1156,7 +1156,7 @@ manual cast
 
 ---
 
-# 15. Command Bus 也是类似问题
+## 15. Command Bus 也是类似问题
 
 Event 通常表达：
 
@@ -1214,7 +1214,7 @@ Callable
 
 ---
 
-# 16. Workflow 也可以理解成 Graph + Machine
+## 16. Workflow 也可以理解成 Graph + Machine
 
 Workflow 看起来比 Stream 复杂很多。
 
@@ -1286,7 +1286,7 @@ Machine / Subscription
 
 ---
 
-# 17. Workflow 不需要自己的 Thread Runtime
+## 17. Workflow 不需要自己的 Thread Runtime
 
 如果已经有：
 
@@ -1338,7 +1338,7 @@ WorkflowCallback
 
 ---
 
-# 18. Retry 仍然应该是显式 Policy
+## 18. Retry 仍然应该是显式 Policy
 
 Workflow 很容易让 Framework 开始隐藏：
 
@@ -1380,7 +1380,7 @@ Graph / Machine Relation
 
 ---
 
-# 19. Compensation 也是 State Transition
+## 19. Compensation 也是 State Transition
 
 例如：
 
@@ -1422,7 +1422,7 @@ State Machine 已经能表达相当多的核心关系。
 
 ---
 
-# 20. ECS 也可以利用 Type 和 Query Metadata
+## 20. ECS 也可以利用 Type 和 Query Metadata
 
 Entity Component System 中一个核心问题是：
 
@@ -1474,7 +1474,7 @@ system signature
 
 ---
 
-# 21. ECS Query 甚至可以被 Lower 成直接数据访问
+## 21. ECS Query 甚至可以被 Lower 成直接数据访问
 
 用户可能写：
 
@@ -1518,7 +1518,7 @@ Direct loop
 
 ---
 
-# 22. Query Engine 同样可以看成 Typed Graph
+## 22. Query Engine 同样可以看成 Typed Graph
 
 不仅 ECS。
 
@@ -1580,7 +1580,7 @@ Plan
 
 ---
 
-# 23. 甚至 Parser Pipeline 也可以使用相同模型
+## 23. 甚至 Parser Pipeline 也可以使用相同模型
 
 例如：
 
@@ -1637,7 +1637,7 @@ incremental decoder
 
 ---
 
-# 24. Protocol State Machine 是另一个非常自然的应用
+## 24. Protocol State Machine 是另一个非常自然的应用
 
 很多网络协议其实就是：
 
@@ -2474,7 +2474,7 @@ Native backend owns terminal I/O truth
 
 ---
 
-# 25. UI / Device Runtime 同样可以用 Event + Machine
+## 25. UI / Device Runtime 同样可以用 Event + Machine
 
 例如一个 UI Widget：
 
@@ -2543,7 +2543,7 @@ WAIT / Wake
 
 ---
 
-# 26. Dependency Injection 也可以从 Interface / Type 出发
+## 26. Dependency Injection 也可以从 Interface / Type 出发
 
 C 世界里所谓 DI，通常没有必要复制 Java/Spring 那种大型 runtime container。
 
@@ -2598,7 +2598,7 @@ object graph VM
 
 ---
 
-# 27. Config / Schema Validation 也可以建立在 Type Metadata 上
+## 27. Config / Schema Validation 也可以建立在 Type Metadata 上
 
 例如配置：
 
@@ -2653,7 +2653,7 @@ ServerConfig
 
 ---
 
-# 28. 这些应用看似很多，但真正新增的 primitive 很少
+## 28. 这些应用看似很多，但真正新增的 primitive 很少
 
 回头看刚才这些领域：
 
@@ -2717,7 +2717,7 @@ flowchart TD
 
 ---
 
-# 29. 如何判断一个新能力应该进入 CMeta
+## 29. 如何判断一个新能力应该进入 CMeta
 
 这是以后非常重要的问题。
 
@@ -2793,7 +2793,7 @@ Capability
 
 ---
 
-# 30. 一个非常重要的准入规则：三次重复以后再抽象
+## 30. 一个非常重要的准入规则：三次重复以后再抽象
 
 这不是机械规则，但可以作为很好的设计习惯。
 
@@ -2840,7 +2840,7 @@ Meta Primitive
 
 ---
 
-# 31. CMeta 应该被需求“拉出来”，而不是被想象“推出来”
+## 31. CMeta 应该被需求“拉出来”，而不是被想象“推出来”
 
 前面的发展过程一直是：
 
@@ -2882,7 +2882,7 @@ Machine / Serial Executor
 
 ---
 
-# 32. CFlow 同样应该保持这种纪律
+## 32. CFlow 同样应该保持这种纪律
 
 Stream 已经证明：
 
@@ -2932,7 +2932,7 @@ CFlow Core Primitive
 
 ---
 
-# 33. 这避免 CFlow 变成“所有执行模型的集合”
+## 33. 这避免 CFlow 变成“所有执行模型的集合”
 
 一个项目如果不断增加：
 
@@ -2968,7 +2968,7 @@ Everything Runtime
 
 ---
 
-# 34. 更准确的定位：CMeta 是 Semantic Substrate
+## 34. 更准确的定位：CMeta 是 Semantic Substrate
 
 因此可以重新定义：
 
@@ -2990,7 +2990,7 @@ CMeta
 
 它更接近：
 
-# Semantic Substrate
+## Semantic Substrate
 
 也就是一套公共语言，用于描述：
 
@@ -3012,7 +3012,7 @@ Interface
 
 ---
 
-# 35. CFlow 则是 Execution Substrate
+## 35. CFlow 则是 Execution Substrate
 
 同样：
 
@@ -3034,7 +3034,7 @@ Actor Framework
 
 更准确的是：
 
-# Execution Substrate
+## Execution Substrate
 
 它提供：
 
@@ -3064,7 +3064,7 @@ Protocol Runtime
 
 ---
 
-# 36. 两者组合后，就形成 Modern C 的两个基础维度
+## 36. 两者组合后，就形成 Modern C 的两个基础维度
 
 可以把它们简化成：
 
@@ -3103,7 +3103,7 @@ CFlow 回答：
 
 ---
 
-# 37. Lean 则成为第三个维度：哪些规则是可信的
+## 37. Lean 则成为第三个维度：哪些规则是可信的
 
 于是整个体系可以表示成：
 
@@ -3138,7 +3138,7 @@ Trust
 
 ---
 
-# 38. 最终目的并不是让 C 看起来像另一门语言
+## 38. 最终目的并不是让 C 看起来像另一门语言
 
 如果最后用户必须学习：
 
@@ -3181,7 +3181,7 @@ Trust
 
 ---
 
-# 39. “Modern C”真正缺少的可能不是更多语法，而是更多共享知识
+## 39. “Modern C”真正缺少的可能不是更多语法，而是更多共享知识
 
 C 很少替程序保留：
 
@@ -3231,7 +3231,7 @@ CMeta
 
 ---
 
-# 40. 有了共同理解，Library 之间才真正可以组合
+## 40. 有了共同理解，Library 之间才真正可以组合
 
 例如：
 
@@ -3305,7 +3305,7 @@ User Metadata
 
 ---
 
-# 41. 这可能才是 CMeta 最终最大的工程价值
+## 41. 这可能才是 CMeta 最终最大的工程价值
 
 Meta Programming 很容易被理解成：
 
@@ -3372,7 +3372,7 @@ Source Code Duplication
 
 ---
 
-# 42. 从第一章到这里，主线实际上一直没有变化
+## 42. 从第一章到这里，主线实际上一直没有变化
 
 第一章的问题是：
 
@@ -3424,7 +3424,7 @@ Semantic Reasoning Duplication
 
 ---
 
-# 43. 这也解释了为什么最终系统反而应该保持克制
+## 43. 这也解释了为什么最终系统反而应该保持克制
 
 如果发现：
 
@@ -3464,7 +3464,7 @@ Meta 可以实现很多东西
 
 ---
 
-# 44. 下一步不是继续扩 Feature，而是明确设计哲学和 Non-goals
+## 44. 下一步不是继续扩 Feature，而是明确设计哲学和 Non-goals
 
 做到这里，已经可以展示很多可能方向。
 
@@ -3503,7 +3503,7 @@ RPC DSL
 
 ---
 
-# 小结：真正的目标不是拥有更多 Framework，而是拥有更少、更稳定的 Primitive
+## 小结：真正的目标不是拥有更多 Framework，而是拥有更少、更稳定的 Primitive
 
 这一章列举了：
 
@@ -3578,7 +3578,7 @@ Lean
 
 下一章应该不再继续扩展功能，而是反过来明确这套系统最重要的设计纪律：
 
-# 有限、显式、按需、Fail-fast，以及“什么时候应该停止 Meta 化”。
+## 有限、显式、按需、Fail-fast，以及“什么时候应该停止 Meta 化”。
 
 这也将回答一个贯穿全文的问题：
 
@@ -3587,7 +3587,7 @@ Lean
 ---
 
 
-# 45. Deep Case A：Serialization / Data Binding
+## 45. Deep Case A：Serialization / Data Binding
 
 Serialization 很适合检验一套 Meta System 是否真的拥有清楚的边界。
 
@@ -4115,7 +4115,7 @@ type-specific semantic equality
 
 ---
 
-# 46. Deep Case B：RPC 不是“再造一个网络 Runtime”
+## 46. Deep Case B：RPC 不是“再造一个网络 Runtime”
 
 RPC 是第二个非常好的组合案例。
 
@@ -4717,7 +4717,7 @@ typed method/schema relation
 
 ---
 
-# 47. 两个 Deep Case 的共同结构
+## 47. 两个 Deep Case 的共同结构
 
 Serialization/Binding 与 RPC 看起来相差很远。
 
@@ -4742,7 +4742,7 @@ Serialization/Binding 与 RPC 看起来相差很远。
 
 ---
 
-# 48. Extension Map：其他领域应该怎样复用，而不是进入 Core
+## 48. Extension Map：其他领域应该怎样复用，而不是进入 Core
 
 下面的方向仍然值得研究，但默认应先作为上层组合存在。
 
@@ -4858,7 +4858,7 @@ Reactive
 
 ---
 
-# 49. Application Admission Checklist
+## 49. Application Admission Checklist
 
 未来增加一个“高级应用”以前，可以先回答十个问题。
 
@@ -4898,7 +4898,7 @@ Core 的稳定来自：
 
 ---
 
-# 50. What We Learned
+## 50. What We Learned
 
 第十三章真正证明的不是：
 
