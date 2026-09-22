@@ -1,5 +1,48 @@
 # 第六章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure
 
+
+> **本章路线**
+>
+> 前两章已经把 canonical pipeline 固定为一张 reusable Typed Graph。本章不改变 Filter / Map / Reduce 的计算关系，只给“执行”增加时间、等待和下游需求：
+>
+> ~~~text
+> immutable Graph
+>      +
+> movable Publisher
+>      +
+> Subscription-owned live state
+>      +
+> Scheduler
+>      ↓
+> Reactive execution
+> ~~~
+>
+> canonical pipeline 仍然是：
+>
+> ~~~text
+> Source<int>
+>     ↓
+> Filter(is_even)
+>     ↓
+> Map(square)
+>     ↓
+> Reduce(sum)
+> ~~~
+>
+> 真正新增的是 source 每次 resume 可以回答：
+>
+> ~~~text
+> VALUE
+> VALUE_AND_DONE
+> WAIT
+> DONE
+> ERROR
+> ~~~
+>
+> 因此本章的核心不再是“数据怎样转换”，而是：
+>
+> **什么时候允许继续、谁拥有等待状态、谁消耗 demand、Wake 是否会丢失，以及 terminal 如何成为唯一事实源。**
+
 上一章做到 Stream 以后，整个数据转换模型已经比较完整：
 
 ```text
@@ -1899,6 +1942,996 @@ Task Execution
 本身抽成一个独立模型。
 
 也就是下一章的主题：
+
+
+## 31. Canonical Example：Graph 不变，Source 开始拥有时间
+
+上一章的同步 Stream 可以理解成：
+
+~~~text
+input array / Range
+      ↓
+Source<int>
+      ↓
+Filter(is_even)
+      ↓
+Map(square)
+      ↓
+Reduce(sum)
+~~~
+
+同步 source 的一个隐含假设是：
+
+> 每次被询问时，要么马上给值，要么马上结束。
+
+Reactive 打破的只有这个假设。
+
+Graph 本身仍然可以保持：
+
+~~~text
+Filter(is_even)
+Map(square)
+Reduce(sum)
+~~~
+
+变化的是 source protocol：
+
+~~~text
+resume()
+   ↓
+VALUE
+VALUE_AND_DONE
+WAIT
+DONE
+ERROR
+~~~
+
+其中 WAIT 的语义必须非常精确：
+
+> **现在没有值，但这个 continuation 仍然有效；当外部条件变化时，系统可以被唤醒并重新尝试。**
+
+它不是：
+
+~~~text
+sleep current thread
+~~~
+
+也不是：
+
+~~~text
+treat as DONE
+~~~
+
+更不是：
+
+~~~text
+spin until something appears
+~~~
+
+这一个区别，让同一张 Graph 可以从：
+
+~~~text
+already-materialized input
+~~~
+
+延伸到：
+
+~~~text
+timer
+channel
+readiness
+socket / pipe / file completion
+custom asynchronous publisher
+~~~
+
+而不需要重新设计 operator semantics。
+
+---
+
+## 32. Semantic Contract：Reactive 新增的是 execution state，而不是 Graph state
+
+这一章最重要的分层是：
+
+~~~text
+Graph
+    = immutable/reusable program description
+
+Subscription
+    = one live execution
+~~~
+
+### 32.1 WAIT 只是 source outcome，不是“已经注册成功”
+
+source 返回 WAIT 时，只说明：
+
+~~~text
+continuation saved
++
+waitable available
+~~~
+
+接下来仍然存在一个独立步骤：
+
+~~~text
+arm(waitable, waker)
+~~~
+
+因此：
+
+~~~text
+WAIT
+    ≠
+SUSPENDED
+~~~
+
+更准确的状态变化是：
+
+~~~text
+READY
+  ↓ resume returns WAIT
+PENDING_ARM
+  ↓ arm succeeds quietly
+SUSPENDED
+  ↓ matching wake
+READY
+~~~
+
+把 WAIT 与 armed suspension 分开，是处理 lost wakeup 的关键。
+
+### 32.2 Wake 不产生 demand
+
+Wake 的意义只是：
+
+> “外部条件可能变化了，可以重新调度一次 continuation。”
+
+它不代表：
+
+~~~text
+允许多产生一个 downstream value
+~~~
+
+所以 Wake 应保持 demand 不变。
+
+这一区分很重要，因为：
+
+~~~text
+readiness
+    = can retry
+
+demand
+    = downstream permits output
+~~~
+
+两者来自不同事实源。
+
+### 32.3 Demand 是 downstream-value demand，不是 Publisher pull count
+
+这是 Reactive 中最容易被写错的地方之一。
+
+例如：
+
+~~~text
+Source<int>
+    ↓
+Filter(is_even)
+    ↓
+Map(square)
+~~~
+
+下游请求：
+
+~~~text
+demand = 1
+~~~
+
+并不意味着：
+
+~~~text
+source.resume() exactly once
+~~~
+
+因为第一个 input 可能被 Filter 丢掉。
+
+为了产生一个 downstream value，source 可能需要被 resume 多次。
+
+因此 contract 是：
+
+> **Demand 只在真正向 downstream emit 一个 value 时消耗。**
+
+source VALUE 本身不自动消耗 downstream demand。
+
+这让：
+
+~~~text
+Filter
+FlatMap
+Relation
+other cardinality-changing operators
+~~~
+
+都可以共享一致的 demand 语义。
+
+### 32.4 Terminal 必须有唯一事实源
+
+Reactive run 的终止不能由多个 bool 拼出来：
+
+~~~text
+done
+cancelled
+failed
+maybe_source_done
+~~~
+
+更清楚的模型是：
+
+~~~text
+RUNNING
+DONE
+ERROR(message)
+CANCELLED
+~~~
+
+并且 terminal state 一旦建立，就不能再开始新的 kernel small-step。
+
+这里还必须区分：
+
+~~~text
+source done
+~~~
+
+和：
+
+~~~text
+whole run done
+~~~
+
+因为 source 已经没有新 input 时，Graph 下游可能仍有：
+
+~~~text
+reduce finalization
+buffer drain
+pending terminal emission
+~~~
+
+所以：
+
+~~~text
+source completion
+    ↓
+draining
+    ↓
+whole-run DONE
+~~~
+
+不能被压成一个状态。
+
+### 32.5 Cancel 是显式语义，不是 Error 的别名
+
+Cancel 应该：
+
+- 停止新的执行推进；
+- unarm/cancel 当前 wait registration；
+- 建立 CANCELLED terminal；
+- 按 ownership contract 释放或结算 live state。
+
+它不是：
+
+~~~text
+ERROR("cancelled")
+~~~
+
+因为 cancellation 是 control-plane decision，而 error 是 computation/source failure。
+
+### 32.6 Subscription 是 live state 的唯一 owner
+
+Graph 不应该保存：
+
+~~~text
+demand
+wait registration
+cancelled flag
+reduce accumulator
+slice counter
+live temporary value
+opened backend state
+~~~
+
+这些都属于一次 execution。
+
+因此一个 Subscription 的 ownership contract 应接近：
+
+~~~text
+owns:
+    moved Publisher
+    demand
+    wait state
+    continuation/live slots
+    per-node mutable state
+    cancellation/terminal/error state
+
+borrows:
+    immutable Graph
+    Scheduler
+    Subscriber
+    backend/interface tables
+~~~
+
+这条边界是后面 Executor、Machine、Actor 能继续组合的基础。
+
+---
+
+## 33. Lean：这一章已经有真实的 Reactive small-step calculus
+
+这里不需要再发明一套“可能的 Lean 模型”。
+
+当前 Salts 已经有：
+
+~~~text
+formal/cmeta_cflow_calculus/
+  CMetaCFlowCalculus/CFlow/Execution.lean
+  CMetaCFlowCalculus/Proofs/Execution.lean
+~~~
+
+它把本章最关键的 execution facts 显式建模为：
+
+~~~text
+SourceState
+Demand
+WaitState
+Terminal
+SourceTerminal
+DrainState
+RuntimeState
+Config
+SourceResult
+SourceStep
+ArmStep
+WakeStep
+EmitStep
+DrainStep
+FinishStep
+CancelStep
+~~~
+
+这正好展示 Lean 怎样反过来帮助 C 设计变清楚。
+
+### 33.1 Demand.consume：零 demand 不能 emit
+
+formal model 将 demand 定义为有限剩余数量，并让：
+
+~~~text
+consume(0)
+    = none
+
+consume(n + 1)
+    = some(n)
+~~~
+
+因此 downstream emission 必须拿到一个成功 consume witness。
+
+已经存在的 theorem：
+
+~~~text
+step_value_decrements_demand
+~~~
+
+表达：
+
+> 每次真正向 downstream emit 一个 value，恰好消耗一个 demand。
+
+而：
+
+~~~text
+zero_demand_no_value
+~~~
+
+表达：
+
+> demand 为零时，不可能发生 value-emitting kernel step。
+
+这正好对应 C runtime 最重要的 backpressure safety property。
+
+### 33.2 Source VALUE 不直接消耗 downstream demand
+
+现有 theorem：
+
+~~~text
+source_value_preserves_demand
+~~~
+
+明确证明：
+
+~~~text
+SourceStep VALUE
+    ↓
+demand unchanged
+~~~
+
+为什么要这样？
+
+因为 source value 还可能经过：
+
+~~~text
+Filter
+FlatMap
+other cardinality-changing computation
+~~~
+
+真正消耗 demand 的位置是 downstream EmitStep。
+
+这正是前面“Demand 不是 Publisher pull count”的形式化版本。
+
+### 33.3 WAIT → arm → wake 保留 continuation 与 demand
+
+现有 theorem：
+
+~~~text
+wait_arm_wake_preserves_source
+~~~
+
+表达 quiet arm + matching wake 后：
+
+~~~text
+saved continuation preserved
+wait returns READY
+ownership preserved
+demand preserved
+source terminal preserved
+drain state preserved
+run terminal preserved
+wake generation advances exactly once
+~~~
+
+这非常有价值，因为它证明：
+
+> Wake 本身不是一次数据消费，也不是一次状态重建；它只是安全恢复同一个 continuation。
+
+### 33.4 Lost Wakeup 不是一句“加个锁”就能解决
+
+formal model 直接区分：
+
+~~~text
+noSignal
+signalBeforeArm
+signalConcurrentWithArm
+~~~
+
+并已有 theorem：
+
+~~~text
+signal_before_arm_is_ready
+signal_concurrent_with_arm_is_ready
+~~~
+
+它们保证：
+
+> 如果 readiness 在注册前或注册竞争中已经被观察到，run 不会错误地进入 suspended。
+
+另外：
+
+~~~text
+arm_issues_fresh_token
+~~~
+
+保证每次 arm 都使用当前 generation 并只推进一次 generation。
+
+因此 stale wake 与 current registration 可以在模型里被区分。
+
+这比一句模糊的：
+
+~~~text
+avoid lost wakeup
+~~~
+
+强得多。
+
+它把 race condition 变成了明确 state machine contract。
+
+### 33.5 Terminal 是 absorbing
+
+现有 theorem：
+
+~~~text
+terminal_no_step
+~~~
+
+说明：
+
+~~~text
+terminal != RUNNING
+    ↓
+no kernel Step can start
+~~~
+
+而：
+
+~~~text
+cancel_unarms_and_terminates
+~~~
+
+说明 Cancel：
+
+~~~text
+wait -> READY
+terminal -> CANCELLED
+~~~
+
+这给 C implementation 一个非常直接的 refinement target。
+
+### 33.6 Safety 与 Liveness 必须分开
+
+上面的 theorem 大部分是 safety：
+
+~~~text
+不会在 zero demand 下 emit
+不会从 terminal 继续 step
+不会因为 arm race 永久丢掉已经看到的 signal
+wake 不修改 demand
+~~~
+
+但它们并不能自动证明：
+
+~~~text
+外部设备最终一定 ready
+Scheduler 最终一定运行某个 task
+OS 一定返回 I/O completion
+线程永远不会饿死
+~~~
+
+这些属于环境公平性或 platform liveness assumption。
+
+所以书里必须保持：
+
+> **Lean 可以证明“如果事件发生，状态机怎样安全变化”；不能凭空证明现实世界一定给你事件。**
+
+---
+
+## 34. Current C Implementation：formal state 已经有清晰的 C counterpart
+
+对照当前 Salts：
+
+~~~text
+qigao/salts
+master: ad389928b437c0612c1c60844fe53677f3ed27a6
+~~~
+
+### 34.1 Source outcome 是五态 protocol
+
+当前 C API 直接定义：
+
+~~~text
+CFLOW_STEP_VALUE
+CFLOW_STEP_VALUE_AND_DONE
+CFLOW_STEP_WAIT
+CFLOW_STEP_DONE
+CFLOW_STEP_ERROR
+~~~
+
+这与 formal SourceResult 对应。
+
+WAIT 还携带一个 waitable：
+
+~~~text
+arm(waker)
+cancel()
+~~~
+
+所以等待不是一个 bool，而是一个明确协议对象。
+
+### 34.2 Publish context 直接传递 downstream demand snapshot
+
+当前 publish context 中保存：
+
+~~~text
+scheduler
+downstream_demand
+~~~
+
+注释明确说明 downstream_demand 是：
+
+> Subscription 在调用 resume 前的精确 outstanding downstream-value demand。
+
+这让 source 可以利用 demand 做 bounded read/window admission，但不能重新定义 demand 的含义。
+
+例如 I/O publisher 可以：
+
+~~~text
+target window
+=
+min(downstream demand, configured capacity)
+~~~
+
+这就是 backpressure 与 bounded resources 的连接点。
+
+### 34.3 Subscription 是 opaque execution owner
+
+Graph 在前两章刻意保持 concrete IR，方便 introspection 和验证。
+
+Subscription 则相反：
+
+~~~c
+typedef struct cflow_subscription {
+    void *impl;
+} cflow_subscription;
+~~~
+
+这是一个非常好的对比。
+
+为什么？
+
+因为 Subscription 拥有的是：
+
+~~~text
+live mutable execution state
+locks / scheduling state
+demand
+wait registration
+continuations
+mutable node state
+terminal state
+~~~
+
+这些细节需要演进，也不应该被 caller 直接改写。
+
+因此：
+
+~~~text
+Graph
+    concrete read-only IR rows
+
+Subscription
+    opaque mutable execution owner
+~~~
+
+不是风格不一致，而是 ownership 不同导致的正确 API 形状。
+
+### 34.4 Subscribe 使用 move-style Publisher ownership
+
+当前 contract 非常明确：
+
+~~~text
+before success:
+    caller owns Publisher
+
+subscribe succeeds:
+    Subscription takes Publisher
+    caller Publisher is cleared
+
+admission fails:
+    ownership remains with caller
+~~~
+
+同时：
+
+~~~text
+Graph
+Scheduler
+Subscriber
+~~~
+
+都是 borrowed。
+
+这把错误恢复和 destroy 顺序变得可推理。
+
+### 34.5 Request 保留 outstanding demand，即使调度 admission 暂时失败
+
+request API 明确要求：
+
+~~~text
+demand accepted
+    ↓
+pump scheduling may fail immediately
+    ↓
+outstanding demand remains retained
+    ↓
+later wake/request may retry
+~~~
+
+这避免把：
+
+~~~text
+scheduler queue full
+~~~
+
+错误解释成：
+
+~~~text
+downstream no longer wants the value
+~~~
+
+Demand 是 semantic fact；scheduler admission 是 execution resource fact。
+
+两者不能混在一起。
+
+### 34.6 Wake 可以从任意 driver/event-loop callback 调用
+
+当前：
+
+~~~text
+cflow_subscription_wake()
+~~~
+
+被定义为 advanced integration hook，可由外部 event loop / driver callback 调用。
+
+Wake 的实现最终重新进入 Subscription pump admission，而不是让 driver 自己执行 Graph state mutation。
+
+这保持：
+
+~~~text
+external readiness
+    ↓
+wake notification
+    ↓
+Subscription / Scheduler
+    ↓
+Graph execution
+~~~
+
+的边界。
+
+---
+
+## 35. Scheduler：时间与执行位置是 capability，不是继承层次
+
+当前 Scheduler 同样是小 Interface，而不是 class hierarchy。
+
+它显式声明 capabilities：
+
+~~~text
+DELAYED
+MANUAL_CLOCK
+CONCURRENT
+CALLER_DRIVEN_ZERO_DELAY
+~~~
+
+并且有多个实现策略。
+
+### 35.1 Inline Scheduler
+
+~~~text
+accepted zero-delay task
+    ↓
+executes before admission returns
+~~~
+
+没有：
+
+~~~text
+queue
+clock
+timer storage
+~~~
+
+适合明确需要 zero-hop 的边界。
+
+### 35.2 Manual Scheduler
+
+~~~text
+bounded ready queue
++
+caller-driven run_one / run_ready / run_until_idle
+~~~
+
+没有 timer clock。
+
+它特别适合：
+
+~~~text
+external event loop
+deterministic batch processing
+tests
+~~~
+
+### 35.3 Test Scheduler / Manual Clock
+
+支持：
+
+~~~text
+post_after
+advance(ticks)
+run_until_idle
+~~~
+
+这让时间不再依赖：
+
+~~~text
+sleep(...)
+wall clock race
+~~~
+
+从而可以写 deterministic temporal tests。
+
+### 35.4 Worker Scheduler
+
+把 dispatch 移到 worker threads，并显式提供 bounded ready/timer capacity 与统计。
+
+因此：
+
+> Scheduler 回答何时/在哪个 execution context 执行，不拥有 Graph semantics。
+
+这为下一章 Executor 的进一步拆分做好准备。
+
+---
+
+## 36. Evidence：Reactive 需要同时验证 demand、wait、race 与 bounded resources
+
+本章不能只写一个 async demo。
+
+至少需要几类 evidence。
+
+### 36.1 Demand conformance
+
+当前 reactive tests 已经检查：
+
+~~~text
+request result
+outstanding demand retained/decremented
+scheduler admission failure does not silently discard demand
+~~~
+
+calculus conformance tests也直接观察：
+
+~~~text
+demand = 1
+...
+emit
+...
+demand = 0
+~~~
+
+这对应 Lean 的 step_value_decrements_demand。
+
+### 36.2 WAIT / Waitable evidence
+
+Reactive、Temporal、I/O、Machine adapter tests 都有：
+
+~~~text
+resume
+    ↓
+CFLOW_STEP_WAIT
+    ↓
+waitable valid
+    ↓
+arm(waker)
+~~~
+
+这证明 WAIT 已经是多个 subsystem 共享的 protocol，而不是某个 socket backend 的特殊状态。
+
+### 36.3 Wake race / quiescence evidence
+
+Readiness tests 中已经存在非常具体的并发场景：
+
+~~~text
+cancel waits until old callback waker is quiescent
+~~~
+
+这类测试属于 C implementation race evidence。
+
+Lean 的 ArmTiming theorem 给 state-machine safety model；
+
+真实 readiness test 则检查：
+
+> 实际 callback/lock/lifetime implementation 是否遵守那个模型。
+
+两者不能互相替代。
+
+### 36.4 Bounded scheduler evidence
+
+Scheduler tests 已经检查 bounded admission，例如：
+
+~~~text
+capacity = 1
+second admission rejected_full
+drain/advance
+capacity reused
+~~~
+
+因此 Backpressure 不只是 demand counter。
+
+它还必须覆盖：
+
+~~~text
+bounded scheduling
+bounded buffers
+bounded publisher windows
+bounded operator state
+~~~
+
+### 36.5 Temporal determinism
+
+Timer/temporal tests使用可控 Scheduler/Clock 路径检查：
+
+~~~text
+WAIT
+advance time
+wake
+resume
+terminal
+cancel
+~~~
+
+比 wall-clock sleep-based test 更适合作为 semantic regression gate。
+
+---
+
+## 37. What We Learned
+
+第六章完成的不是：
+
+~~~text
+Stream
+    ↓
+Async Stream
+~~~
+
+这么简单。
+
+真正新增的是一个独立 execution state machine：
+
+~~~text
+Program Description:
+    immutable Typed Graph
+
+Live Execution:
+    Subscription
+      owns Publisher
+      owns demand
+      owns wait registration
+      owns mutable operator state
+      owns terminal/cancel/error state
+
+Execution Policy:
+    Scheduler
+
+External World:
+    Waitable / Waker / readiness / timer / I/O
+~~~
+
+Lean 在这里也第一次从“证明静态 relation”进入“证明执行 step”。
+
+现有 calculus 已经把几个非常关键的工程约束变成 theorem：
+
+~~~text
+zero demand → no emitted value
+
+emit → demand decreases exactly once
+
+source value → demand unchanged
+
+WAIT + quiet arm + matching wake
+    → same continuation, same demand
+
+signal-before/concurrent-arm
+    → cannot become lost suspension
+
+terminal
+    → no further kernel step
+
+cancel
+    → unarm + CANCELLED
+~~~
+
+这就是本书想展示的 Lean 用法：
+
+> **不是先写完一个异步框架再给它加证明，而是把 race、demand、terminal 的语义写清楚，然后让这些约束反过来塑造 C runtime。**
+
+下一章继续把 execution policy 拆小。
+
+Subscription 需要有人执行 pump task；
+
+Machine 以后也需要有人串行执行 transition；
+
+parallel reduce 也需要提交 task。
+
+但这些上层语义都不应该进入同一个执行 primitive。
+
+因此下一章的问题是：
+
+> **能不能让一个底层对象只理解 Task，而完全不知道 Graph、Stream、Reactive、Machine 或 Actor？**
+
+这就是 Executor。
+
+---
 
 # Executor
 
