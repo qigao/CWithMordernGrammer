@@ -41,7 +41,7 @@ def main() -> None:
     for png in pngs:
         require(png.stat().st_size > 100, f"empty/suspicious PNG: {png.name}")
         with png.open("rb") as handle:
-            require(handle.read(8) == b"\\x89PNG\\r\\n\\x1a\\n", f"not a PNG document: {png.name}")
+            require(handle.read(8) == b"\x89PNG\r\n\x1a\n", f"not a PNG document: {png.name}")
 
     expected_refs = set(re.findall(r"diagrams/(diagram-\d{3}\.svg)", prepared))
     actual_refs = {p.name for p in svgs}
@@ -68,7 +68,7 @@ def main() -> None:
     with PDF.open("rb") as handle:
         require(handle.read(5) == b"%PDF-", "PDF magic header missing")
 
-    print(f"release artifacts valid: {len(svgs)} diagrams, HTML {HTML.stat().st_size:,} B, EPUB {EPUB.stat().st_size:,} B, PDF {PDF.stat().st_size:,} B")
+    print(f"release artifacts valid: {len(svgs)} SVG + {len(pngs)} PNG diagrams, HTML {HTML.stat().st_size:,} B, EPUB {EPUB.stat().st_size:,} B, PDF {PDF.stat().st_size:,} B")
 
 if __name__ == "__main__":
     main()
