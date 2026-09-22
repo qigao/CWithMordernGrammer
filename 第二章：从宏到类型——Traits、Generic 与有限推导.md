@@ -4,8 +4,6 @@
 >
 > 同一个“类型事实”在 typedef、宏、容器、比较函数、descriptor、dispatch、序列化或回调边界里被反复写了很多次。
 >
-> 本章不需要 Lean 才能成立。这里的问题首先是 **C 工程里的重复定义与重复契约**，解决方法是有限、显式的 Generic 与元数据生成。
->
 > 先看代码，再谈抽象。
 
 第一章已经看到，宏最初非常有用：
@@ -1112,8 +1110,6 @@ fail early
 用户只包含 installed headers、链接 exported targets，也应该能使用同样的 Generic API。
 
 这些都是 C/toolchain 问题。
-
-这里不需要 Lean 才能说明 Generic 为什么有价值。
 
 ---
 
