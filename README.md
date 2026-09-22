@@ -128,7 +128,15 @@ python3 scripts/build_book.py
 
 The generated manuscript is written to `dist/C-with-Modern-Grammar.md` and is intentionally not committed. The `Publication` GitHub Actions workflow runs the same validation/build on pull requests and `master`, then uploads the combined manuscript as a workflow artifact.
 
-PDF/EPUB rendering is intentionally a separate layer so ordinary writing and review do not require Pandoc, LaTeX, Node, or Lean.
+HTML / EPUB / PDF rendering is intentionally a separate layer so ordinary writing and review do not require Pandoc, Typst, Docker, Node, or Lean.
+
+Release maintainers can run:
+
+```bash
+bash scripts/render_release.sh
+```
+
+against the validated canonical manuscript. The script requires the pinned Pandoc version plus Docker and Noto CJK fonts; CI is the authoritative Linux/amd64 rendering environment. The separate `Release Formats` workflow renders deterministic Mermaid SVGs and produces HTML, EPUB, and PDF artifacts. A `v*` tag publishes those formats as a GitHub Release.
 
 ## Repository history
 
