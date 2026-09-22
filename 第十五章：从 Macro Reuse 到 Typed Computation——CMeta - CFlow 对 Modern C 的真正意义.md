@@ -404,7 +404,7 @@ Derive
 
 也正是在这一步以后，最初零散的宏工具终于开始具有一个统一名字：
 
-## CMeta
+### CMeta
 
 因为它已经不再只是：
 
@@ -659,7 +659,7 @@ CFlow
 
 最初其实是：
 
-## CMeta 的 Integration / Stress Test
+### CMeta 的 Integration / Stress Test
 
 ---
 
@@ -1248,7 +1248,7 @@ Modern C
 
 每一项都不能缺。
 
-## Plain C
+### Plain C
 
 保留：
 
@@ -1260,7 +1260,7 @@ direct function calls
 normal toolchain
 ~~~
 
-## Finite Typed Knowledge
+### Finite Typed Knowledge
 
 加入：
 
@@ -1279,7 +1279,7 @@ typed event
 unbounded compile-time language
 ~~~
 
-## Explicit Semantic Laws
+### Explicit Semantic Laws
 
 区分：
 
@@ -1295,7 +1295,7 @@ actual law
 
 让 optimizer/runtime 不靠猜。
 
-## Verified Transformations
+### Verified Transformations
 
 对高复用、高风险 transformation：
 
@@ -1307,7 +1307,7 @@ protocol invariant
 
 建立 machine-checkable evidence。
 
-## Simple Lowered Execution
+### Simple Lowered Execution
 
 让高级 abstraction 尽量在：
 
@@ -1341,7 +1341,7 @@ Lean  = Trust
 
 到最后可以再精确一点。
 
-## CMeta — Know
+### CMeta — Know
 
 负责：
 
@@ -1353,7 +1353,7 @@ What finite relation is admitted?
 What semantic identity survives representation boundaries?
 ~~~
 
-## CFlow — Structure / Execute
+### CFlow — Structure / Execute
 
 负责：
 
@@ -1364,7 +1364,7 @@ How does live execution own state?
 How can program structure be normalized/compiled?
 ~~~
 
-## Lean — Trust
+### Lean — Trust
 
 负责：
 
@@ -1617,11 +1617,11 @@ Remove
 
 或者压缩成两句：
 
-## Know More → Do Less
+**Know More → Do Less**
 
 以及：
 
-## Ordinary C Remains the Execution Language
+**Ordinary C Remains the Execution Language**
 
 这也是从第一章到最后一章始终没有改变的目标。
 
