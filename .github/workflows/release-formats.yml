@@ -232,6 +232,14 @@ jobs:
             dist/release/en/C-with-Modern-Grammar.html
             dist/release/en/C-with-Modern-Grammar.epub
             dist/release/en/C-with-Modern-Grammar.pdf
+            dist/release/C-with-Modern-Grammar-cn.md
+            dist/release/C-with-Modern-Grammar-cn.html
+            dist/release/C-with-Modern-Grammar-cn.epub
+            dist/release/C-with-Modern-Grammar-cn.pdf
+            dist/release/C-with-Modern-Grammar-en.md
+            dist/release/C-with-Modern-Grammar-en.html
+            dist/release/C-with-Modern-Grammar-en.epub
+            dist/release/C-with-Modern-Grammar-en.pdf
             dist/release/SOURCE_SNAPSHOTS.md
             dist/release/RENDERER_VERSIONS.txt
             dist/release/SHA256SUMS.txt
