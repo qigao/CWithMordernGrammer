@@ -2091,21 +2091,18 @@ qigao/salts
 snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
-当前核心对象已经收敛为同一个 cmeta_callable。去掉具体 typedef 名称后，其 shape 可以概括为：
+该快照中的核心对象已经收敛为同一个 `cmeta_callable`。为了先突出字段职责，下面是 **simplified shape**，不是可直接复制的源码；具体 typedef 名称随后仍以 snapshot header 为准：
 
-~~~c
-struct cmeta_callable {
-    cmeta_fn meta;
-
-    resolve_fn  resolve;
-    invoke_fn   invoke;
-    generate_fn generate;
-
-    dispatch_tag dispatch;
-
-    size_t capture_size;
-    inline_capture_storage capture;
-};
+~~~text
+cmeta_callable {
+    cmeta_fn meta
+    resolve callback
+    invoke callback
+    generate callback
+    dispatch authority
+    capture_size
+    inline capture storage
+}
 ~~~
 
 其中 meta 继续保存：
@@ -2131,7 +2128,7 @@ Bounded Capture
 
 而不是分别实现 FunctionObject、LambdaObject、BindObject、GeneratorObject 四套互不兼容的 runtime hierarchy。
 
-当前 inline capture 上限明确为：
+该快照中的 inline capture 上限明确为：
 
 ~~~text
 CMETA_CAPTURE_INLINE = 32 bytes
@@ -2147,7 +2144,7 @@ CMETA_CAPTURE_INLINE = 32 bytes
 
 ### 33.5 Dispatch Authority 必须是数据，而不是猜测
 
-当前 representation 显式保存 dispatch tag。
+该快照的 representation 显式保存 dispatch tag。
 
 这是一个很小但非常重要的工程决定。
 

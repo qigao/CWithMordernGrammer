@@ -1787,14 +1787,14 @@ Lean 属于可信 control plane，不属于应用 hot path。
 
 ### 31.1 对照本版 Salts 实现快照：这些抽象已经怎样落成真实 C
 
-为了避免这一节停留在概念伪代码，可以直接看本版 Salts 快照 的 CMeta implementation snapshot：
+为了避免这一节停留在概念伪代码，可以直接看本版 Salts 实现快照中的 CMeta：
 
 ~~~text
 qigao/salts
 snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
-当前基础 type descriptor 已经明确区分：
+该快照中的 `cmeta_type_desc` 定义如下：
 
 ~~~c
 typedef struct cmeta_type_desc {
@@ -1818,7 +1818,7 @@ semantic identity
 
 identity 被显式放进 descriptor，正是因为跨 Translation Unit 时不能把 object address 当成 type meaning。
 
-更高层的数据描述也继续保持这一边界。当前 cmeta_data_desc 包含：
+更高层的数据描述也继续保持这一边界。该快照中的 `cmeta_data_desc` 包含：
 
 ~~~text
 struct_size
@@ -1840,7 +1840,7 @@ versioned operation providers
 
 #### TypeFunction 也没有 runtime evaluator
 
-当前 TypeFunction 的实现仍然遵循本章一直强调的路线：
+该快照中的 TypeFunction 实现仍然遵循本章一直强调的路线：
 
 ~~~text
 finite relation rows
