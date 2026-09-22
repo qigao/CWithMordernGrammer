@@ -128,6 +128,8 @@ python3 scripts/build_book.py
 
 The generated manuscript is written to `dist/C-with-Modern-Grammar.md` and is intentionally not committed. The `Publication` GitHub Actions workflow runs the same validation/build on pull requests and `master`, then uploads the combined manuscript as a workflow artifact.
 
+Release rendering is intentionally separate from ordinary manuscript QA. The `Release Formats` workflow runs manually or for `v*` tags, consumes only that canonical Markdown artifact, renders Mermaid diagrams to SVG, and produces standalone HTML, EPUB3, and PDF from the same validated source. Renderer versions are pinned in the workflow; release artifacts also include `SOURCE_SNAPSHOTS.md`, renderer-version metadata, and SHA-256 checksums. A tag run publishes the same files to a GitHub Release.
+
 PDF/EPUB rendering is intentionally a separate layer so ordinary writing and review do not require Pandoc, LaTeX, Node, or Lean.
 
 ## Repository history
