@@ -21,6 +21,26 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def normalize_body_horizontal_rules(text: str) -> str:
+    """Prevent Pandoc from treating body horizontal rules as YAML metadata.
+
+    Keep the document's initial YAML front matter intact, but rewrite later
+    standalone '---' rules to the equivalent Markdown horizontal rule '***'.
+    """
+    if not text.startswith("---\n"):
+        raise SystemExit("canonical manuscript is missing initial YAML front matter")
+
+    closing = text.find("\n---\n", 4)
+    if closing < 0:
+        raise SystemExit("canonical manuscript YAML front matter is not closed")
+
+    split = closing + len("\n---\n")
+    front = text[:split]
+    body = text[split:]
+    body = re.sub(r"(?m)^---\s*$", "***", body)
+    return front + body
+
+
 def main() -> None:
     args = parse_args()
     edition = args.edition
@@ -36,7 +56,7 @@ def main() -> None:
             f"run scripts/build_book.py --edition {edition} first"
         )
 
-    text = source.read_text(encoding="utf-8")
+    text = normalize_body_horizontal_rules(source.read_text(encoding="utf-8"))
     if out_dir.exists():
         shutil.rmtree(out_dir)
     diagram_dir.mkdir(parents=True)
