@@ -101,7 +101,7 @@ CMeta 功能强不强
 
 ---
 
-# 1. 单 Translation Unit 会掩盖很多问题
+## 1. 单 Translation Unit 会掩盖很多问题
 
 假设所有代码都写在：
 
@@ -208,7 +208,7 @@ type equality
 
 ---
 
-# 2. 地址只是实现位置，不是语义身份
+## 2. 地址只是实现位置，不是语义身份
 
 这暴露了一个非常基本的事实：
 
@@ -260,7 +260,7 @@ Type Identity
 
 ---
 
-# 3. Semantic Type Identity
+## 3. Semantic Type Identity
 
 对于普通原子类型，可以有：
 
@@ -342,7 +342,7 @@ same type
 
 ---
 
-# 4. Semantic Identity 对 Generic 尤其重要
+## 4. Semantic Identity 对 Generic 尤其重要
 
 普通：
 
@@ -413,7 +413,7 @@ Type Identity Tree
 
 ---
 
-# 5. Identity 与 Descriptor 的职责不同
+## 5. Identity 与 Descriptor 的职责不同
 
 可以把两者明确分开：
 
@@ -461,7 +461,7 @@ descriptor address
 
 ---
 
-# 6. 这一步也是 ABI 设计的一部分
+## 6. 这一步也是 ABI 设计的一部分
 
 很多人把 ABI 理解成：
 
@@ -523,7 +523,7 @@ semantic contract
 
 ---
 
-# 7. Header 和 Source 的边界必须重新考虑
+## 7. Header 和 Source 的边界必须重新考虑
 
 宏系统很容易倾向于：
 
@@ -586,7 +586,7 @@ object file bloat
 
 ---
 
-# 8. 一个重要原则：需要调用点信息的留 Header，其余尽量普通 C
+## 8. 一个重要原则：需要调用点信息的留 Header，其余尽量普通 C
 
 例如：
 
@@ -653,7 +653,7 @@ Header-only Everything
 
 ---
 
-# 9. Public Declaration 与 Implementation Generation 也应分开
+## 9. Public Declaration 与 Implementation Generation 也应分开
 
 Generic 代码尤其容易产生这个问题。
 
@@ -721,7 +721,7 @@ One .c
 
 ---
 
-# 10. Generated Code 也必须有 Ownership
+## 10. Generated Code 也必须有 Ownership
 
 当项目开始有：
 
@@ -778,7 +778,7 @@ module ownership
 
 ---
 
-# 11. Generated Header 不应该成为第二份手写 Source of Truth
+## 11. Generated Header 不应该成为第二份手写 Source of Truth
 
 最危险的情况是：
 
@@ -842,7 +842,7 @@ Single Source of Truth
 
 ---
 
-# 12. 普通消费者构建不应该依赖 Generator
+## 12. 普通消费者构建不应该依赖 Generator
 
 如果安装一个 C library 后，用户只是：
 
@@ -910,7 +910,7 @@ C toolchain
 
 ---
 
-# 13. 这也是“简单 C”承诺的一部分
+## 13. 这也是“简单 C”承诺的一部分
 
 如果最终使用 CMeta 的成本是：
 
@@ -955,7 +955,7 @@ normal .a / .lib / .so
 
 ---
 
-# 14. Multi-TU 还会暴露 Callable Identity 问题
+## 14. Multi-TU 还会暴露 Callable Identity 问题
 
 类型有 identity。
 
@@ -1022,7 +1022,7 @@ semantic callable equality
 
 ---
 
-# 15. 但不能为了 Identity 把系统做得过重
+## 15. 但不能为了 Identity 把系统做得过重
 
 最容易出现的反应是：
 
@@ -1081,7 +1081,7 @@ invoke
 
 ---
 
-# 16. ABI Stability 要求 Public Struct 非常谨慎
+## 16. ABI Stability 要求 Public Struct 非常谨慎
 
 如果 public header 暴露：
 
@@ -1139,7 +1139,7 @@ small value protocol
 
 ---
 
-# 17. 为什么小 Interface 特别适合保持 ABI 边界
+## 17. 为什么小 Interface 特别适合保持 ABI 边界
 
 例如：
 
@@ -1189,7 +1189,7 @@ Plan
 
 ---
 
-# 18. Interface VTable 自己也是 ABI
+## 18. Interface VTable 自己也是 ABI
 
 如果：
 
@@ -1227,7 +1227,7 @@ capabilities
 
 ---
 
-# 19. Capability 可以帮助减轻 VTable 演进压力
+## 19. Capability 可以帮助减轻 VTable 演进压力
 
 假设 Scheduler 新增：
 
@@ -1272,7 +1272,7 @@ required capability
 
 ---
 
-# 20. Status Code 同样是 ABI Contract
+## 20. Status Code 同样是 ABI Contract
 
 例如：
 
@@ -1320,7 +1320,7 @@ bool
 
 ---
 
-# 21. Fail-fast 是最重要的工程化策略之一
+## 21. Fail-fast 是最重要的工程化策略之一
 
 复杂 Meta 系统最大的危险之一，是：
 
@@ -1371,7 +1371,7 @@ Fail Explicitly
 
 ---
 
-# 22. Compile-time 能失败，就不要 Runtime 猜
+## 22. Compile-time 能失败，就不要 Runtime 猜
 
 例如：
 
@@ -1421,7 +1421,7 @@ fallback to void
 
 ---
 
-# 23. Build-time 能失败，就不要 Execution-time 猜
+## 23. Build-time 能失败，就不要 Execution-time 猜
 
 例如 Graph：
 
@@ -1469,7 +1469,7 @@ Type 可能不匹配
 
 ---
 
-# 24. Admission-time 能失败，就不要偷偷做另一件事
+## 24. Admission-time 能失败，就不要偷偷做另一件事
 
 例如：
 
@@ -1521,7 +1521,7 @@ Predictable
 
 ---
 
-# 25. Predictability 是 C 工程非常重要的价值
+## 25. Predictability 是 C 工程非常重要的价值
 
 很多时候：
 
@@ -1568,7 +1568,7 @@ framework magic
 
 ---
 
-# 26. Naming 也是工程边界的一部分
+## 26. Naming 也是工程边界的一部分
 
 宏系统很容易产生大量内部名字：
 
@@ -1614,7 +1614,7 @@ CMETA_PP_EXPAND_A_17
 
 ---
 
-# 27. 这也是为什么不能强制所有东西都加 `meta_` 前缀
+## 27. 这也是为什么不能强制所有东西都加 `meta_` 前缀
 
 如果用户定义：
 
@@ -1669,7 +1669,7 @@ Library infrastructure symbol
 
 ---
 
-# 28. Module Ownership 必须明确
+## 28. Module Ownership 必须明确
 
 随着体系扩大，最危险的问题之一是：
 
@@ -1710,7 +1710,7 @@ Protocol
 
 ---
 
-# 29. CMeta 不应该拥有 Container Algorithm
+## 29. CMeta 不应该拥有 Container Algorithm
 
 例如：
 
@@ -1758,7 +1758,7 @@ Everything Library
 
 ---
 
-# 30. CFlow 也不应该拥有具体业务 Scheduler Policy
+## 30. CFlow 也不应该拥有具体业务 Scheduler Policy
 
 CFlow 可以定义：
 
@@ -1804,7 +1804,7 @@ server
 
 ---
 
-# 31. 同样，CMeta 不应该成为 Runtime Reflection VM
+## 31. 同样，CMeta 不应该成为 Runtime Reflection VM
 
 Type Descriptor 很有价值。
 
@@ -1845,7 +1845,7 @@ optimization
 
 ---
 
-# 32. “它不做什么”是架构稳定的重要部分
+## 32. “它不做什么”是架构稳定的重要部分
 
 一个成熟基础库不仅需要：
 
@@ -1894,7 +1894,7 @@ production runtime
 
 ---
 
-# 33. Cross-Compiler 是另一个真正的压力测试
+## 33. Cross-Compiler 是另一个真正的压力测试
 
 复杂 C preprocessor code 很容易出现：
 
@@ -1935,7 +1935,7 @@ Meta 系统越难真正成为 portable library。
 
 ---
 
-# 34. Extension 可以存在，但不能成为语义基础
+## 34. Extension 可以存在，但不能成为语义基础
 
 例如 GCC/Clang 可能支持：
 
@@ -1980,7 +1980,7 @@ semantic model
 
 ---
 
-# 35. 这也解释了为什么有限 `_Generic` 很重要
+## 35. 这也解释了为什么有限 `_Generic` 很重要
 
 `_Generic` 是：
 
@@ -2032,7 +2032,7 @@ GCC / Clang / MSVC
 
 ---
 
-# 36. CI 必须验证 Fresh Build，而不是只验证 Incremental Build
+## 36. CI 必须验证 Fresh Build，而不是只验证 Incremental Build
 
 Generated code、CMake、header install 这些问题很容易被：
 
@@ -2070,7 +2070,7 @@ cross-module include
 
 ---
 
-# 37. Installed Headers 是一个很重要的最终测试
+## 37. Installed Headers 是一个很重要的最终测试
 
 在 repository 内构建成功，并不代表 library 真正可用。
 
@@ -2126,7 +2126,7 @@ repository layout
 
 ---
 
-# 38. Multi-TU Test 同样必须是正式测试
+## 38. Multi-TU Test 同样必须是正式测试
 
 Type identity、Generic、Callable 等问题，单元测试如果全部：
 
@@ -2169,7 +2169,7 @@ registry duplication
 
 ---
 
-# 39. ABI Test 也应该进入 CI
+## 39. ABI Test 也应该进入 CI
 
 如果 library 目标是长期稳定，可以进一步测试：
 
@@ -2203,7 +2203,7 @@ plugin
 
 ---
 
-# 40. Error Surface 也是 Public API 的一部分
+## 40. Error Surface 也是 Public API 的一部分
 
 一个复杂 library 如果内部有：
 
@@ -2271,7 +2271,7 @@ error number accumulation
 
 ---
 
-# 41. 工程化以后，“简单”有了新的含义
+## 41. 工程化以后，“简单”有了新的含义
 
 最开始说：
 
@@ -2322,7 +2322,7 @@ Certificate
 
 ---
 
-# 42. CMeta 最终应该像一个“编译期/控制面基础层”
+## 42. CMeta 最终应该像一个“编译期/控制面基础层”
 
 走到这里，可以重新给 CMeta 定位。
 
@@ -2357,7 +2357,7 @@ RPC
 
 ---
 
-# 43. CFlow 则是对这套基础层的复杂工程验证
+## 43. CFlow 则是对这套基础层的复杂工程验证
 
 CFlow 证明：
 
@@ -2414,7 +2414,7 @@ integration stress test
 
 ---
 
-# 44. 一个真正成熟的 Meta Layer 应该逐渐“消失”
+## 44. 一个真正成熟的 Meta Layer 应该逐渐“消失”
 
 这是本章最后一个很重要的观点。
 
@@ -2452,7 +2452,7 @@ ordinary C ABI
 
 ---
 
-# 45. 到这里，工程边界已经可以总结成几条明确原则
+## 45. 到这里，工程边界已经可以总结成几条明确原则
 
 整个工程化设计可以压缩成：
 
@@ -2500,7 +2500,7 @@ Meta Programming
 
 ---
 
-# 小结：真正困难的不是“做出 Meta”，而是让它在普通 C 工程中成立
+## 小结：真正困难的不是“做出 Meta”，而是让它在普通 C 工程中成立
 
 单文件里实现：
 
@@ -2579,7 +2579,7 @@ CFlow 则继续证明：
 ---
 
 
-# 46. Case Study：为什么 Descriptor Address 不能成为 Type Identity
+## 46. Case Study：为什么 Descriptor Address 不能成为 Type Identity
 
 单 Translation Unit 中，最诱人的实现是：
 
@@ -2725,7 +2725,7 @@ cross-TU behavior remains valid
 
 ---
 
-# 47. Callable Identity：函数地址也不是一个足够统一的答案
+## 47. Callable Identity：函数地址也不是一个足够统一的答案
 
 Callable 比 Type 更复杂，因为它可能有：
 
@@ -2828,7 +2828,7 @@ never compare pointer
 
 ---
 
-# 48. Static Library / Shared Library：Duplicate Globals 不能成为语义事故
+## 48. Static Library / Shared Library：Duplicate Globals 不能成为语义事故
 
 当前 CMeta CMake 有一个非常值得写进书里的工程决定。
 
@@ -2874,7 +2874,7 @@ semantic identity still agrees
 
 ---
 
-# 49. Public Struct：Visible 不等于 Mutable，也不等于 Stable Bytes
+## 49. Public Struct：Visible 不等于 Mutable，也不等于 Stable Bytes
 
 C library 很容易出现一个误区：
 
@@ -2954,7 +2954,7 @@ use sizeof/offsetof as persistence protocol
 
 ---
 
-# 50. Versioned Provider ABI：扩展 Struct 时必须保留 Admission Boundary
+## 50. Versioned Provider ABI：扩展 Struct 时必须保留 Admission Boundary
 
 对于可扩展 provider/vtable，最危险的做法是：
 
@@ -3002,7 +3002,7 @@ extension interface
 
 ---
 
-# 51. CFlow 的 SOVERSION：ABI Version 应该成为真实 Library Artifact
+## 51. CFlow 的 SOVERSION：ABI Version 应该成为真实 Library Artifact
 
 当前 CFlow library snapshot：
 
@@ -3046,7 +3046,7 @@ release compatibility policy
 
 ---
 
-# 52. Compile-time Configuration 也是 ABI 的一部分
+## 52. Compile-time Configuration 也是 ABI 的一部分
 
 CMeta 的 finite signature universe 和 CFlow 的 configured limits 都可能进入 public compilation surface。
 
@@ -3087,7 +3087,7 @@ same public feature/limit contract
 
 ---
 
-# 53. Header / Source Boundary：哪些 Meta 必须留在调用点
+## 53. Header / Source Boundary：哪些 Meta 必须留在调用点
 
 Modern C meta library不应该走向：
 
@@ -3147,7 +3147,7 @@ certificate checker
 
 ---
 
-# 54. Generated Artifact Ownership：一个事实不能既由 Lean 又由人维护
+## 54. Generated Artifact Ownership：一个事实不能既由 Lean 又由人维护
 
 第十一章已经看到：
 
@@ -3199,7 +3199,7 @@ reviewable generated diff
 
 ---
 
-# 55. Install / Export：源码树里能 link 远远不够
+## 55. Install / Export：源码树里能 link 远远不够
 
 当前 Salts 已经使用标准 CMake package/export boundary：
 
@@ -3303,7 +3303,7 @@ relation_exec.h
 
 ---
 
-# 56. Installed Consumer Qualification：最接近真实用户的 Gate
+## 56. Installed Consumer Qualification：最接近真实用户的 Gate
 
 本书建议把 installed-consumer test 当成正式 gate，而不是 release 前手工冒烟。
 
@@ -3355,7 +3355,7 @@ no generated source file copied manually
 
 ---
 
-# 57. Multi-TU Qualification 应该故意制造 Representation 不同
+## 57. Multi-TU Qualification 应该故意制造 Representation 不同
 
 一个弱 Multi-TU test 只是：
 
@@ -3423,7 +3423,7 @@ intentionally inconsistent configuration
 
 ---
 
-# 58. Cross-Compiler：Core Semantics 不能建立在偶然扩展上
+## 58. Cross-Compiler：Core Semantics 不能建立在偶然扩展上
 
 CMeta 可以使用：
 
@@ -3470,7 +3470,7 @@ same installed API shape
 
 ---
 
-# 59. ABI Qualification：不要只比较 sizeof(struct)
+## 59. ABI Qualification：不要只比较 sizeof(struct)
 
 ABI test 的层次至少有四类。
 
@@ -3538,7 +3538,7 @@ void *impl
 
 ---
 
-# 60. Fail-fast Across Boundaries：错误越晚越昂贵
+## 60. Fail-fast Across Boundaries：错误越晚越昂贵
 
 全书反复出现的 fail-fast，在工程边界可以排列成：
 
@@ -3594,7 +3594,7 @@ runtime error string
 
 ---
 
-# 61. What We Learned
+## 61. What We Learned
 
 第十二章把前面所有“高级”能力重新压回普通 C 工程现实。
 
