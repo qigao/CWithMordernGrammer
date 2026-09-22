@@ -99,6 +99,7 @@ jobs:
             target="${source%.mmd}.svg"
             mmdc --input "$source" --output "$target" \
               --configFile release/mermaid-config.json \
+              --puppeteerConfigFile release/puppeteer-config.json \
               --backgroundColor transparent
           done
 
