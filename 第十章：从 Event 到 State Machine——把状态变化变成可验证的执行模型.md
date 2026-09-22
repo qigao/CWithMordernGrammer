@@ -1,11 +1,96 @@
 # 第十章：从 Event 到 State Machine——把状态变化变成可验证的执行模型
 
-
 > **本章路线**
 >
-> Part II 已经把计算、时间和执行机制拆成 Typed Graph、Subscription、Scheduler 和 Executor。Part III 开始处理长期存在的控制状态。
+> Part II 已经解决了“计算关系”如何被描述、证明和 lowering。Part III 现在处理另一类 C 中很容易失控的问题：长期存在的 mutable state。
 >
-> 本章继续使用已经出现过的连接状态机：
+> 先看一个最普通的连接状态机。很多项目一开始都会写成这样：
+>
+> ~~~c
+> typedef enum connection_state {
+>     CONN_DISCONNECTED,
+>     CONN_CONNECTING,
+>     CONN_CONNECTED,
+>     CONN_CLOSING,
+>     CONN_CLOSED
+> } connection_state;
+>
+> typedef enum connection_event {
+>     EV_CONNECT,
+>     EV_CONNECTED,
+>     EV_TIMEOUT,
+>     EV_DISCONNECT,
+>     EV_CLOSED
+> } connection_event;
+>
+> typedef struct connection {
+>     connection_state state;
+> } connection;
+>
+> static int connection_step(connection *c, connection_event ev)
+> {
+>     switch (c->state) {
+>     case CONN_DISCONNECTED:
+>         if (ev == EV_CONNECT) {
+>             c->state = CONN_CONNECTING;
+>             return 0;
+>         }
+>         break;
+>
+>     case CONN_CONNECTING:
+>         if (ev == EV_CONNECTED) {
+>             c->state = CONN_CONNECTED;
+>             return 0;
+>         }
+>         if (ev == EV_TIMEOUT) {
+>             c->state = CONN_DISCONNECTED;
+>             return 0;
+>         }
+>         break;
+>
+>     case CONN_CONNECTED:
+>         if (ev == EV_DISCONNECT) {
+>             c->state = CONN_CLOSING;
+>             return 0;
+>         }
+>         break;
+>
+>     case CONN_CLOSING:
+>         if (ev == EV_CLOSED) {
+>             c->state = CONN_CLOSED;
+>             return 0;
+>         }
+>         break;
+>
+>     case CONN_CLOSED:
+>         break;
+>     }
+>
+>     return -1;
+> }
+> ~~~
+>
+> 对一个小状态机，这段代码完全可以接受。
+>
+> 问题随着需求一起出现：
+>
+> ~~~text
+> Event 开始带不同 payload
+> transition 开始有 guard / action
+> 某些 state 必须 terminal
+> 同一 state/event 不能出现歧义
+> action 失败时旧 state 不能被半更新
+> 多线程事件不能同时修改同一个 state
+> build 前最好就发现 unreachable / invalid reference
+> ~~~
+>
+> 这些约束如果继续塞进 `switch`，很快会分散成大量隐式 convention。
+>
+> 所以本章不从“什么是 State Machine”讲起，而是问：
+>
+> **能不能把 `state + event + guard + action + transition` 本身变成 typed、可验证的程序数据，再让 runtime 只执行已经通过 admission 的 transition。**
+>
+> canonical control program 仍然是：
 >
 > ~~~text
 > Disconnected --Connect--------> Connecting
@@ -15,117 +100,10 @@
 > Closing      --ClosedEvent----> Closed
 > ~~~
 >
-> 但我们不把它写成一组 switch/callback 就结束，而是完整走一遍：
->
-> ~~~text
-> Plain C switch
->      ↓
-> Typed Event
->      ↓
-> Immutable Machine IR
->      ↓
-> Event Admission
->      ↓
-> Transition Selection
->      ↓
-> Guard / Action
->      ↓
-> Atomic State Commit
->      ↓
-> Observation
->      ↓
-> Lean SmallStep
->      ↓
-> Serial Executor refinement
-> ~~~
->
-> 这一章真正要证明的是：**状态机不是 callback table，而是一段可以被类型检查、构造期验证、small-step 推导并由 C runtime refinement 的程序。**
-
-上一章得到 Executor 以后，执行系统已经开始拥有一个非常稳定的基础：
-
-```text
-Task
-  ↓
-Executor
-```
-
-Executor 并不关心 Task 来自哪里。
-
-它可以来自：
-
-```text
-Graph
-Reactive Subscription
-Timer
-State Transition
-Actor
-```
-
-这时候，一个新的共同对象开始变得明显：
-
-**Event**
-
-因为很多系统真正处理的，并不是连续的数据流，而是：
-
-```text
-某件事情发生了
-```
-
-例如：
-
-```text
-Login
-Logout
-Timeout
-Connected
-Disconnected
-OrderCreated
-PaymentSucceeded
-ButtonClicked
-```
-
-这些对象和前面的普通 Value 很像。
-
-它们都有：
-
-```text
-Type
-Payload
-Identity
-```
-
-不同的是，它们表达的是：
-
-> **一次离散发生的事实。**
-
-一旦 Event 进入执行系统，再加入：
-
-```text
-State
-```
-
-问题就自然变成：
-
-> 当前处于某个状态时，收到某种 Event，系统应该变成什么状态？
-
-这就是 State Machine。
-
-但因为前面已经拥有：
-
-```text
-Type
-Callable
-Graph
-Executor
-```
-
-所以这里不需要重新发明一个传统的 callback table。
-
-我们可以尝试把 State Machine 本身也提升成：
-
-> **一个有类型、可以验证、可以分析的程序数据结构。**
+> 后面会把这段普通 C switch 逐步拆成 Typed Event、immutable Machine IR、build-time validation、serialized Instance 与 atomic commit；Lean 只在 small-step semantics 已经明确以后证明 determinism / typing / terminal law。
 
 ---
+
 
 ## 1. Event 首先应该是 Typed Value
 
