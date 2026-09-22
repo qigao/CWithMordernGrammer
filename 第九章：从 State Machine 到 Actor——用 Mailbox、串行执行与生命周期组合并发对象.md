@@ -1,5 +1,40 @@
 # 第九章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象
 
+
+> **本章路线**
+>
+> 第八章已经把连接状态机固定成一个可验证的 Machine。本章不增加第二套 transition semantics，而是在 Machine 外面增加并发对象真正需要的 shell：
+>
+> ~~~text
+> Immutable Machine
+>       ↓
+> Machine Instance
+>       +
+> Bounded Typed Mailbox
+>       +
+> Serial Executor
+>       +
+> Concurrent Scheduler
+>       +
+> Actor Lifecycle
+>       +
+> Producer References
+>       ↓
+> Actor
+> ~~~
+>
+> canonical control program仍然是：
+>
+> ~~~text
+> Disconnected --Connect--------> Connecting
+> Connecting   --ConnectedEvent-> Connected
+> Connecting   --Timeout--------> Disconnected
+> Connected    --Disconnect-----> Closing
+> Closing      --ClosedEvent----> Closed
+> ~~~
+>
+> Actor 只负责让多个 producer 能够安全地把 Typed Event 送到同一个 serialized mutable owner，并为这段长期执行增加 identity、lifecycle、stale reference 和 failure boundary。
+
 上一章做到 State Machine 以后，我们已经拥有一个很完整的有状态执行模型：
 
 ```text
@@ -2165,3 +2200,909 @@ Type / Callable / Graph / Machine
 ```
 
 下一章将进入这个问题：**为什么高级 Meta 和 Graph 并不意味着更重的运行时——如何通过 Control Plane、Direct Execution、Compiled Plan 和静态优化，把复杂性提前，把 hot path 重新降低成普通 C。**
+
+---
+
+
+# 33. Canonical Actor：给同一个 Connection Machine 加并发外壳
+
+第八章的 Machine 已经解决：
+
+~~~text
+Event typing
+Transition selection
+Guard / Action
+Atomic commit
+State typing
+Terminal semantics
+~~~
+
+Actor 不应该重新实现这些逻辑。
+
+它真正新增的是：
+
+~~~text
+谁可以发送？
+什么时候允许发送？
+消息在哪里等待？
+哪个 execution owner 修改状态？
+owner 销毁以后旧 producer ref 怎么办？
+runtime failure 如何进入 lifecycle？
+~~~
+
+因此可以把 Connection Actor 理解成：
+
+~~~text
+many producer refs
+      ↓
+Actor admission gate
+      ↓
+bounded typed mailbox
+      ↓
+single Machine Instance
+      ↓
+Serial Executor
+      ↓
+Connection Machine SmallStep
+~~~
+
+这和“一 Actor 一线程”的传统想象不同。
+
+真正不可妥协的是：
+
+> **同一个 Actor 的 Machine-owned mutable state 同时只有一个 transition owner。**
+
+它是否拥有专用 OS thread，只是 execution policy。
+
+---
+
+# 34. Semantic Contract：Actor 只增加 lifecycle/admission，不增加 transition meaning
+
+## 34.1 Lifecycle 是 Actor 自己的新语义
+
+Machine 有自己的 terminal state。
+
+Actor 还需要独立 lifecycle：
+
+~~~text
+START
+RUNNING
+STOPPING
+STOPPED
+FAILED
+~~~
+
+为什么不能直接复用 Machine state？
+
+因为：
+
+~~~text
+Machine state
+    = application/domain control state
+
+Actor lifecycle
+    = runtime ownership/admission state
+~~~
+
+例如 Connection Machine 可能当前是：
+
+~~~text
+Connected
+~~~
+
+但 Actor lifecycle 已经进入：
+
+~~~text
+STOPPING
+~~~
+
+此时：
+
+~~~text
+domain state
+~~~
+
+和：
+
+~~~text
+runtime admission
+~~~
+
+必须能同时存在。
+
+## 34.2 Send 第一阶段只做 Actor-gated admission
+
+Producer ref 的 send 不应该直接运行 Machine transition。
+
+它只做：
+
+~~~text
+is ref live?
+is Actor RUNNING?
+is event id/type valid?
+is mailbox capacity available?
+      ↓
+copy into mailbox
+      ↓
+return exact status
+~~~
+
+因此 send status 可以精确区分：
+
+~~~text
+ACCEPTED
+INVALID_ARGUMENT
+TYPE_MISMATCH
+FULL
+NOT_STARTED
+STOPPING
+STOPPED
+FAILED
+STALE
+~~~
+
+这些状态不是“错误字符串”。
+
+它们是 producer policy 的输入。
+
+## 34.3 Rejected send 必须保持 queue 不变
+
+如果 send 返回：
+
+~~~text
+FULL
+STOPPING
+STOPPED
+FAILED
+STALE
+TYPE_MISMATCH
+~~~
+
+底层不能：
+
+~~~text
+部分写入
+覆盖旧消息
+偷偷 drop 另一条消息
+自动 retry
+改变 Machine state
+~~~
+
+所以 rejected admission 的关键 contract 是：
+
+~~~text
+mailbox after
+=
+mailbox before
+~~~
+
+这与 Executor 的 rejected task ownership 是同一种设计。
+
+## 34.4 Multiple Producers 不改变 FIFO / single-consumer semantics
+
+多 producer 只意味着：
+
+~~~text
+many threads may attempt admission
+~~~
+
+它不意味着：
+
+~~~text
+many threads may concurrently execute transitions
+~~~
+
+Mailbox commit 可以是 MPMC admission；
+
+Machine execution 仍然是：
+
+~~~text
+one consumer
+one serialized transition stream
+~~~
+
+这把“锁住整个 domain object”的问题转化成：
+
+~~~text
+concurrent enqueue
++
+serialized mutation
+~~~
+
+## 34.5 Actor Owner 与 Producer Ref 必须分开
+
+如果 producer 直接持有 Actor owner pointer，那么 destroy 以后最危险的问题是：
+
+~~~text
+旧 producer 仍然调用 send
+    ↓
+use-after-free
+~~~
+
+所以需要两个概念：
+
+~~~text
+Actor owner
+    owns root reference and lifecycle control
+
+Actor ref
+    independently retained producer capability
+~~~
+
+destroy owner 时，不需要立即让整个小 control block 消失。
+
+可以：
+
+~~~text
+mark refs stale
+close runtime
+release root
+wait until last producer ref released
+    ↓
+reclaim control block
+~~~
+
+这样 STALE 就成为显式 semantic status，而不是野指针行为。
+
+## 34.6 Stale classification 应先于 Event validation
+
+一个已经 stale 的 producer ref 收到：
+
+~~~text
+unknown event id
+wrong payload type
+~~~
+
+时，最重要事实首先是：
+
+~~~text
+this reference no longer targets a live Actor
+~~~
+
+因此 stale 应优先分类。
+
+这使 caller 不会从一个已经失效的 runtime capability 中继续推断 schema/lifecycle 状态。
+
+## 34.7 STOPPING 必须先关闭 admission
+
+request_stop 的第一个效果应该是：
+
+~~~text
+no new messages admitted
+~~~
+
+然后才：
+
+~~~text
+cancel/close queued runtime
+settle in-flight work
+transition to STOPPED
+~~~
+
+否则在 shutdown 过程中 producer 仍然不断加入新消息，系统就没有有限的 settlement boundary。
+
+## 34.8 FAILED 应成为 terminal lifecycle，而不是隐式 restart
+
+如果底层 Machine/Subscription/runtime 失败：
+
+~~~text
+Actor -> FAILED
+~~~
+
+后续 send 明确：
+
+~~~text
+FAILED
+~~~
+
+而不是：
+
+~~~text
+silently create a new Machine Instance
+retry the message
+restart with old/new state
+~~~
+
+自动 restart 是 Supervisor/Application policy，不应该藏进 Actor primitive。
+
+---
+
+# 35. Lean：Actor formal model只增加 lifecycle gate，并复用 Machine semantics
+
+当前 formal calculus 已经包含：
+
+~~~text
+CMetaCFlowCalculus/CFlow/Actor.lean
+CMetaCFlowCalculus/Proofs/Actor.lean
+~~~
+
+模型非常符合本章目标：
+
+~~~text
+Actor.State
+    lifecycle
+    mailbox
+    live
+~~~
+
+注意：
+
+> Actor formal state 甚至没有复制一份 Machine transition state。
+
+这正好强调：
+
+~~~text
+Machine/Mailbox remain authoritative
+Actor adds lifecycle admission boundary
+~~~
+
+## 35.1 State.Valid：Lifecycle 与 Mailbox terminal 必须一致
+
+formal Actor.Valid 要求：
+
+~~~text
+mailbox.Valid
++
+mailbox.terminal
+=
+lifecycle.expectedMailboxTerminal
+~~~
+
+其中：
+
+~~~text
+START/RUNNING
+    → mailbox OPEN
+
+STOPPING/STOPPED/FAILED
+    → mailbox CANCELLED
+~~~
+
+这样 lifecycle 不是一个与 Mailbox 无关的 flag。
+
+它直接约束 admission substrate。
+
+## 35.2 start / requestStop / settle / fail 全部 preserve Valid
+
+已有：
+
+~~~text
+start_preserves_valid
+requestStop_preserves_valid
+settle_preserves_valid
+fail_preserves_valid
+~~~
+
+这说明 lifecycle transition 不应该让：
+
+~~~text
+Actor lifecycle
+~~~
+
+和：
+
+~~~text
+Mailbox terminal
+~~~
+
+进入互相矛盾的组合。
+
+例如：
+
+~~~text
+Actor STOPPED
++
+Mailbox OPEN
+~~~
+
+在模型里就不属于 Valid state。
+
+## 35.3 requestStop_cancels_pending
+
+已有 theorem：
+
+~~~text
+requestStop_cancels_pending
+~~~
+
+对于 START/RUNNING：
+
+~~~text
+requestStop
+    ↓
+mailbox queue = []
+mailbox terminal = CANCELLED
+~~~
+
+这精确表达 shutdown admission boundary。
+
+Actor 不只是：
+
+~~~text
+state = STOPPING
+~~~
+
+而是要把消息入口同时终止。
+
+## 35.4 send_accepted_only_running
+
+已有：
+
+~~~text
+send_accepted_only_running
+~~~
+
+证明如果 send 返回 ACCEPTED，那么 before 必须：
+
+~~~text
+live = true
+lifecycle = RUNNING
+~~~
+
+这给 producer API 一个非常强的 semantic statement。
+
+## 35.5 send_accepted_appends_once
+
+已有 theorem：
+
+~~~text
+send_accepted_appends_once
+~~~
+
+证明一次 accepted send：
+
+~~~text
+queue_after
+=
+queue_before ++ [event]
+~~~
+
+这同时表达：
+
+~~~text
+no overwrite
+no duplicate insertion
+no hidden reordering at abstract admission layer
+~~~
+
+## 35.6 send_rejected_preserves_queue
+
+对应地：
+
+~~~text
+send_rejected_preserves_queue
+~~~
+
+证明所有非 ACCEPTED 结果：
+
+~~~text
+queue_after
+=
+queue_before
+~~~
+
+这就是 bounded non-blocking admission 最核心的 correctness property。
+
+## 35.7 STOPPED / FAILED 是 absorbing lifecycle
+
+已有：
+
+~~~text
+stopped_cannot_restart
+failed_cannot_restart
+stopped_is_terminal
+failed_is_terminal
+~~~
+
+所以 primitive Actor 不提供隐式 resurrection。
+
+如果系统想 restart：
+
+> 创建新 Actor / 使用更高层 Supervisor protocol。
+
+## 35.8 accepted_handoff_refines_machine：Actor 不发明新的 transition
+
+最关键的 theorem 是：
+
+~~~text
+accepted_handoff_refines_machine
+~~~
+
+它把一次 Actor handoff 定义成：
+
+~~~text
+Actor send accepted
+      ↓
+Mailbox receives exact same Event
+      ↓
+existing Machine RuntimeStep
+~~~
+
+并证明：
+
+~~~text
+Actor was live/running
+event appended once
+same event received
+Machine after.trace
+=
+before.trace ++ Machine traceSuffix
+~~~
+
+这条 theorem 非常漂亮地说明：
+
+> **Actor 只是 admission/lifecycle shell；真正的 domain state transition 仍然由第八章的 Machine semantics 决定。**
+
+没有 Actor-specific “第二份 commit state”。
+
+这正是组合式架构最重要的验证之一。
+
+---
+
+# 36. Current C Implementation：Actor ownership 与 Producer Ref 已经分离
+
+当前 CFlow Actor API 明确有：
+
+~~~text
+cflow_actor
+    owner handle
+
+cflow_actor_ref
+    independently retained producer handle
+~~~
+
+两者都是 opaque handle，但 ownership 不同。
+
+## 36.1 Actor owns runtime shell
+
+Actor owner 持有：
+
+~~~text
+Machine or Statechart Instance
+bounded Mailbox
+identity Graph
+Subscription
+lifecycle control block
+root reference
+~~~
+
+同时借用：
+
+~~~text
+immutable definition
+SerialExecutor
+concurrent Scheduler
+guard/action bindings
+callback contexts
+type descriptors
+~~~
+
+这让 destroy 顺序可以被明确写出来。
+
+## 36.2 Scheduler 必须提供 CONCURRENT capability
+
+为什么 Actor 外层 Scheduler 要 concurrent，而内部 Machine transition 仍然 Serial？
+
+因为两个层次解决不同问题：
+
+~~~text
+Scheduler
+    → many Actors / async wakeups can share execution resources
+
+Machine SerialExecutor
+    → one Actor's state mutation remains serialized
+~~~
+
+所以：
+
+~~~text
+concurrency outside
+serialization inside
+~~~
+
+并不矛盾。
+
+这是 Actor scalability 的核心。
+
+## 36.3 Actor send 明确禁止隐藏行为
+
+当前 producer send contract 直接写明：
+
+~~~text
+never blocks
+never retries
+never overwrites
+never resizes
+never silently drops
+never allocates
+~~~
+
+这是一条非常强的 bounded runtime promise。
+
+FULL 真的就是 FULL。
+
+应用如果想：
+
+~~~text
+retry later
+drop newest
+drop oldest
+fail request
+apply upstream backpressure
+~~~
+
+必须自己决定。
+
+## 36.4 Owner destroy 先让 refs stale，再回收 root
+
+destroy contract：
+
+~~~text
+mark producer refs stale
+      ↓
+synchronously close selected instance/Subscription
+      ↓
+clear owner handle
+      ↓
+release root reference
+      ↓
+last producer ref releases
+      ↓
+control block reclaimed
+~~~
+
+所以 producer 可以安全得到：
+
+~~~text
+STALE
+~~~
+
+而不是访问已经 free 的 owner object。
+
+---
+
+# 37. Identity：为什么 Actor 不能只靠 pointer address
+
+Actor identity 至少有两层。
+
+## 37.1 Runtime object identity
+
+一个 producer ref 必须知道自己是否仍绑定到：
+
+~~~text
+the same live Actor generation/control block
+~~~
+
+owner destroy 以后：
+
+~~~text
+pointer-shaped capability
+~~~
+
+不能继续表示有效身份。
+
+STALE 是 identity/lifetime 的联合结果。
+
+## 37.2 Domain identity
+
+更高层系统还可能需要：
+
+~~~text
+user actor
+device actor
+connection actor
+order actor
+~~~
+
+这种 domain key。
+
+它不应该等于 runtime address。
+
+Actor runtime 可以更换/重建，但 domain identity 是否延续是 Supervisor/Application policy。
+
+所以这本书继续坚持：
+
+> **address is representation location, not semantic identity.**
+
+这和 Type descriptor、Callable、Graph certificate 的 identity 问题属于同一条主线。
+
+---
+
+# 38. Evidence：Actor 必须验证 concurrent admission + serialized mutation + lifecycle
+
+## 38.1 Bounded multi-producer admission
+
+并发 producer 同时 send，必须验证：
+
+~~~text
+accepted count <= capacity available
+FULL does not alter queue
+accepted events each appear exactly once
+no silent drop
+~~~
+
+队列顺序应按 documented mailbox commit/FIFO contract 验证，而不是假设 producer call-start 顺序。
+
+## 38.2 Single mutable owner
+
+Machine transition instrumentation 应验证：
+
+~~~text
+in-flight transition count <= 1
+~~~
+
+即使：
+
+~~~text
+many producers
+concurrent scheduler
+shared worker pool
+~~~
+
+同时存在。
+
+这比“没有 crash”更能证明 Actor semantic isolation。
+
+## 38.3 Lifecycle admission matrix
+
+分别测试：
+
+~~~text
+START
+    send → NOT_STARTED
+
+RUNNING
+    send → ACCEPTED/FULL/type error
+
+STOPPING
+    send → STOPPING
+
+STOPPED
+    send → STOPPED
+
+FAILED
+    send → FAILED
+
+owner destroyed + retained ref
+    send → STALE
+~~~
+
+## 38.4 Ref lifetime / stale stress
+
+必须覆盖：
+
+~~~text
+acquire many refs
+concurrent send
+owner destroy
+refs observe STALE
+release refs in arbitrary order
+last ref frees control block
+~~~
+
+并放入 sanitizer/stress gate。
+
+这是 Actor C implementation 最容易出 use-after-free 的地方。
+
+## 38.5 Actor-to-Machine refinement evidence
+
+选定第八章 Connection Machine，发送同一串：
+
+~~~text
+Connect
+ConnectedEvent
+Disconnect
+ClosedEvent
+~~~
+
+分别通过：
+
+~~~text
+direct Machine Instance
+Actor mailbox/ref path
+~~~
+
+比较最终：
+
+~~~text
+Machine state
+observation trace
+consumed event count
+first error
+~~~
+
+应该一致。
+
+这就是 accepted_handoff_refines_machine 的 C-side differential counterpart。
+
+## 38.6 Failure evidence
+
+人为让：
+
+~~~text
+Machine action fail
+Subscription fail
+Scheduler admission fail
+~~~
+
+检查 Actor：
+
+~~~text
+enters FAILED once
+rejects later sends
+retains first failure
+does not implicit restart
+settles ownership
+~~~
+
+---
+
+# 39. What We Learned
+
+Actor 看起来像一个很大的并发模型，但走到这里，它实际上只新增少数内容：
+
+~~~text
+Machine
+    already owns domain transition semantics
+
+Mailbox
+    already owns bounded typed admission
+
+Serial Executor
+    already owns serialized mutation
+
+Scheduler
+    already owns dispatch context
+
+Reactive Subscription
+    already owns long-lived execution
+~~~
+
+Actor 增加：
+
+~~~text
+lifecycle gate
+producer references
+stale classification
+root/ref lifetime
+failure boundary
+identity shell
+~~~
+
+Lean formalization也证明了这一点。
+
+最重要的 theorem 不是：
+
+~~~text
+Actor has some new transition semantics
+~~~
+
+而是：
+
+~~~text
+accepted Actor handoff
+    ↓
+same Mailbox Event
+    ↓
+same existing Machine RuntimeStep
+~~~
+
+所以：
+
+> **高级模型不是靠不断增加新的基础机制获得的，而是靠把已经验证的小 primitive 组合在一起。**
+
+这也解释为什么下一章不应该继续发明更多 framework。
+
+现在真正的问题已经变成：
+
+> **Graph、Callable、Reactive、Machine、Actor 这些丰富信息，到底哪些必须进入 hot path，哪些应该在 execution 以前被 normalize、verify、compile、lower 掉？**
+
+这就是第十章的：
+
+~~~text
+Rich Control Plane
+    ↓
+Simple Execution Plane
+~~~
+
+
