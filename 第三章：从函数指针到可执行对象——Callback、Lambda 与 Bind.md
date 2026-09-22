@@ -1,5 +1,23 @@
 # 第三章：从函数指针到可执行对象——Callback、Lambda 与 Bind
 
+
+> **本章路线**
+>
+> 前两章让“数据”拥有了类型和有限推导能力。这一章开始处理“行为”：从最普通的 function pointer 出发，只在确实需要组合、捕获环境和语义分析时，逐步增加 Callable。
+>
+> ~~~text
+> Function Pointer
+>    → Normalized Signature
+>    → Callable Representation
+>    → Capture / Lambda / Bind
+>    → Effects / Property Claims
+>    → Semantic Laws
+>    → Lean-checked Composition
+>    → Graph-ready Computation
+> ~~~
+>
+> 本章的关键不是模仿 C++ Lambda 语法，而是建立一个以后 Graph、Stream、Executor 和 Optimizer 都能共同消费的**有限可执行对象模型**。
+
 前两章解决了两个问题。
 
 第一步，是让宏从简单的文本复用逐渐变成：
@@ -1717,6 +1735,492 @@ Graph 并不是突然增加的一个 feature。
 而是一个很自然的结论：
 
 > **既然函数已经成为有类型、有语义、可以被保存和组合的数据，那么多个函数之间的计算关系，也应该可以成为数据。**
+
+---
+
+## 31. Semantic Contract：Callable 到底承诺什么
+
+到这里，需要把“Callable 很方便”进一步收紧成可实现、可验证的 contract。
+
+### 31.1 Signature 是可组合性的第一道门
+
+一个 Callable 首先拥有有限、明确的函数类型：
+
+~~~text
+A -> B
+A × B -> C
+A -> 0..N B
+~~~
+
+Graph 或 Stream 在连接两个 Callable 时，首先依赖的是：
+
+~~~text
+output type of f
+    compatible with
+input type of g
+~~~
+
+如果类型关系不成立，错误应该发生在：
+
+~~~text
+build / admission
+~~~
+
+而不是等到运行时拿 void * 猜。
+
+### 31.2 Capture 必须拥有明确的生命周期
+
+Lambda / Bind 的核心不是语法糖，而是：
+
+~~~text
+invoke code
++
+captured environment
+~~~
+
+因此必须回答：
+
+- capture 是 copy、borrow 还是 owned；
+- capture 的 alignment 是什么；
+- inline storage 最大容量是多少；
+- 超过容量是 compile-time failure、explicit heap path，还是 unsupported；
+- Callable copy 时 capture 怎样处理；
+- destroy 谁负责；
+- 跨线程使用是否允许。
+
+如果这些问题没有答案，所谓“Lambda”只是把传统 void * context 的问题藏了起来。
+
+### 31.3 Callable Instance 不等于 Function Address
+
+例如两个 Callable：
+
+~~~text
+times10 = bind(multiply, 10)
+times20 = bind(multiply, 20)
+~~~
+
+可能共享同一个 invoke function。
+
+但是它们显然不是同一个 callable instance。
+
+因此：
+
+~~~text
+function pointer equality
+~~~
+
+不能被当成：
+
+~~~text
+callable semantic equality
+~~~
+
+这一点与上一章的：
+
+~~~text
+descriptor address
+≠
+semantic type identity
+~~~
+
+是同一个设计模式。
+
+### 31.4 Effects 与 Properties 都首先是 metadata
+
+即使我们把它们分开：
+
+~~~text
+Effects:
+IO
+STATEFUL
+MAY_FAIL
+
+Properties:
+DETERMINISTIC
+IDEMPOTENT
+ASSOCIATIVE
+~~~
+
+也仍然要保持谨慎。
+
+如果这些 bit 来自程序员声明，那么它们首先只是：
+
+~~~text
+claims
+~~~
+
+它们可以用于：
+
+- diagnostics；
+- conservative admission；
+- scheduling restriction；
+- 要求额外 certificate；
+
+但不能因为看见：
+
+~~~text
+ASSOCIATIVE
+~~~
+
+就自动得出：
+
+~~~text
+任意重排都语义等价
+~~~
+
+真正授权 rewrite 的必须是 semantic law。
+
+---
+
+## 32. Lean：从“属性标签”进入可验证 Callable Algebra
+
+这一章 Lean 的价值比上一章更进一步。
+
+上一章主要验证有限 relation 是否 well formed。
+
+这一章开始验证：
+
+> **一个函数关系在什么前提下可以安全组合、简化或重排。**
+
+### 32.1 Signature composition
+
+如果：
+
+~~~text
+f : A -> B
+g : B -> C
+~~~
+
+可以建立：
+
+~~~text
+compose g f : A -> C
+~~~
+
+而：
+
+~~~text
+f : A -> B
+g : X -> C
+B != X
+~~~
+
+则 composition 不应该进入合法 graph。
+
+这部分可以由 finite signature model + C build-time checks共同承担。
+
+### 32.2 Idempotent law
+
+真正的 law 是：
+
+~~~text
+forall x, f (f x) = f x
+~~~
+
+然后才能证明：
+
+~~~text
+f ∘ f
+=
+f
+~~~
+
+注意证明的是：
+
+> 如果 f 满足 law，那么 rewrite preserve semantics。
+
+它不是证明任意被标记 IDEMPOTENT 的 C function 真的满足这个 law。
+
+### 32.3 Associative law
+
+类似：
+
+~~~text
+op (op a b) c
+=
+op a (op b c)
+~~~
+
+可以授权特定 reduction tree 的重组。
+
+但如果真实 C operation 存在：
+
+~~~text
+floating-point rounding
+overflow
+external state
+error ordering
+~~~
+
+就必须先定义 observable semantics，再决定 theorem 是否真的适用。
+
+这正是 Lean 能反过来改善 API 的地方：
+
+> 一个过于宽泛的 ASSOCIATIVE bit，可能根本不足以描述真正可安全重排的执行条件。
+
+### 32.4 Proof-carrying admission
+
+后面的 Optimizer 可以逐渐采用这样的思路：
+
+~~~text
+metadata claim
+      ↓
+admission condition
+      +
+trusted primitive / proof / certificate
+      ↓
+semantic rewrite enabled
+~~~
+
+而不是：
+
+~~~text
+bit is set
+      ↓
+rewrite blindly
+~~~
+
+这样 Lean 不进入 hot path，却真正改变了 C optimizer 的安全边界。
+
+---
+
+## 33. C Implementation：有限表达形式，少数执行路径
+
+这一章的实现目标不是创造越来越多 Runtime object。
+
+恰恰相反：
+
+> **Surface form 可以丰富，底层执行机制必须收敛。**
+
+概念上，一个 Callable representation 可以包含：
+
+~~~c
+typedef struct callable {
+    const signature_desc *signature;
+
+    callable_invoke_fn invoke;
+
+    effect_set effects;
+    property_set claims;
+
+    capture_storage capture;
+} callable;
+~~~
+
+这里字段名字不是重点。
+
+真正重要的 contract 是：
+
+~~~text
+signature
+    → type compatibility
+
+invoke
+    → one of a small number of execution paths
+
+capture
+    → explicit bounded environment
+
+effects / claims
+    → analysis metadata, not automatic proof
+~~~
+
+### 33.1 Raw function remains the baseline
+
+如果用户只有：
+
+~~~c
+long square(int x);
+~~~
+
+而系统根本不需要保存、组合或分析它，就应该直接调用：
+
+~~~c
+square(x);
+~~~
+
+Callable 不应该成为“所有函数必须经过的对象层”。
+
+### 33.2 Adapter path 必须可解释成本
+
+当需要 erased dispatch 或 capture 时，才进入 adapter：
+
+~~~text
+typed call
+    ↓
+adapter
+    ↓
+capture + input
+    ↓
+ordinary C function
+~~~
+
+这里需要知道：
+
+- 多一次 indirect call 吗；
+- capture copy 多大；
+- 有没有 allocation；
+- alignment 是否静态已知；
+- destructor 是否存在。
+
+### 33.3 Inline capture 必须 bounded
+
+Inline storage 的价值不是“更像 lambda”。
+
+它的价值是：
+
+~~~text
+no hidden allocation
++
+known maximum object size
++
+predictable ownership
+~~~
+
+超过边界必须 explicit。
+
+这与后面的 bounded mailbox、bounded executor queue 是同一设计哲学。
+
+---
+
+## 34. Evidence：Callable 必须和 Plain C baseline 比较
+
+本章的证据不能只有“能调用”。
+
+### 34.1 Compile-time evidence
+
+验证：
+
+~~~text
+signature match
+    → accepted
+
+signature mismatch
+    → fail early
+
+unsupported capture form
+    → explicit failure
+~~~
+
+### 34.2 Lifetime evidence
+
+至少测试：
+
+- capture copy；
+- capture destroy；
+- alignment；
+- multiple callable instances sharing one invoke function；
+- borrowed capture 的生命周期边界；
+- sanitizer 下无 use-after-free。
+
+### 34.3 Multi-TU / ABI evidence
+
+Named Callable 或 generated signature information 应该能够跨 TU 使用，而不是依赖某个 header-local object address。
+
+### 34.4 Performance evidence
+
+至少比较：
+
+~~~text
+direct C call
+typed wrapper
+adapter/erased callable
+capturing callable
+~~~
+
+需要记录：
+
+- compiler；
+- optimization level；
+- hot/cold call context；
+- 是否 inline；
+- capture size。
+
+目标不是证明“Callable 永远 zero-cost”。
+
+目标是告诉读者：
+
+> **什么时候它等价于普通调用，什么时候确实为表达能力付出了一次 dispatch/capture 成本。**
+
+---
+
+## 35. Canonical Example：为 Graph 准备三个 Callable
+
+从这一章开始，我们建立后面会持续复用的数据流例子。
+
+~~~text
+is_even : int -> bool
+square  : int -> int
+sum     : int × int -> int
+~~~
+
+Plain C 可以直接写：
+
+~~~c
+bool is_even(int x);
+int square(int x);
+int sum(int a, int b);
+~~~
+
+当它们进入 Callable 层以后，我们额外拥有：
+
+~~~text
+signature
+effects
+property claims
+optional certificate / trusted law
+~~~
+
+但执行函数本身仍然可以是普通 C。
+
+下一章不再单独看它们，而是保存它们之间的关系：
+
+~~~text
+Source<int>
+    ↓
+Filter(is_even)
+    ↓
+Map(square)
+    ↓
+Reduce(sum)
+~~~
+
+这就是 Graph。
+
+---
+
+## 36. What We Learned
+
+这一章完成了从：
+
+~~~text
+typed data
+~~~
+
+到：
+
+~~~text
+typed behavior
+~~~
+
+的跨越。
+
+关键不是 Lambda 或 Bind 的表面语法，而是：
+
+1. **Plain function pointer remains the baseline.**
+2. **Signature makes behavior type-aware.**
+3. **Capture makes environment explicit.**
+4. **Finite dispatch prevents surface features from multiplying runtime mechanisms.**
+5. **Effects / Properties are not automatically proofs.**
+6. **Semantic laws are what authorize verified rewrites.**
+7. **Lean lives in the control/trust plane, not the call hot path.**
+8. **Costs such as indirect dispatch and capture storage must be measured, not hidden.**
+
+因此 Graph 的出现不再像“添加一个 framework”。
+
+它只是下一步自然的问题：
+
+> **既然一个 Callable 已经可以成为数据，那么多个 Callable 之间的计算关系为什么不能也成为数据？**
 
 ---
 
