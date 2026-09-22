@@ -197,7 +197,7 @@ VALUE / DONE
 
 我们需要第三种状态：
 
-## WAIT
+**WAIT**
 
 也就是：
 
@@ -655,7 +655,7 @@ value
 
 这就是：
 
-## Backpressure
+**Backpressure**
 
 ---
 
@@ -1307,644 +1307,17 @@ Scheduler
 
 ---
 
-## 19. Reactive 以后，Publisher 可以是非常多不同对象
+## 19. 从 Reactive 原语进入状态语义
 
-一旦协议只要求：
+前十八节已经引入这一章真正新增的东西：WAIT、arm/wake、Demand、Subscription、bounded scheduling，以及 Scheduler 与时间控制。Graph 和 operator semantics 并没有因此变成另一套 framework。
 
-```text
-output_type
-resume
-cancel
-WAIT / wake
-```
+后半章因此直接用 canonical timed source 固定这些语义：WAIT 不代表已经 arm，wake 不产生 demand，source VALUE 不等于 downstream emission，terminal/cancel 必须唯一且显式，Subscription 是 live execution state 的 owner。随后再把这些规则对应到 Lean small-step model、当前 C implementation 与 race/resource evidence。
 
-Publisher 可以来自：
-
-```text
-Socket
-Timer
-Queue
-File Reader
-Database Cursor
-UI Event
-Sensor
-Machine
-Actor Adapter
-```
-
-而 Graph 完全不需要分别认识这些类型。
-
-它看到的始终只是：
-
-```text
-Publisher<T>
-```
-
-例如：
-
-```text
-Socket<User>
-    ↓
-Filter(enabled)
-    ↓
-Map(name)
-```
-
-与：
-
-```text
-Vec<User>
-    ↓
-Filter(enabled)
-    ↓
-Map(name)
-```
-
-Graph 中后半部分完全可以相同。
+这里同样严格区分 safety 与 liveness：formal invariant 不被写成对 OS fairness 或未来 wake 一定发生的证明。
 
 ---
 
-## 20. Reactive 的真正价值不是“异步 API”，而是统一同步和异步数据
-
-如果 Stream 和 Reactive 各自成为一套完整体系：
-
-```text
-Stream<T>
-ReactiveStream<T>
-```
-
-很多 operator 和 type rule 会重复。
-
-而 Graph 提供了另一种理解：
-
-```text
-同步与异步
-```
-
-只是：
-
-```text
-Publisher Progress Model
-```
-
-不同。
-
-可以表示成：
-
-```mermaid
-flowchart TD
-    A["Publisher<T>"]
-
-    A --> S["同步推进<br/>VALUE / DONE"]
-    A --> R["异步推进<br/>VALUE / WAIT / DONE"]
-
-    S --> G["Same Graph"]
-    R --> G
-```
-
-所以：
-
-> **Reactive 不是重新定义数据转换，而是给同一个数据转换模型增加时间维度。**
-
----
-
-## 21. Demand 又给它增加了流量维度
-
-如果说：
-
-```text
-WAIT / Wake
-```
-
-解决的是：
-
-```text
-什么时候有数据
-```
-
-那么：
-
-```text
-Demand
-```
-
-解决的是：
-
-```text
-现在允许流过多少数据
-```
-
-于是 Reactive execution 实际上开始处理三个维度：
-
-```text
-Type
-    什么数据
-
-Time
-    什么时候可用
-
-Demand
-    允许多少数据
-```
-
-这已经比普通 Iterator 丰富很多。
-
-可以理解成：
-
-```mermaid
-flowchart TD
-    V["Value Type"]
-    T["Availability / Time"]
-    D["Demand"]
-
-    R["Reactive Subscription"]
-
-    V --> R
-    T --> R
-    D --> R
-```
-
----
-
-## 22. Bounded Resource 也是 Backpressure 的另一半
-
-Demand 控制：
-
-```text
-value flow
-```
-
-但系统内部还有：
-
-```text
-Task Queue
-Event Queue
-Mailbox
-Timer Queue
-```
-
-它们同样不能默认：
-
-```text
-无限增长
-```
-
-所以后面 Executor、Scheduler、Actor 都采用：
-
-```text
-bounded capacity
-```
-
-并显式返回：
-
-```text
-FULL
-```
-
-而不是自动：
-
-```text
-resize forever
-```
-
-这和 Demand 的思想其实完全一致：
-
-> **资源边界应该进入协议，而不是隐藏在实现里。**
-
----
-
-## 23. 为什么不自动 Retry
-
-如果一个 queue 满了，framework 很容易选择：
-
-```text
-自动等待
-自动 retry
-```
-
-但这种做法会隐藏一个非常重要的 policy：
-
-```text
-满了以后怎么办？
-```
-
-不同 application 的答案可能完全不同：
-
-```text
-阻塞
-丢弃
-重试
-降级
-断开连接
-报告错误
-```
-
-所以底层更合理的行为是：
-
-```text
-FULL
-```
-
-把事实告诉上层。
-
-然后：
-
-```text
-Application
-```
-
-自己决定 policy。
-
-这也是整个系统一直坚持的：
-
-```text
-Mechanism
-≠
-Policy
-```
-
-原则。
-
----
-
-## 24. Cancel 也成为 Reactive 必须明确的语义
-
-同步循环可以：
-
-```c
-break;
-```
-
-异步执行则复杂得多。
-
-因为 Subscription 可能此时正在：
-
-```text
-WAIT
-```
-
-或者：
-
-```text
-已经有 task 排队
-```
-
-或者：
-
-```text
-callback 正在执行
-```
-
-所以需要明确：
-
-```text
-cancel
-```
-
-意味着什么。
-
-例如至少要保证：
-
-```text
-取消后不会再产生新的 downstream value
-```
-
-已经注册的：
-
-```text
-Waitable
-```
-
-应该：
-
-```text
-cancel
-```
-
-未来 stale wake 不应该重新激活已经结束的 Subscription。
-
-这些都开始从“API 细节”变成：
-
-```text
-State Machine Semantics
-```
-
----
-
-## 25. Terminal 也必须是明确状态
-
-同样：
-
-```text
-DONE
-ERROR
-CANCELLED
-```
-
-不能只是：
-
-```text
-一个 callback 已经调用过
-```
-
-而应该成为 execution state 的一部分。
-
-例如：
-
-```text
-DONE 以后
-```
-
-不能再：
-
-```text
-emit VALUE
-```
-
-```text
-ERROR 以后
-```
-
-也不能重新：
-
-```text
-WAIT
-```
-
-否则异步 race 很容易造成：
-
-```text
-on_done()
-on_value()
-```
-
-这样的非法顺序。
-
-这类：
-
-```text
-Terminal Invariant
-```
-
-也是非常适合 Lean formalization 的内容。
-
----
-
-## 26. Subscription 实际上已经是一个小型状态机
-
-虽然最初它只是为了：
-
-```text
-执行 Graph
-```
-
-但有了：
-
-```text
-Demand
-WAIT
-Wake
-Cancel
-Terminal
-```
-
-以后，它实际上已经拥有完整状态。
-
-例如概念上：
-
-```mermaid
-stateDiagram-v2
-    [*] --> Open
-
-    Open --> Running: demand
-    Running --> Open: demand exhausted
-
-    Running --> Waiting: WAIT
-    Waiting --> Running: wake
-
-    Open --> Cancelled: cancel
-    Running --> Cancelled: cancel
-    Waiting --> Cancelled: cancel
-
-    Running --> Done: DONE
-    Running --> Failed: ERROR
-```
-
-这也是后面为什么：
-
-```text
-Event
-State Machine
-Actor
-```
-
-会自然出现。
-
-因为很多 execution problem 最终都可以理解成：
-
-```text
-State + Event + Transition
-```
-
----
-
-## 27. Reactive 再次验证了 CMeta Interface 的价值
-
-到这里出现很多不同 provider：
-
-```text
-Publisher
-Waitable
-Subscriber
-Scheduler
-```
-
-如果每个都依赖具体 struct：
-
-```text
-SocketSource
-TimerSource
-QueueSource
-```
-
-Graph runtime 很快会充满：
-
-```text
-if type == ...
-```
-
-所以这些边界非常适合：
-
-```text
-{ self, vtable }
-```
-
-形式的小 Interface。
-
-CMeta 的 Interface 在这里开始真正显示价值：
-
-```text
-Publisher
-Waitable
-Subscriber
-Scheduler
-```
-
-都可以拥有不同 implementation，却共享同一个小协议。
-
-例如当前 Publisher、Waitable 和 Subscriber 都直接以 CMeta interface 声明，而不是建立 class hierarchy。
-
----
-
-## 28. 但 Interface 不意味着大量虚调用
-
-这里仍然需要区分：
-
-```text
-Runtime Boundary
-```
-
-和：
-
-```text
-Hot Operator Path
-```
-
-Publisher：
-
-```text
-可能是动态 provider
-```
-
-所以通过 Interface 调用很合理。
-
-但：
-
-```text
-Map
-Filter
-Reduce
-```
-
-如果 Graph 已经编译成 Plan 或 Direct：
-
-```text
-并不需要每一个 value 都通过通用 Interface
-```
-
-这再次体现：
-
-> **动态性只保留在真正需要动态性的边界。**
-
-而已知计算尽可能：
-
-```text
-静态绑定
-预解码
-直接调用
-```
-
----
-
-## 29. 从 Stream 到 Reactive，真正新增的是 Execution Semantics
-
-回头看这一章，会发现：
-
-```text
-Map
-Filter
-Reduce
-Collect
-```
-
-几乎没有发生变化。
-
-真正新增的是：
-
-```text
-WAIT
-Wake
-Subscription
-Demand
-Backpressure
-Scheduler
-Cancel
-Terminal
-```
-
-也就是说：
-
-```text
-Stream
-```
-
-主要解决：
-
-> 数据怎样转换？
-
-而：
-
-```text
-Reactive
-```
-
-进一步解决：
-
-> **当数据的产生具有时间、不确定性和速度差异时，这些转换怎样安全地继续执行？**
-
----
-
-## 30. 完整的发展路线再次自然延伸
-
-目前整个过程已经变成：
-
-```text
-Macro
- ↓
-Type
- ↓
-Generic / Inference
- ↓
-CMeta
- ↓
-Callable
- ↓
-Lambda / Bind
- ↓
-Graph
- ↓
-Data Transformation
- ↓
-Stream
- ↓
-Reactive
-```
-
-而 Reactive 又自然引出了一个更加基础的问题：
-
-> **到底是谁在执行这些 continuation、callback 和 Subscription task？**
-
-比如：
-
-```text
-wake 以后谁执行？
-parallel reduce 的 task 谁执行？
-state transition 谁串行？
-测试时怎样手工推进？
-```
-
-这时就需要把：
-
-```text
-Task Execution
-```
-
-本身抽成一个独立模型。
-
-也就是下一章的主题：
-
-
-## 31. Canonical Example：Graph 不变，Source 开始拥有时间
+## 20. Canonical Example：Graph 不变，Source 开始拥有时间
 
 上一章的同步 Stream 可以理解成：
 
@@ -2028,7 +1401,7 @@ custom asynchronous publisher
 
 ---
 
-## 32. Semantic Contract：Reactive 新增的是 execution state，而不是 Graph state
+## 21. Semantic Contract：Reactive 新增的是 execution state，而不是 Graph state
 
 这一章最重要的分层是：
 
@@ -2260,7 +1633,7 @@ borrows:
 
 ---
 
-## 33. Lean：这一章已经有真实的 Reactive small-step calculus
+## 22. Lean：这一章已经有真实的 Reactive small-step calculus
 
 这里不需要再发明一套“可能的 Lean 模型”。
 
@@ -2486,7 +1859,7 @@ OS 一定返回 I/O completion
 
 ---
 
-## 34. Current C Implementation：formal state 已经有清晰的 C counterpart
+## 23. Current C Implementation：formal state 已经有清晰的 C counterpart
 
 对照本版 Salts 实现快照：
 
@@ -2671,7 +2044,7 @@ Graph execution
 
 ---
 
-## 35. Scheduler：时间与执行位置是 capability，不是继承层次
+## 24. Scheduler：时间与执行位置是 capability，不是继承层次
 
 当前 Scheduler 同样是小 Interface，而不是 class hierarchy。
 
@@ -2753,7 +2126,7 @@ wall clock race
 
 ---
 
-## 36. Evidence：Reactive 需要同时验证 demand、wait、race 与 bounded resources
+## 25. Evidence：Reactive 需要同时验证 demand、wait、race 与 bounded resources
 
 本章不能只写一个 async demo。
 
@@ -2854,7 +2227,7 @@ cancel
 
 ---
 
-## 37. What We Learned
+## 26. What We Learned
 
 第六章完成的不是：
 
@@ -2933,11 +2306,11 @@ parallel reduce 也需要提交 task。
 
 ---
 
-## Executor
+**Executor**
 
 ---
 
-## 小结：Reactive 是给 Graph 增加“时间”和“流量”
+**小结：Reactive 是给 Graph 增加“时间”和“流量”**
 
 Stream 的世界主要是：
 
