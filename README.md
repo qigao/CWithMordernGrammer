@@ -115,6 +115,21 @@ The book is organized into five parts. The detailed editorial architecture remai
 14. [Finite, Explicit, On Demand — When Meta-Programming Should Stop](./%E7%AC%AC%E5%8D%81%E5%9B%9B%E7%AB%A0%EF%BC%9A%E6%9C%89%E9%99%90%E3%80%81%E6%98%BE%E5%BC%8F%E3%80%81%E6%8C%89%E9%9C%80%E2%80%94%E2%80%94%E4%BB%80%E4%B9%88%E6%97%B6%E5%80%99%E5%BA%94%E8%AF%A5%E5%81%9C%E6%AD%A2%20Meta%20%E5%8C%96.md)
 15. [From Macro Reuse to Typed Computation — What CMeta / CFlow Really Mean for Modern C](./%E7%AC%AC%E5%8D%81%E4%BA%94%E7%AB%A0%EF%BC%9A%E4%BB%8E%20Macro%20Reuse%20%E5%88%B0%20Typed%20Computation%E2%80%94%E2%80%94CMeta%20-%20CFlow%20%E5%AF%B9%20Modern%20C%20%E7%9A%84%E7%9C%9F%E6%AD%A3%E6%84%8F%E4%B9%89.md)
 
+## Publication build
+
+The chapter files remain the authoritative editable sources. Their publication order is defined once in [BOOK_MANIFEST.txt](./BOOK_MANIFEST.txt).
+
+Run the zero-dependency QA gate and build the canonical single-file Markdown manuscript with:
+
+```bash
+python3 scripts/validate_book.py
+python3 scripts/build_book.py
+```
+
+The generated manuscript is written to `dist/C-with-Modern-Grammar.md` and is intentionally not committed. The `Publication` GitHub Actions workflow runs the same validation/build on pull requests and `master`, then uploads the combined manuscript as a workflow artifact.
+
+PDF/EPUB rendering is intentionally a separate layer so ordinary writing and review do not require Pandoc, LaTeX, Node, or Lean.
+
 ## Repository history
 
 The manuscript originally lived in the `qigao/salts` repository and was later extracted into this standalone book repository.
