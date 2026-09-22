@@ -1,15 +1,15 @@
-第一章：CMeta 的起点——从写 C 宏的痛苦开始.md
-ch-02：从宏到类型——Traits、Generic 与有限推导.md
-第三章：从函数指针到可执行对象——Callback、Lambda 与 Bind.md
-第四章：从 Callable 到 Graph——把计算本身变成数据.md
-第五章：从 Graph 到 Stream——用高级接口解决数据转换问题.md
-第六章：Graph 的可信语义——从 Semantic Law 到 Verified Rewrite、Certificate 与 Refinement.md
-第七章：从 Graph 到 Plan 与 Direct——把复杂性提前，把 Hot Path 变回普通 C.md
-第八章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure.md
-第九章：Executor——把执行策略从计算语义中拆出来.md
-第十章：从 Event 到 State Machine——把状态变化变成可验证的执行模型.md
-第十一章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象.md
-第十二章：工程化边界——ABI、Multi-TU、Semantic Identity 与可安装的 C Library.md
-第十三章：从基础能力到 Modern C——Serialization、RPC、Plugin、Workflow 与更多应用.md
-第十四章：有限、显式、按需——什么时候应该停止 Meta 化.md
-第十五章：从 Macro Reuse 到 Typed Computation——CMeta - CFlow 对 Modern C 的真正意义.md
+cn/ch-01.md
+cn/ch-02.md
+cn/ch-03.md
+cn/ch-04.md
+cn/ch-05.md
+cn/ch-06.md
+cn/ch-07.md
+cn/ch-08.md
+cn/ch-09.md
+cn/ch-10.md
+cn/ch-11.md
+cn/ch-12.md
+cn/ch-13.md
+cn/ch-14.md
+cn/ch-15.md

@@ -1,53 +1,100 @@
 #!/usr/bin/env python3
-"""Build the canonical single-file Markdown manuscript.
+"""Build one canonical single-file Markdown manuscript edition.
 
-The chapter files remain the authoritative editable sources. This script only
-assembles them in BOOK_MANIFEST.txt order into dist/.
+Editable chapter sources live under cn/ and en/. Each edition owns a local
+BOOK_MANIFEST.txt containing stable ch-NN.md filenames.
+
+The Chinese edition remains the default so existing release tooling can call
+this script without arguments. A compatibility copy is also written to the
+legacy dist/C-with-Modern-Grammar.md path for the Chinese edition.
 """
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "BOOK_MANIFEST.txt"
-OUTPUT = ROOT / "dist" / "C-with-Modern-Grammar.md"
+BOOK_NAME = "C-with-Modern-Grammar.md"
 
-FRONT_MATTER = """---
-title: "C with Modern Grammar"
-subtitle: "From Plain C to Typed and Verified Computation"
-lang: "zh-CN"
+EDITION_META = {
+    "cn": {
+        "lang": "zh-CN",
+        "title": "C with Modern Grammar",
+        "subtitle": "From Plain C to Typed and Verified Computation",
+    },
+    "en": {
+        "lang": "en-US",
+        "title": "C with Modern Grammar",
+        "subtitle": "From Plain C to Typed and Verified Computation",
+    },
+}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--edition",
+        choices=sorted(EDITION_META),
+        default="cn",
+        help="manuscript edition to build (default: cn)",
+    )
+    return parser.parse_args()
+
+
+def chapter_paths(edition: str) -> list[Path]:
+    edition_dir = ROOT / edition
+    manifest = edition_dir / "BOOK_MANIFEST.txt"
+    entries = [
+        line.strip()
+        for line in manifest.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    return [edition_dir / entry for entry in entries]
+
+
+def front_matter(edition: str) -> str:
+    meta = EDITION_META[edition]
+    return f"""---
+title: "{meta['title']}"
+subtitle: "{meta['subtitle']}"
+lang: "{meta['lang']}"
 rights: "Apache-2.0"
 ---
 
 # C with Modern Grammar
 
-**From Plain C to Typed and Verified Computation**
+**{meta['subtitle']}**
 
 > This file is generated from the ordered chapter sources listed in
-> BOOK_MANIFEST.txt. Edit the chapter files, not this artifact.
+> {edition}/BOOK_MANIFEST.txt. Edit the chapter files, not this artifact.
 """
 
 
-def chapter_paths() -> list[Path]:
-    entries = [
-        line.strip()
-        for line in MANIFEST.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
-    return [ROOT / entry for entry in entries]
-
-
 def main() -> None:
-    pieces = [FRONT_MATTER.rstrip()]
-    for path in chapter_paths():
+    args = parse_args()
+    edition = args.edition
+
+    pieces = [front_matter(edition).rstrip()]
+    for path in chapter_paths(edition):
         text = path.read_text(encoding="utf-8").lstrip("\ufeff").rstrip()
         pieces.append(text)
 
-    output = "\n\n<!-- chapter-break -->\n\n".join(pieces) + "\n"
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(output, encoding="utf-8", newline="\n")
-    print(f"built {OUTPUT.relative_to(ROOT)} ({len(output.splitlines()):,} lines)")
+    output_text = "\n\n<!-- chapter-break -->\n\n".join(pieces) + "\n"
+    output = ROOT / "dist" / edition / BOOK_NAME
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(output_text, encoding="utf-8", newline="\n")
+
+    # Preserve the pre-edition canonical path for the Chinese release pipeline.
+    if edition == "cn":
+        legacy = ROOT / "dist" / BOOK_NAME
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(output_text, encoding="utf-8", newline="\n")
+
+    print(
+        f"built {edition} edition: {output.relative_to(ROOT)} "
+        f"({len(output_text.splitlines()):,} lines)"
+    )
 
 
 if __name__ == "__main__":

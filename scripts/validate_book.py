@@ -3,15 +3,15 @@
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "BOOK_MANIFEST.txt"
 
-EXTRA_MARKDOWN = [
+SHARED_MARKDOWN = [
     ROOT / "README.md",
     ROOT / "README_CN.md",
     ROOT / "BOOK_ARCHITECTURE.md",
@@ -33,22 +33,52 @@ class ValidationError(RuntimeError):
     pass
 
 
-def manifest_entries() -> list[str]:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--edition",
+        choices=("cn", "en"),
+        default="cn",
+        help="edition to validate (default: cn)",
+    )
+    return parser.parse_args()
+
+
+def manifest_entries(edition: str) -> list[str]:
+    edition_dir = ROOT / edition
+    manifest = edition_dir / "BOOK_MANIFEST.txt"
     entries = [
         line.strip()
-        for line in MANIFEST.read_text(encoding="utf-8").splitlines()
+        for line in manifest.read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     ]
-    if len(entries) != 15:
+    expected = [f"ch-{number:02d}.md" for number in range(1, 16)]
+    if entries != expected:
         raise ValidationError(
-            f"BOOK_MANIFEST.txt must contain 15 chapters, got {len(entries)}"
+            f"{edition}/BOOK_MANIFEST.txt must be exactly ch-01.md..ch-15.md; "
+            f"got {entries}"
         )
-    if len(set(entries)) != len(entries):
-        raise ValidationError("BOOK_MANIFEST.txt contains duplicate chapter entries")
     for entry in entries:
-        if not (ROOT / entry).is_file():
-            raise ValidationError(f"manifest chapter does not exist: {entry}")
+        if not (edition_dir / entry).is_file():
+            raise ValidationError(
+                f"{edition} manifest chapter does not exist: {entry}"
+            )
     return entries
+
+
+def validate_legacy_chinese_manifest() -> None:
+    manifest = ROOT / "BOOK_MANIFEST.txt"
+    entries = [
+        line.strip()
+        for line in manifest.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    expected = [f"cn/ch-{number:02d}.md" for number in range(1, 16)]
+    if entries != expected:
+        raise ValidationError(
+            "root BOOK_MANIFEST.txt must remain the Chinese compatibility "
+            "manifest cn/ch-01.md..cn/ch-15.md"
+        )
 
 
 def outside_fences(lines: list[str]):
@@ -202,10 +232,13 @@ def validate_part_structure() -> None:
 
 
 def main() -> int:
+    args = parse_args()
+    edition = args.edition
     try:
-        entries = manifest_entries()
-        chapters = [ROOT / entry for entry in entries]
-        markdown = chapters + EXTRA_MARKDOWN
+        entries = manifest_entries(edition)
+        edition_dir = ROOT / edition
+        chapters = [edition_dir / entry for entry in entries]
+        markdown = chapters + SHARED_MARKDOWN + [edition_dir / "README.md"]
 
         for chapter in chapters:
             validate_chapter(chapter)
@@ -214,9 +247,10 @@ def main() -> int:
             validate_text_hygiene(path)
             validate_internal_links(path)
 
+        validate_legacy_chinese_manifest()
         validate_part_structure()
     except ValidationError as exc:
-        print(f"publication QA failed: {exc}", file=sys.stderr)
+        print(f"publication QA failed ({edition}): {exc}", file=sys.stderr)
         return 1
 
     lines = sum(
@@ -224,7 +258,7 @@ def main() -> int:
         for path in chapters
     )
     print(
-        f"publication QA passed: {len(chapters)} chapters, "
+        f"publication QA passed ({edition}): {len(chapters)} chapters, "
         f"{lines:,} chapter Markdown lines"
     )
     return 0

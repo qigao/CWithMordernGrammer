@@ -4,6 +4,8 @@
 
 [中文](./README_CN.md) | **English**
 
+**Manuscripts:** [Chinese chapters](./cn/) · [English chapters](./en/)
+
 This book is written for C programmers who already know the language and want to build more capable systems without replacing C with C++ templates, a VM, or a new source language.
 
 Its thesis is not “macros are powerful” and not “formal proofs are interesting”.

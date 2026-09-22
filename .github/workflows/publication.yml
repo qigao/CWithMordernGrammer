@@ -16,9 +16,15 @@ concurrency:
 
 jobs:
   manuscript:
-    name: Validate and build manuscript
+    name: Validate and build manuscript (${{ matrix.edition }})
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        edition:
+          - cn
+          - en
 
     steps:
       - name: Checkout
@@ -30,15 +36,15 @@ jobs:
           python-version: "3.13"
 
       - name: Validate book
-        run: python scripts/validate_book.py
+        run: python scripts/validate_book.py --edition "${{ matrix.edition }}"
 
       - name: Build canonical manuscript
-        run: python scripts/build_book.py
+        run: python scripts/build_book.py --edition "${{ matrix.edition }}"
 
       - name: Upload manuscript
         uses: actions/upload-artifact@v4
         with:
-          name: c-with-modern-grammar-manuscript
-          path: dist/C-with-Modern-Grammar.md
+          name: c-with-modern-grammar-manuscript-${{ matrix.edition }}
+          path: dist/${{ matrix.edition }}/C-with-Modern-Grammar.md
           if-no-files-found: error
           retention-days: 14
