@@ -1,0 +1,11 @@
+{
+  "theme": "neutral",
+  "deterministicIds": true,
+  "deterministicIDSeed": "c-with-modern-grammar",
+  "themeVariables": {
+    "fontFamily": "Noto Sans CJK SC, Noto Sans, sans-serif"
+  },
+  "flowchart": {
+    "useMaxWidth": true
+  }
+}
