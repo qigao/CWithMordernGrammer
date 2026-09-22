@@ -39,7 +39,7 @@ def main() -> None:
         return f"![Diagram {index}](diagrams/{stem}.svg)"
 
     prepared = FENCE_RE.sub(replace_mermaid, text)
-    prepared = prepared.replace("<!-- chapter-break -->", '<div class="chapter-break"></div>')
+    prepared = prepared.replace("<!-- chapter-break -->", "::: {.chapter-break}\n:::")
     prepared, replacements = re.subn(r"(?m)^# C with Modern Grammar\s*\n", "", prepared, count=1)
     if replacements != 1:
         raise SystemExit("canonical display-title H1 not found exactly once")
