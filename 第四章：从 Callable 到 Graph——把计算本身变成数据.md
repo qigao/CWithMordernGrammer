@@ -1,32 +1,54 @@
 # 第四章：从 Callable 到 Graph——把计算本身变成数据
 
-
 > **本章路线**
 >
-> 第三章已经把单个行为变成 typed Callable。第四章开始把“多个行为之间的关系”变成显式 IR，并建立后续所有 Stream / Reactive / Plan / Optimizer 共享的 canonical pipeline。
+> 前三章解决的是“一个事实只写一次”：类型契约通过 Generic 收敛，行为契约通过 Callable 收敛。
 >
-> ~~~text
-> Plain C Pipeline
->      ↓
-> Typed Callable Chain
->      ↓
-> Surface Graph
->      ↓
-> Validate
->      ↓
-> Normalize
->      ↓
-> Observable Semantics
->      ↓
-> C Verification / Lean Obligation
->      ↓
-> Execution Backends
+> Part II 从一个完全不同的问题开始：
+>
+> **一段已经写对的 C 计算，为什么还需要被保存成 Graph？**
+>
+> 先看普通 C：
+>
+> ~~~c
+> static bool is_even(int x)
+> {
+>     return (x & 1) == 0;
+> }
+>
+> static int square(int x)
+> {
+>     return x * x;
+> }
+>
+> long sum_even_squares(const int *xs, size_t n)
+> {
+>     long total = 0;
+>
+>     for (size_t i = 0; i < n; ++i) {
+>         int x = xs[i];
+>         if (!is_even(x))
+>             continue;
+>         total += square(x);
+>     }
+>
+>     return total;
+> }
 > ~~~
 >
-> 从这一章开始，全书会持续复用同一个数据流例子：
+> 这段代码没有问题，而且对一次性的局部计算来说通常就是最好的实现。
+>
+> 问题在于：**一旦它被写成控制流，Filter → Map → Reduce 这段计算关系就消失了。**
+>
+> library 无法在执行前把它当成一个对象去 inspect、type-check、normalize、rewrite、compile，
+> 也无法证明某次 transformation 是否保持 observable result。
+>
+> 所以 Graph 不是为了替换 for loop，而是为了在执行之前把“整个计算”保留下来。
+>
+> 本章持续使用同一条 canonical pipeline：
 >
 > ~~~text
-> `Source<int>`
+> Source<int>
 >     ↓
 > Filter(is_even)
 >     ↓
@@ -35,171 +57,58 @@
 > Reduce(sum)
 > ~~~
 >
-> 后续章节不会重新发明示例，而是不断给同一条 pipeline 增加 Stream façade、WAIT/Demand、Executor、verified rewrite 和 lowering。
+> 这一章先只建立 typed program object。Lean 不是 Graph 出现的理由；
+> 只有当后面开始证明 normalize / rewrite / optimization 是否保持语义时，Lean 才进入。
 
-上一章完成了一个非常重要的变化。
+## 1. Plain C 的问题不是不能算，而是“算之前看不到整个计算”
 
-最开始，我们处理的是：
+把上面的循环稍微拆开，可以更清楚地看到业务关系：
 
-```text
-Typed Data
-```
+~~~c
+for (size_t i = 0; i < n; ++i) {
+    int x = xs[i];
 
-后来进一步得到：
+    /* Filter */
+    if (!is_even(x))
+        continue;
 
-```text
-Typed Callable
-```
+    /* Map */
+    int y = square(x);
 
-于是一个函数不再只是：
-
-```text
-function pointer
-```
-
-而可以同时具有：
-
-```text
-Signature
-Effects
-Properties
-Capture
-Dispatch
-```
-
-甚至可以通过：
-
-```text
-Lambda
-Bind
-Generator
-```
-
-构造新的 Callable。
-
-这时，一个新的问题自然出现：
-
-> **如果一个函数已经可以成为一个有类型、有语义的数据对象，那么多个函数之间的计算关系，能不能也成为数据？**
-
-例如：
-
-```text
-User
- ↓
-enabled : User -> bool
- ↓
-name : User -> String
-```
-
-代码当然可以直接写成：
-
-```c
-if (enabled(user)) {
-    String result = name(user);
+    /* Reduce */
+    total += y;
 }
-```
+~~~
 
-但一旦直接执行以后：
+真正稳定的知识其实只有：
 
-```text
-enabled
-name
-```
+~~~text
+Source<int>
+Filter(int -> bool)
+Map(int -> int)
+Reduce(int × int -> int)
+~~~
 
-之间的关系就只存在于：
+但在普通 C 里，这些知识散落在 for / if / continue / temporary / accumulator update 之中。
 
-```text
-控制流
-```
+如果下一步只想执行，完全不需要 Graph。
 
-里面。
+如果下一步想做：
 
-如果希望在执行之前：
+~~~text
+两个 Map 能不能融合？
+这个 Filter 能不能提前？
+这条 pipeline 能不能预编译一次、执行很多次？
+这个执行计划还对应原来的计算吗？
+~~~
 
-```text
-检查它
-分析它
-修改它
-优化它
-选择执行方式
-```
+那么 library 首先必须拥有一个东西：
 
-那么就需要先把：
+> **计算在执行前的结构化表示。**
 
-> **计算本身保存下来。**
+这就是 CFlow Graph 的起点。
 
-这就是 Graph 出现的原因。
-
----
-
-## 1. Graph 首先不是为了“画图”
-
-提到 Graph，很容易想到：
-
-```text
-Node
-Edge
-```
-
-或者可视化流程图。
-
-但这里 Graph 真正的意义不是为了画图。
-
-它解决的是一个更重要的问题：
-
-> **把一段原本只能通过执行表达的计算，变成一个普通的数据结构。**
-
-例如原来的程序：
-
-```c
-x = f(input);
-y = g(x);
-result = h(y);
-```
-
-可以先表示成：
-
-```text
-Input
-  ↓
-f
-  ↓
-g
-  ↓
-h
-  ↓
-Output
-```
-
-一旦这个关系被保存下来，程序就第一次拥有了两个阶段：
-
-```text
-Describe
-   ↓
-Execute
-```
-
-而不是：
-
-```text
-Describe = Execute
-```
-
-这一步非常关键。
-
-因为只有当：
-
-```text
-Program
-```
-
-首先成为：
-
-```text
-Data
-```
-
-以后，系统才能在执行之前对它做进一步处理。
+Graph 把原来只存在于控制流里的关系保存为普通 C 数据。之后的 Stream、Optimizer、Plan、Direct/AOT 都消费这同一份事实，而不是各自重新解释用户意图。
 
 ---
 
@@ -1206,7 +1115,7 @@ Reduce<int>(sum)
 
 > **把只存在于控制流里的关系，提升成可以检查和变换的数据。**
 
-### 31.1 Graph 不是执行结果，而是执行前的知识
+### 19.1 Graph 不是执行结果，而是执行前的知识
 
 一旦关系被保存下来，我们第一次同时拥有：
 
@@ -1245,7 +1154,7 @@ Graph 不是“装着一些 node 的数组”。
 
 它至少需要满足四类 contract。
 
-### 32.1 Topology well-formedness
+### 20.1 Topology well-formedness
 
 每条 Edge 必须引用存在的 node/port。
 
@@ -1260,7 +1169,7 @@ impossible entry/tail
 
 这属于结构合法性。
 
-### 32.2 Type preservation across edges
+### 20.2 Type preservation across edges
 
 如果：
 
@@ -1290,7 +1199,7 @@ Input<int>
 
 每一步的类型都是 admission 的一部分，而不是 runtime cast 的猜测。
 
-### 32.3 Operator contract
+### 20.3 Operator contract
 
 Node 不只保存 Callable。
 
@@ -1324,7 +1233,7 @@ input type
 
 而不是只看 function pointer。
 
-### 32.4 Mutation / snapshot boundary
+### 20.4 Mutation / snapshot boundary
 
 Graph 构造阶段可以修改 owning IR。
 
@@ -1356,7 +1265,7 @@ execute
 
 这里最重要的是先建立 Graph semantics 的基础。
 
-### 33.1 Well-formed Graph
+### 21.1 Well-formed Graph
 
 可以定义一个 predicate：
 
@@ -1383,7 +1292,7 @@ WellFormed(g) → ...
 
 而不是每个 rewrite 都重新证明一遍结构合法性。
 
-### 33.2 Graph observable semantics
+### 21.2 Graph observable semantics
 
 必须先回答：
 
@@ -1415,7 +1324,7 @@ observe(normalized, input)
 
 如果没有 observable semantics，“结构更简单”本身并不能推出“程序等价”。
 
-### 33.3 Normalize preservation
+### 21.3 Normalize preservation
 
 Normalize 最先应该拥有的 theorem 不是“更快”，而是：
 
@@ -1441,7 +1350,7 @@ Primitive / Normalized Graph
 
 可以是两种不同 physical representation，但仍然属于同一个 semantic program。
 
-### 33.4 Lean 暂时不证明 Graph storage layout
+### 21.4 Lean 暂时不证明 Graph storage layout
 
 这一章仍然要保持 proof boundary。
 
@@ -1494,7 +1403,7 @@ cflow_edge
   stores typed topology coordinates
 ~~~
 
-### 34.1 Edge 是显式 IR row
+### 22.1 Edge 是显式 IR row
 
 本版 snapshot 中 `cflow_edge` 的 public definition 已经明确到端口：
 
@@ -1511,7 +1420,7 @@ typedef struct cflow_edge {
 
 Branch、Relation、Subgraph 可以在同一 IR 中拥有显式拓扑。
 
-### 34.2 Node 保存的是 operator semantics + callable + type knowledge
+### 22.2 Node 保存的是 operator semantics + callable + type knowledge
 
 同一 snapshot 中，node 的职责可以概括成：
 
@@ -1540,7 +1449,7 @@ Typed Graph Node
 
 因此 Graph 是前面 Meta 能力的 integration point，而不是另起一套 type system。
 
-### 34.3 Graph 是 owning handle，但 rows 是 read-only introspection
+### 22.3 Graph 是 owning handle，但 rows 是 read-only introspection
 
 当前 API 的边界非常专业：
 
@@ -1558,7 +1467,7 @@ node/edge/subgraph rows
 
 > “struct 是 public 的”不等于“每个 field 都允许 caller 任意写”。
 
-### 34.4 Version 把 downstream artifacts 绑定到具体 Graph state
+### 22.4 Version 把 downstream artifacts 绑定到具体 Graph state
 
 当前 owning Graph 持有 process-local nonzero mutation token。
 
@@ -1579,7 +1488,7 @@ runtime admission
 
 > “我是不是还绑定在原来那张未变化的 Graph 上？”
 
-### 34.5 Normalize / Optimize 都输出新的 Graph
+### 22.5 Normalize / Optimize 都输出新的 Graph
 
 当前 optimizer contract 已经明确：
 
@@ -1637,7 +1546,7 @@ compare output again
 
 这非常重要，因为它把几类 evidence 分开了。
 
-### 35.1 Structural evidence
+### 23.1 Structural evidence
 
 检查：
 
@@ -1650,7 +1559,7 @@ fused chains
 
 是否满足预期结构。
 
-### 35.2 Differential semantic evidence
+### 23.2 Differential semantic evidence
 
 同一 input 分别经过：
 
@@ -1663,7 +1572,7 @@ compiled plan
 
 如果 observable result 不同，就说明 transformation chain 有真实 regression。
 
-### 35.3 Formal evidence
+### 23.3 Formal evidence
 
 Lean 负责证明：
 
@@ -1673,7 +1582,7 @@ Lean 负责证明：
 preserves observable semantics
 ~~~
 
-### 35.4 Runtime evidence
+### 23.4 Runtime evidence
 
 C differential tests 则负责检查：
 

@@ -1,160 +1,101 @@
 # 第五章：从 Graph 到 Stream——用高级接口解决数据转换问题
 
-
 > **本章路线**
 >
-> 第四章已经把 canonical pipeline 保存成 Typed Graph。本章不再设计新的执行语义，而只解决一个 API 问题：
+> 第四章已经把 Filter → Map → Reduce 从控制流保存成 typed Graph。
 >
-> ~~~text
-> Typed Graph
->     ↓
-> Stream façade
->     ↓
-> same Graph
->     ↓
-> fresh execution state per evaluation
+> 这一章只问一个工程问题：
+>
+> **普通 C 用户是否必须亲手创建 Node / Edge，才能使用这套计算模型？**
+>
+> 先看原始 C：
+>
+> ~~~c
+> long total = 0;
+>
+> for (size_t i = 0; i < n; ++i) {
+>     int x = input[i];
+>     if (!is_even(x))
+>         continue;
+>     total += square(x);
+> }
 > ~~~
 >
-> 贯穿示例保持不变：
+> 再看同一条计算通过 Stream façade 表达：
 >
-> ~~~text
-> `Source<int>`
->     ↓
-> Filter(is_even)
->     ↓
-> Map(square)
->     ↓
-> Reduce(sum)
+> ~~~c
+> cflow_stream s = {0};
+>
+> cflow_stream_init(&s, &cmeta_type_int);
+>
+> s.filter(&s, is_even)
+>  ->map(&s, square)
+>  ->reduce(&s, sum);
 > ~~~
 >
-> 本章需要证明的不是“链式调用很漂亮”，而是 **Stream surface syntax 不改变 Graph semantics，也不引入隐藏 runtime ownership**。
+> 第二段代码的价值不在“链式调用更漂亮”。
+>
+> 真正重要的是：这些调用没有创建第二套 Stream runtime，而是在构造第四章的同一张 typed Graph。
+>
+> ~~~text
+> C Stream surface
+>       ↓
+> typed Graph
+>       ↓
+> normalize / optimize / compile
+>       ↓
+> Plan / Direct / other execution
+> ~~~
+>
+> 因此这里所谓 LINQ-like，并不是模仿语法；而是让 C 可以把一整条数据计算当成可检查、可转换、可编译的 program object。
 
-上一章完成了一个重要转变：
+## 1. 从手写循环到 LINQ-like surface：变化的是“描述方式”，不是计算结果
 
-```text
-Callable
-    ↓
-Graph
-```
+继续使用同一个例子：
 
-函数不再只是独立执行，而是可以连接成一个完整的、有类型的计算结构。
+~~~c
+long plain_sum_even_squares(const int *input, size_t n)
+{
+    long total = 0;
 
-有了 Graph 以后，我们首先想到的并不是：
+    for (size_t i = 0; i < n; ++i) {
+        int x = input[i];
+        if (!is_even(x))
+            continue;
+        total += square(x);
+    }
 
-> 还要再设计一种新的运行时。
-
-真正出现的第一个非常自然的应用，是：
-
-> **数据转换。**
-
-因为大量业务代码，本质上都在重复做几类相同的事情：
-
-```text
-过滤
-转换
-展开
-跳过
-截断
-聚合
-收集
-```
-
-也就是：
-
-```text
-Filter
-Map
-FlatMap
-Skip
-Limit
-Reduce
-Collect
-```
-
-这些操作非常适合 Graph。
-
-而当这些操作开始组成一条线性计算链时，我们很快发现：
-
-> **它和 Java Stream 所解决的问题非常接近。**
-
-所以 Stream 并不是 Graph 的原因。
-
-恰恰相反。
-
-是 Graph 做出来以后，我们才发现：
-
-> **可以在 Graph 上提供一个类似 Java Stream 的高级接口，让 C 的数据转换也可以写得更接近问题本身。**
-
----
-
-## 1. 大量 C 代码其实都在做数据转换
-
-例如有一个：
-
-```c
-User users[1000];
-```
-
-现在希望：
-
-1. 找到所有 enabled user；
-2. 取出他们的名字；
-3. 只保留前 100 个；
-4. 收集到一个新的容器。
-
-普通 C 完全可以写：
-
-```c
-size_t out_count = 0;
-
-for (size_t i = 0; i < user_count; ++i) {
-    if (!user_enabled(&users[i]))
-        continue;
-
-    names[out_count++] = user_name(&users[i]);
-
-    if (out_count == 100)
-        break;
+    return total;
 }
-```
+~~~
 
-这段代码没有任何问题。
+Plain C 已经非常直接。
 
-甚至对于一个局部、简单、一次性的处理过程，它通常就是最好的代码。
+如果只执行一次，它通常不需要任何 abstraction。
 
-问题出现在这种模式大量重复以后。
+Stream 的意义出现在计算开始被复用、组合、检查、优化或切换 execution backend 的时候。
 
-例如项目中不断出现：
+这时手写循环的问题不是性能，而是 library 看不到：
 
-```text
-遍历
-if
-continue
-临时变量
-输出下标
-容量检查
-提前停止
-错误处理
-```
+~~~text
+Filter(is_even)
+Map(square)
+Reduce(sum)
+~~~
 
-真正的业务逻辑反而被夹在这些执行细节之间。
+这三个 operator 之间的关系。
 
-用户真正想表达的其实只有：
+Stream façade 让用户写出接近业务计算的接口，而 Graph 保存真正的语义事实。
 
-```text
-Filter(user_enabled)
-Map(user_name)
-Limit(100)
-Collect(names)
-```
+因此这一章守住三个边界：
 
-所以问题并不是：
+~~~text
+Stream != second type system
+Stream != second optimizer
+Stream != mandatory runtime interpreter
+~~~
 
-> C 的 `for` 不够好。
-
-而是：
-
-> **能不能把“数据怎样变化”从“循环怎样执行”中抽出来？**
+它只负责把更自然的 C surface 收敛到同一张 Graph。
 
 ---
 
@@ -1210,7 +1151,7 @@ same typed Graph
 
 ## 21. Semantic Contract：Stream façade 不能偷偷改变什么
 
-### 32.1 Operator semantics 必须与 Graph 一致
+### 21.1 Operator semantics 必须与 Graph 一致
 
 如果 Graph 中：
 
@@ -1242,7 +1183,7 @@ typed Graph builder wrapper
 second semantic authority
 ~~~
 
-### 32.2 Stream owns the description, not the source data
+### 21.2 Stream owns the description, not the source data
 
 Stream 可以拥有：
 
@@ -1265,7 +1206,7 @@ container lifetime
 
 如果绑定的是 borrowed Range，那么 evaluation 期间原 owner 必须继续存活并满足 Range contract。
 
-### 32.3 Evaluation state 必须与 reusable Graph 分离
+### 21.3 Evaluation state 必须与 reusable Graph 分离
 
 一个很关键的 contract 是：
 
@@ -1290,7 +1231,7 @@ Build Once, Execute Many
 
 会立刻失效。
 
-### 32.4 “可链式”不等于“延迟执行对象无限增长”
+### 21.4 “可链式”不等于“延迟执行对象无限增长”
 
 Stream 只负责 construction。
 
@@ -1317,7 +1258,7 @@ Stream façade 本身不需要拥有一套新的复杂 formal semantics。
 
 更自然的证明目标是：
 
-### 33.1 Surface-to-Graph construction correctness
+### 22.1 Surface-to-Graph construction correctness
 
 如果一串 Stream method：
 
@@ -1353,7 +1294,7 @@ GraphSemantics(g, input)
 
 > **Façade 越薄，需要独立证明的语义就越少。**
 
-### 33.2 Type-chain preservation
+### 22.2 Type-chain preservation
 
 对于：
 
@@ -1376,7 +1317,7 @@ U != V
 
 应该在 Graph construction/admission 阶段失败。
 
-### 33.3 Reusable description / fresh execution separation
+### 22.3 Reusable description / fresh execution separation
 
 形式模型中最好明确区分：
 
@@ -1424,7 +1365,7 @@ struct cflow_stream {
 
 这段 representation 本身就回答了很多问题。
 
-### 34.1 Graph 是 Stream 的核心 owned description
+### 23.1 Graph 是 Stream 的核心 owned description
 
 Stream 不是指向一个隐藏 Stream runtime。
 
@@ -1446,7 +1387,7 @@ Graph
 
 不是架构图上的理想关系，而是实际 data layout。
 
-### 34.2 Range 是输入协议，不是 Graph 的一部分
+### 23.2 Range 是输入协议，不是 Graph 的一部分
 
 input_range 与 has_input_range 表示：
 
@@ -1467,7 +1408,7 @@ other source
 
 可以逐步共享后面的计算描述。
 
-### 34.3 Method fields 是显式 self 的 ISO C11 façade
+### 23.3 Method fields 是显式 self 的 ISO C11 façade
 
 当前 Stream methods 不是 C++ member function。
 
@@ -1483,7 +1424,7 @@ stream.map(&stream, ...)
 1. 保持 ISO C11；
 2. surface syntax 更接近 fluent API，但没有引入 object runtime。
 
-### 34.4 Public Graph view 是 read-only introspection
+### 23.4 Public Graph view 是 read-only introspection
 
 当前 API 已经明确：
 
@@ -1540,7 +1481,7 @@ Check Certificate
 
 它已经是实际 trusted execution path 的测试对象。
 
-### 35.1 Surface/API evidence
+### 24.1 Surface/API evidence
 
 需要验证：
 
@@ -1550,7 +1491,7 @@ filter/map/reduce method
 Graph rows appear with expected operators/types
 ~~~
 
-### 35.2 Reuse evidence
+### 24.2 Reuse evidence
 
 同一 Stream description 在合法 Range contract 下多次 evaluation，应拥有独立 execution state。
 
@@ -1564,7 +1505,7 @@ temporary value storage
 
 不能泄漏回 Graph description。
 
-### 35.3 Ownership evidence
+### 24.3 Ownership evidence
 
 测试要区分：
 
@@ -1576,7 +1517,7 @@ but
 Stream does not destroy borrowed container/Range owner
 ~~~
 
-### 35.4 Certificate / verification evidence
+### 24.4 Certificate / verification evidence
 
 当 Stream 构造完成以后，所有 trusted transformation 都应该针对：
 
