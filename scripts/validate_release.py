@@ -33,7 +33,7 @@ def main() -> None:
         require(svg.stat().st_size > 100, f"empty/suspicious SVG: {svg.name}")
         require("<svg" in svg.read_text(encoding="utf-8"), f"not an SVG document: {svg.name}")
 
-    expected_refs = set(re.findall(r"diagrams/(diagram-\\d{3}\\.svg)", prepared))
+    expected_refs = set(re.findall(r"diagrams/(diagram-\d{3}\.svg)", prepared))
     actual_refs = {p.name for p in svgs}
     require(expected_refs == actual_refs, "prepared Markdown diagram references do not match rendered SVG set")
 
