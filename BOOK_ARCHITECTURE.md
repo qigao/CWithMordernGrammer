@@ -215,6 +215,19 @@ typed callable
 
 # Part II — 用 CMeta / CFlow 构造、证明和优化 LINQ-like Graph
 
+
+Part II 的出版顺序固定为：
+
+~~~text
+Chapter 4  Callable → Typed Graph
+Chapter 5  Graph → LINQ-like Stream surface
+Chapter 6  Observable Semantics → Lean Law → Verified Rewrite / Certificate
+Chapter 7  Normalize / Optimize → Compiled Plan → Direct/AOT → ordinary C hot path
+~~~
+
+这四章必须连续。Reactive、Executor、Machine、Actor 不再插在 Graph 与 optimizer/Lean 之间。
+
+
 这是全书最重要的技术 Part。
 
 它回答：

@@ -1,9 +1,9 @@
-# 第十章：Rich Control Plane，Simple Execution Plane——把复杂性提前，把 Hot Path 重新变回普通 C
+# 第七章：从 Graph 到 Plan 与 Direct——把复杂性提前，把 Hot Path 变回普通 C
 
 
 > **本章路线**
 >
-> 前九章不断增加“知道的东西”：Type、Callable、Graph、Demand、Executor、Machine、Actor。第十章反过来问：
+> 第四、五章先把计算保存成 Graph，并提供 LINQ-like Stream surface；第六章再建立 observable semantics、rewrite law 与 certificate。第七章反过来问：
 >
 > **这些知识最终是不是都要留在每一个 Value 的 hot path？**
 >
@@ -1456,7 +1456,7 @@ rewrite theorem
 rewrite trace
 ~~~
 
-第十一章会把这条链完整展开。
+第六章已经把这条 trusted chain 完整展开。
 
 ## 21.2 Lean 已经有对应 theorem
 
@@ -2003,7 +2003,7 @@ empirical evidence
 
 ---
 
-## 27. Performance Evidence：第十章必须建立 measurement discipline
+## 27. Performance Evidence：本章必须建立 measurement discipline
 
 本版 CFlow 实现 已经有专门 benchmark targets：
 
@@ -2152,7 +2152,7 @@ Do Less
 
 ## 29. What We Learned
 
-第十章终于把前面看起来很多的组件压缩成一条统一原则。
+本章把前面看起来很多的组件压缩成一条统一原则。
 
 ~~~text
 CMeta
@@ -2235,6 +2235,8 @@ Part III 到这里完成。
 
 > **Trusted base 到底有哪些？一个 Lean theorem、一个 metadata claim、一个 optimizer trace、一个 certificate、一个 C differential test，各自能证明什么、不能证明什么？**
 
-这就是第十一章。
+这个 trusted boundary 已经由第六章建立。
+
+到这里，Part II 从 Graph 表达、Stream surface、Lean-backed semantic law 一直走到 Plan / Direct lowering，形成完整闭环。下一章开始进入 Part III：把同一套基础能力用于 Reactive 与异步执行。
 
 

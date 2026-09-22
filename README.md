@@ -77,7 +77,7 @@ is valuable not because it resembles another language, but because C/C++ do not 
 
 This Part shows Graph, Stream surface syntax, semantic laws, Lean-backed rewrite preservation, optimizer passes, compiled Plan execution, and Direct/AOT lowering back to ordinary C.
 
-The current core material is Chapters 4, 5, 10, and 11; publication ordering will be consolidated as the reframe proceeds.
+The core Part II sequence is now Chapters 4–7: Graph → Stream → verified semantics → Optimize/Plan/Direct.
 
 ### Part III — Build advanced applications from CMeta/CFlow
 

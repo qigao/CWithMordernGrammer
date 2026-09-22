@@ -3,12 +3,12 @@
 第三章：从函数指针到可执行对象——Callback、Lambda 与 Bind.md
 第四章：从 Callable 到 Graph——把计算本身变成数据.md
 第五章：从 Graph 到 Stream——用高级接口解决数据转换问题.md
-第六章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure.md
-第七章：Executor——把执行策略从计算语义中拆出来.md
-第八章：从 Event 到 State Machine——把状态变化变成可验证的执行模型.md
-第九章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象.md
-第十章：Rich Control Plane，Simple Execution Plane——把复杂性提前，把 Hot Path 重新变回普通 C.md
-第十一章：Lean 与可信边界——从 Semantic Law 到 Verified Rewrite、Manifest 与 Certificate.md
+第六章：Graph 的可信语义——从 Semantic Law 到 Verified Rewrite、Certificate 与 Refinement.md
+第七章：从 Graph 到 Plan 与 Direct——把复杂性提前，把 Hot Path 变回普通 C.md
+第八章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure.md
+第九章：Executor——把执行策略从计算语义中拆出来.md
+第十章：从 Event 到 State Machine——把状态变化变成可验证的执行模型.md
+第十一章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象.md
 第十二章：工程化边界——ABI、Multi-TU、Semantic Identity 与可安装的 C Library.md
 第十三章：从基础能力到 Modern C——Serialization、RPC、Plugin、Workflow 与更多应用.md
 第十四章：有限、显式、按需——什么时候应该停止 Meta 化.md

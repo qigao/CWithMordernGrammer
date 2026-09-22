@@ -115,7 +115,7 @@ Reduce(sum)
 - Direct/AOT 怎样在满足条件时把 Graph 从 hot path 中完全删除；
 - hand-written C / Graph / Plan / Direct 怎样做真实对比。
 
-当前核心内容分布在 Chapter 4、5、10、11；后续会把它们整理成连续出版顺序。
+Part II 现在按 Chapter 4–7 连续展开：Graph → Stream → 可信语义 → Optimize / Plan / Direct。
 
 ### Part III — 在 CMeta / CFlow 上构造高级应用
 

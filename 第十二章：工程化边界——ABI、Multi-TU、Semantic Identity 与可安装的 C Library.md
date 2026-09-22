@@ -903,7 +903,7 @@ struct 在 public header
 
 这并不成立。
 
-第十章已经看到 Graph 为了 introspection 保持 concrete IR；
+第七章已经看到 Graph 为了 introspection 保持 concrete IR；
 
 Subscription / Actor 等 live execution owner 则使用 opaque handle。
 
@@ -1166,7 +1166,7 @@ certificate checker
 
 ## 17. Generated Artifact Ownership：一个事实不能既由 Lean 又由人维护
 
-第十一章已经看到：
+第六章已经看到：
 
 ~~~text
 builtin_signature_manifest.h

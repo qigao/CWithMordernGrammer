@@ -1,9 +1,9 @@
-# 第九章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象
+# 第十一章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象
 
 
 > **本章路线**
 >
-> 第八章已经把连接状态机固定成一个可验证的 Machine。本章不增加第二套 transition semantics，而是在 Machine 外面增加并发对象真正需要的 shell：
+> 第十章已经把连接状态机固定成一个可验证的 Machine。本章不增加第二套 transition semantics，而是在 Machine 外面增加并发对象真正需要的 shell：
 >
 > ~~~text
 > Immutable Machine
@@ -1239,7 +1239,7 @@ Actor 并不要求二者一一对应。
 
 ## 20. Canonical Actor：给同一个 Connection Machine 加并发外壳
 
-第八章的 Machine 已经解决：
+第十章的 Machine 已经解决：
 
 ~~~text
 Event typing
@@ -1764,7 +1764,7 @@ before.trace ++ Machine traceSuffix
 
 这条 theorem 非常漂亮地说明：
 
-> **Actor 只是 admission/lifecycle shell；真正的 domain state transition 仍然由第八章的 Machine semantics 决定。**
+> **Actor 只是 admission/lifecycle shell；真正的 domain state transition 仍然由第十章的 Machine semantics 决定。**
 
 没有 Actor-specific “第二份 commit state”。
 
@@ -2019,7 +2019,7 @@ last ref frees control block
 
 ## 25.5 Actor-to-Machine refinement evidence
 
-选定第八章 Connection Machine，发送同一串：
+选定第十章 Connection Machine，发送同一串：
 
 ~~~text
 Connect
@@ -2130,7 +2130,7 @@ same existing Machine RuntimeStep
 
 > **Graph、Callable、Reactive、Machine、Actor 这些丰富信息，到底哪些必须进入 hot path，哪些应该在 execution 以前被 normalize、verify、compile、lower 掉？**
 
-这就是第十章的：
+这就是第七章已经建立的：
 
 ~~~text
 Rich Control Plane

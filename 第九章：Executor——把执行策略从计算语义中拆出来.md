@@ -1,4 +1,4 @@
-# 第七章：Executor——把执行策略从计算语义中拆出来
+# 第九章：Executor——把执行策略从计算语义中拆出来
 
 
 > **本章路线**
@@ -1678,7 +1678,7 @@ OS 一定调度
 user task 一定 return
 ~~~
 
-这一点和第六章 safety/liveness 边界完全一致。
+这一点和第八章 safety/liveness 边界完全一致。
 
 ---
 
@@ -1880,7 +1880,7 @@ I/O/computation dispatch
 
 ## 25. Executor 与 Scheduler 为什么仍然不是同一个对象
 
-第六章已经看到 Scheduler 还需要：
+第八章已经看到 Scheduler 还需要：
 
 ~~~text
 delay
@@ -2045,7 +2045,7 @@ Lean 不会替你发现 use-after-free。
 
 ## 27. What We Learned
 
-第七章完成了 Part II 最后一层拆分：
+本章完成的是 Part III 的 execution-mechanism 拆分：
 
 ~~~text
 Graph

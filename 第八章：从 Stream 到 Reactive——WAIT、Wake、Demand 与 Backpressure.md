@@ -1,4 +1,4 @@
-# 第六章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure
+# 第八章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure
 
 
 > **本章路线**
@@ -2229,7 +2229,7 @@ cancel
 
 ## 26. What We Learned
 
-第六章完成的不是：
+本章完成的不是：
 
 ~~~text
 Stream
