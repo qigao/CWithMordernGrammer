@@ -117,7 +117,7 @@ The book is organized into five parts. The detailed editorial architecture remai
 
 ## Repository history
 
-The manuscript originally lived under `qigao/salts/book` and was extracted into this standalone repository.
+The manuscript originally lived in the `qigao/salts` repository and was later extracted into this standalone book repository.
 
 - Original repository: `qigao/salts`
 - Original branch: `master`
