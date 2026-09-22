@@ -291,7 +291,7 @@ Lifecycle
 Failure Boundary
 ```
 
-当前 CFlow 的 Actor 设计就是沿这个方向建立：Actor 本身是一个 lifecycle/admission boundary，内部可以组合 Machine Instance 或 Statechart Instance，并拥有 identity Graph 与单一 Subscription，而不是另外建立一套 actor-specific state-machine runtime。
+本版 CFlow 实现 的 Actor 设计就是沿这个方向建立：Actor 本身是一个 lifecycle/admission boundary，内部可以组合 Machine Instance 或 Statechart Instance，并拥有 identity Graph 与单一 Subscription，而不是另外建立一套 actor-specific state-machine runtime。
 
 可以表示成：
 
@@ -1319,7 +1319,7 @@ ActorSubscription
 
 > **让 Actor 组合已有 Subscription，而不是创建第二套 execution lifecycle。**
 
-当前 CFlow Actor 就包含自己的 identity Graph/Subscription，并借用 Scheduler 和 Serial Executor；Machine-backed 与 Statechart-backed facade 共用这一 lifecycle shell，而不是建立独立 actor runtime。
+本版 CFlow 实现 Actor 就包含自己的 identity Graph/Subscription，并借用 Scheduler 和 Serial Executor；Machine-backed 与 Statechart-backed facade 共用这一 lifecycle shell，而不是建立独立 actor runtime。
 
 这再次说明：
 
@@ -2509,7 +2509,7 @@ restart with old/new state
 
 ## 35. Lean：Actor formal model只增加 lifecycle gate，并复用 Machine semantics
 
-当前 formal calculus 已经包含：
+本版 formal calculus 已经包含：
 
 ~~~text
 CMetaCFlowCalculus/CFlow/Actor.lean
@@ -2741,7 +2741,7 @@ before.trace ++ Machine traceSuffix
 
 ## 36. Current C Implementation：Actor ownership 与 Producer Ref 已经分离
 
-当前 CFlow Actor API 明确有：
+本版 CFlow 实现 Actor API 明确有：
 
 ~~~text
 cflow_actor
