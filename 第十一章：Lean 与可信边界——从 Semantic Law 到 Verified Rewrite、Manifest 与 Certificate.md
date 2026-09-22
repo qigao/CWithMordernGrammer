@@ -1440,1027 +1440,17 @@ trust boundary
 
 ---
 
-## 23. 形式化最重要的不是“证明得越多越好”
+## 23. 从可信链进入证据矩阵
 
-这是一个非常重要的工程原则。
+前面已经建立了本章真正需要的 trusted chain：Metadata Claim 负责声明候选事实，Semantic Law 给出数学条件，Lean theorem 证明有限规则，C optimizer 记录 concrete rewrite，Plan/Certificate 再把 execution artifact 绑定回获准的 IR。
 
-如果目标变成：
+出版版不再在这里重复展开“为什么要 formalize、Lean 应该证明多少、它和测试是什么关系”这些已经由前文回答的问题。后半部分直接用证据矩阵和三个 case study 检查每一层到底能证明什么、不能证明什么。
 
-```text
-整个项目所有 C 代码全部 theorem-proved
-```
-
-成本会迅速失控。
-
-更合理的问题应该是：
-
-> **哪些地方一旦错了，会系统性改变大量程序的语义？**
-
-最值得 formalize 的通常是：
-
-```text
-核心类型关系
-Operator Policy
-Rewrite Rule
-WAIT / Demand / Terminal Protocol
-Machine Transition Semantics
-Ownership Invariant
-```
-
-因为这些规则会被：
-
-```text
-大量程序
-大量 Graph
-大量 Runtime Instance
-```
-
-重复使用。
-
-证明：
-
-```text
-一个通用 Rule
-```
-
-可以覆盖大量 concrete use。
-
-这和整个项目最初消除重复的思想再次完全一致。
+边界保持严格：Lean theorem 不自动证明任意 C 实现已经 refine 该模型，也不证明 ABI、memory safety、OS liveness 或 benchmark 数字；普通 C consumer build 仍然不依赖 Lean。
 
 ---
 
-## 24. 形式证明本身也是一种“去重复”
-
-例如没有 theorem 时，每增加一个 optimizer case，都可能需要写：
-
-```text
-测试 A
-测试 B
-测试 C
-测试 D
-...
-```
-
-而且每一种 callable/input 都需要重新担心：
-
-```text
-这个 case 会不会不同？
-```
-
-如果能够证明：
-
-```text
-∀f satisfying Law
-∀input
-rewrite preserves result
-```
-
-那么：
-
-```text
-大量具体测试
-```
-
-的角色就发生变化。
-
-它们继续验证：
-
-```text
-implementation
-```
-
-但不再承担：
-
-```text
-证明数学规则本身
-```
-
-的责任。
-
-因此 Formalization 也是：
-
-> **把重复的“为什么这条规则成立”提升成一次通用证明。**
-
----
-
-## 25. Tests、Proofs 和 Runtime Checks 各自解决不同问题
-
-这三者并不互相替代。
-
-### Tests
-
-最适合发现：
-
-```text
-实现 bug
-integration bug
-platform bug
-ABI bug
-```
-
----
-
-### Proofs
-
-最适合验证：
-
-```text
-抽象规则
-数学关系
-状态机 invariant
-rewrite correctness
-```
-
----
-
-### Runtime / Admission Checks
-
-最适合处理：
-
-```text
-运行时才知道的信息
-stale artifact
-wrong external provider
-capacity
-version mismatch
-```
-
-所以正确组合应该是：
-
-```text
-Proof
-+
-Test
-+
-Check
-```
-
-而不是：
-
-```text
-Proof instead of testing
-```
-
----
-
-## 26. 这也是为什么 Lean 不应该取代 TinyTest / CI
-
-例如 Lean 可以证明：
-
-```text
-Idempotent rewrite preserves semantics
-```
-
-但它不会自动发现：
-
-```text
-Windows MSVC macro expansion bug
-```
-
-也不会自动发现：
-
-```text
-某个 memcpy size 写错
-```
-
-也不会发现：
-
-```text
-CMake 没有安装 generated header
-```
-
-这些仍然需要：
-
-```text
-TinyTest
-ctest
-Linux CI
-Windows CI
-```
-
-所以 formal verification 和普通软件工程应该是：
-
-```text
-互补
-```
-
-而不是：
-
-```text
-二选一
-```
-
----
-
-## 27. Finite Model 是这条路线能够成立的根本原因
-
-为什么这种 Lean + C 的组合在这里可行？
-
-因为从一开始就没有追求：
-
-```text
-无限类型
-无限模板递归
-任意 compile-time interpreter
-```
-
-而是坚持：
-
-```text
-Finite Type Universe
-Finite Signature Universe
-Finite Operator Universe
-Finite Rewrite Rules
-Bounded Runtime Protocol
-```
-
-因此很多关系可以真正被：
-
-```text
-enumerate
-normalize
-validate
-generate
-prove
-```
-
-如果系统本身是一个无限开放的 meta language，formalization 难度会高很多。
-
-所以：
-
-> **Finite 并不是 Meta 系统“不够强”的副作用，而是可信生成与形式验证能够落地的重要前提。**
-
----
-
-## 28. 从这里可以重新理解 CMeta 中的“限制”
-
-例如：
-
-```text
-有限 signature
-固定 capture size
-显式 generic registry
-有限 inference relation
-```
-
-这些看起来都是：
-
-```text
-限制
-```
-
-但换一个角度：
-
-```text
-有限
-    ↓
-可以完整列举
-
-完整列举
-    ↓
-可以检查 completeness / duplication
-
-可以检查
-    ↓
-可以生成 manifest
-
-manifest
-    ↓
-可以与 Lean model 对齐
-```
-
-所以这些限制实际上换来了：
-
-```text
-Predictability
-Portability
-Verifiability
-```
-
----
-
-## 29. 这也解释了为什么不应该把 CMeta 扩展成“万能模板语言”
-
-假设未来不断加入：
-
-```text
-递归 template
-arbitrary token evaluator
-unbounded compile-time programming
-```
-
-短期能力可能增加。
-
-但代价是：
-
-```text
-编译行为更难预测
-错误更难理解
-MSVC/GCC/Clang 差异增加
-formal model 更难闭合
-generated surface 更难审计
-```
-
-最终又回到第一章的问题：
-
-```text
-为了减少复杂度
-结果创造了更大的复杂度
-```
-
-因此整个体系最重要的约束仍然应该是：
-
-> **只有稳定、重复、有限的模式，才值得提升成 Meta primitive。**
-
----
-
-## 30. Lean 还能帮助生成 Optimization Policy
-
-除了证明：
-
-```text
-某条 rewrite 永远合法
-```
-
-还可以让 Lean 输出：
-
-```text
-在什么有限条件下允许它
-```
-
-例如：
-
-```text
-Rule X requires:
-    signature U_INT_INT
-    PURE
-    DETERMINISTIC
-    TOTAL
-```
-
-生成：
-
-```text
-C-side policy manifest
-```
-
-于是 optimizer 的 admission logic 不再全部手写。
-
-可以形成：
-
-```text
-Formal Rule
-    ↓
-Generated Admission Policy
-    ↓
-C Optimizer
-```
-
-这是：
-
-```text
-Proof-driven Optimization
-```
-
-比简单：
-
-```text
-Property-driven Optimization
-```
-
-更进一步的方向。
-
----
-
-## 31. 最终可以形成一个“Proof-Carrying Optimization”模型
-
-不一定要使用这个术语实现成复杂系统，但概念上可以理解为：
-
-```text
-Optimized Graph
-```
-
-不是单独存在。
-
-还携带：
-
-```text
-为什么这样改
-```
-
-的信息。
-
-例如：
-
-```text
-Optimized Graph
-+
-Rewrite Trace
-+
-Rule IDs
-+
-Graph Version
-+
-Certificate
-```
-
-于是：
-
-```text
-优化结果
-```
-
-和：
-
-```text
-优化依据
-```
-
-不再完全分离。
-
-这对：
-
-```text
-debug
-audit
-regression
-formal validation
-```
-
-都非常有价值。
-
----
-
-## 32. 这会让 Optimizer Bug 更容易定位
-
-假设某次结果错误。
-
-没有 trace 时，只看到：
-
-```text
-optimized graph result wrong
-```
-
-很难知道：
-
-```text
-哪个 pass 改错了
-```
-
-有 trace 后：
-
-```text
-Rule A applied
-Rule B applied
-Rule C applied
-```
-
-就可以：
-
-```text
-重放
-比较
-禁用某条 rule
-```
-
-甚至针对：
-
-```text
-Rule C
-```
-
-单独检查。
-
-所以 proof trace 既服务：
-
-```text
-formal trust
-```
-
-也服务非常现实的：
-
-```text
-debuggability
-```
-
----
-
-## 33. Formalization 不应该和用户 API 混在一起
-
-普通 C 用户最理想的体验仍然应该是：
-
-```c
-typed(...);
-
-stream
-    ->filter(...)
-    ->map(...)
-    ->collect(...);
-```
-
-他们不应该每写一个：
-
-```text
-Map
-```
-
-就需要：
-
-```text
-手工写 Lean theorem
-```
-
-形式化应该主要位于：
-
-```text
-Library Design Boundary
-Compiler / Optimizer Boundary
-Builtin Rule Boundary
-```
-
-而不是：
-
-```text
-普通业务代码的强制负担
-```
-
-只有当用户希望提供：
-
-```text
-新的 formally trusted optimization law
-```
-
-时，才需要进一步进入 proof layer。
-
-这可以保持：
-
-```text
-简单使用
-+
-高级验证
-```
-
-同时存在。
-
----
-
-## 34. 这形成三个不同的用户层级
-
-可以粗略分成：
-
-### 普通 C 用户
-
-只使用：
-
-```text
-Type
-Container
-Stream
-Machine
-Actor
-```
-
-根本不需要接触 Lean。
-
----
-
-### Library / Framework 开发者
-
-使用：
-
-```text
-Schema
-Traits
-Callable
-Operator Policy
-Generic Registration
-```
-
-主要处理 CMeta/CFlow abstraction。
-
----
-
-### Semantic / Optimization 开发者
-
-才需要处理：
-
-```text
-Lean
-Semantic Law
-Rewrite Proof
-Manifest Generation
-```
-
-这让复杂度被放在：
-
-```text
-真正需要它的人
-```
-
-那里。
-
----
-
-## 35. 整个可信边界可以概括成四层
-
-可以把整个体系看成：
-
-```mermaid
-flowchart TD
-    L1["Layer 1<br/>C API / DSL"]
-    L2["Layer 2<br/>Typed Metadata / Graph / Machine"]
-    L3["Layer 3<br/>Lean Laws / Manifests / Rewrite Proofs"]
-    L4["Layer 4<br/>Direct C Runtime"]
-
-    L1 --> L2
-    L2 --> L3
-    L3 --> L2
-    L2 --> L4
-```
-
-其中：
-
-```text
-Layer 1
-    负责表达
-
-Layer 2
-    负责结构化语义
-
-Layer 3
-    负责验证核心规则
-
-Layer 4
-    负责高效执行
-```
-
-Lean 不是最底层 Runtime。
-
-也不是最上层 API。
-
-它位于：
-
-> **语义定义与优化规则之间。**
-
----
-
-## 36. 从 CMeta 到 Lean 的路线其实非常自然
-
-回头看整个发展过程：
-
-```text
-Macro Reuse
- ↓
-Shared Facts
- ↓
-Schema
- ↓
-Type
- ↓
-Traits
- ↓
-Generic
- ↓
-Finite Relation
- ↓
-Callable
- ↓
-Graph
- ↓
-Rewrite
-```
-
-越往后，系统中“关系”的比重越大。
-
-开始是：
-
-```text
-token relation
-```
-
-后来是：
-
-```text
-type relation
-```
-
-再后来：
-
-```text
-function relation
-```
-
-最后：
-
-```text
-program semantic relation
-```
-
-当问题变成：
-
-```text
-某两个程序是否等价
-```
-
-时，Lean 出现就不再显得突兀。
-
-它只是自然接管了：
-
-```text
-C compiler / macro 已经不擅长表达的那部分关系
-```
-
----
-
-## 37. 但最终输出仍然应该回到 C
-
-这是整个体系始终不能丢失的一点。
-
-Lean 最终帮助生成：
-
-```text
-C Manifest
-Policy Table
-Rule ID
-Verified Assumption
-```
-
-CFlow 最终生成：
-
-```text
-Plan
-Direct Stage
-```
-
-CMeta 最终生成：
-
-```text
-ordinary declarations
-ordinary structs
-ordinary functions
-```
-
-真正运行的仍然是：
-
-```text
-C
-```
-
-所以完整路线不是：
-
-```text
-C
- ↓
-Lean Runtime
-```
-
-而是：
-
-```text
-C Description
-    ↓
-Formal Knowledge
-    ↓
-Checked / Generated C Artifact
-    ↓
-Ordinary C Runtime
-```
-
----
-
-## 38. 可以把整个思想总结成：Proof Before Optimization
-
-上一章提出：
-
-```text
-Pay Before Execution
-```
-
-这一章可以再增加一个原则：
-
-## Proof Before Optimization
-
-不是说：
-
-```text
-任何优化前都必须实时跑 theorem prover
-```
-
-而是：
-
-> **一个通用优化规则在进入 trusted optimizer surface 之前，应该先把它的语义条件和正确性讲清楚，并在适合的地方形成机器可检查的证明。**
-
-于是：
-
-```text
-Execution 前
-    做 Analysis
-
-Optimization Rule 发布前
-    做 Proof
-```
-
-两者本质上非常相似。
-
-都是：
-
-> **把本来可能反复承担的风险提前解决。**
-
----
-
-## 39. CMeta / CFlow / Lean 的职责到这里已经非常清楚
-
-可以用三句话概括：
-
-```text
-CMeta
-    描述类型和语义事实
-
-CFlow
-    利用这些事实描述、变换和执行计算
-
-Lean
-    证明其中最关键的关系和 transformation 为什么成立
-```
-
-或者：
-
-```text
-CMeta
-    Know
-
-CFlow
-    Transform / Execute
-
-Lean
-    Prove
-```
-
-三者不是互相替代。
-
-而是建立了：
-
-```text
-Description
-    ↓
-Execution
-    ↓
-Trust
-```
-
-三层关系。
-
----
-
-## 40. 下一步应该重新回到工程边界
-
-做到这里以后，整个系统看起来已经非常丰富：
-
-```text
-Meta
-Graph
-Compiler
-Runtime
-Formal Verification
-```
-
-但真正成为一个可用的 C library，还必须解决非常现实的问题：
-
-```text
-ABI
-Multi-TU
-Header / Source Boundary
-Module Ownership
-Generated Code
-Naming
-Installed Headers
-Error Surface
-GCC / Clang / MSVC
-```
-
-如果这些问题处理不好，那么：
-
-```text
-理论上很漂亮的 Meta 系统
-```
-
-仍然可能只是：
-
-```text
-单仓库 Demo
-```
-
-而无法成为真正稳定的基础库。
-
-因此下一章将重新从抽象回到工程：
-
-> **如何让这套类型化 Meta / Flow 系统在真实 C 工程中成立——包括 Semantic Identity、Multi-TU、ABI、生成代码边界、Fail-fast 与模块所有权。**
-
----
-
-## 小结：Lean 的价值不是“把 C 变成形式语言”，而是建立可信的语义边界
-
-这一章最重要的关系可以压缩成：
-
-```text
-Metadata Claim
-    ↓
-Semantic Law
-    ↓
-Lean Proof
-    ↓
-Verified Rule
-    ↓
-C Optimizer
-    ↓
-Proof Trace
-    ↓
-Plan
-    ↓
-Certificate
-    ↓
-Execution
-```
-
-Lean 不负责：
-
-```text
-执行 callback
-管理线程
-跑 Actor
-操作 Container
-```
-
-它负责的是：
-
-> **那些一旦定义错误，就会系统性影响大量生成代码、优化和执行行为的有限规则。**
-
-因此形式化在这里不是为了追求：
-
-```text
-“所有代码都证明”
-```
-
-而是为了建立一个实际、有限、可维护的：
-
-```text
-Trusted Semantic Core
-```
-
-这种方式也延续了从第一章开始一直没有改变的目标：
-
-> **只把真正稳定、重复、值得共享的知识抽出来。**
-
-最开始这个知识是：
-
-```text
-宏列表
-```
-
-后来是：
-
-```text
-Type / Traits / Generic Relation
-```
-
-再后来是：
-
-```text
-Callable / Graph
-```
-
-现在则进一步成为：
-
-```text
-Semantic Law / Rewrite Rule / Execution Invariant
-```
-
-整个演进可以概括为：
-
-```text
-Reuse
- ↓
-Describe
- ↓
-Generate
- ↓
-Type
- ↓
-Derive
- ↓
-Execute
- ↓
-Prove
-```
-
-而下一章将讨论：
-
-## 这些能力怎样真正跨过“实验性 Meta Framework”的边界，成为一个可安装、可链接、跨 Translation Unit、跨编译器并且具有稳定 ABI 的 Modern C Library。
-
----
-
-
-## 41. Trusted Boundary Matrix：不同证据到底证明什么
+## 24. Trusted Boundary Matrix：不同证据到底证明什么
 
 到了这一章，最容易犯的错误已经不是“没有证明”。
 
@@ -2487,7 +1477,7 @@ Prove
 
 ---
 
-## 42. Case Study A：Idempotent Map——从 Property Claim 到 Verified Rewrite
+## 25. Case Study A：Idempotent Map——从 Property Claim 到 Verified Rewrite
 
 第十章使用过：
 
@@ -2504,7 +1494,7 @@ Map(clamp)
 
 这个例子可以把整条 trusted chain 走完整。
 
-## 42.1 Claim
+## 25.1 Claim
 
 C metadata 可以声明：
 
@@ -2518,7 +1508,7 @@ IDEMPOTENT
 
 如果 claim 是手写的，它本身不是 proof。
 
-## 42.2 Semantic Law
+## 25.2 Semantic Law
 
 真正需要的是：
 
@@ -2529,7 +1519,7 @@ clamp (clamp x) = clamp x
 
 这才是 rewrite premise。
 
-## 42.3 Rule theorem
+## 25.3 Rule theorem
 
 当前 formal Rewrite proof 已经存在：
 
@@ -2559,7 +1549,7 @@ certified_rewrite_preserves_observations
 
 它不是在每一次运行时重新证明 concrete C function。
 
-## 42.4 Concrete rewrite instance
+## 25.4 Concrete rewrite instance
 
 当前 C optimizer 的 property rewrite 可以产生稳定 rule id：
 
@@ -2589,7 +1579,7 @@ C trace
     = record of rule instance
 ~~~
 
-## 42.5 Trace checker / AOT matcher
+## 25.5 Trace checker / AOT matcher
 
 后续 checker 可以验证：
 
@@ -2627,7 +1617,7 @@ optimizer deletes node
 
 ---
 
-## 43. Case Study B：Reactive——Proof 直接改变 Runtime State Machine
+## 26. Case Study B：Reactive——Proof 直接改变 Runtime State Machine
 
 Reactive 是另一种 proof 使用方式。
 
@@ -2655,7 +1645,7 @@ cancel_unarms_and_terminates
 
 而是它们直接回答 API/runtime design 的危险问题。
 
-## 43.1 Demand 在哪里消费
+## 26.1 Demand 在哪里消费
 
 theorem：
 
@@ -2683,7 +1673,7 @@ downstream Emit
 
 它决定 Filter / FlatMap 等 cardinality-changing operator 是否能正确 backpressure。
 
-## 43.2 WAIT 与 Arm 必须分离
+## 26.2 WAIT 与 Arm 必须分离
 
 如果模型只有：
 
@@ -2722,7 +1712,7 @@ generation token
 wake semantics
 ~~~
 
-## 43.3 C implementation refinement
+## 26.3 C implementation refinement
 
 真正 C runtime 还需要：
 
@@ -2756,7 +1746,7 @@ cancel waits until old callback waker is quiescent
 
 ---
 
-## 44. Case Study C：Machine——Proof 把“状态机设计”变成 Typed Program Contract
+## 27. Case Study C：Machine——Proof 把“状态机设计”变成 Typed Program Contract
 
 第八章的 Machine 提供第三种用法。
 
@@ -2772,7 +1762,7 @@ terminal_state_no_step
 applyTransition_action_failure
 ~~~
 
-## 44.1 Build-time facts 成为 theorem premise
+## 27.1 Build-time facts 成为 theorem premise
 
 Machine.Valid 已经包含：
 
@@ -2799,7 +1789,7 @@ stronger theorem premise
 simpler runtime
 ~~~
 
-## 44.2 Determinism 反过来约束 transition selection
+## 27.2 Determinism 反过来约束 transition selection
 
 如果 C builder 允许：
 
@@ -2821,7 +1811,7 @@ ambiguous transition
 
 这就是“Lean 帮助设计 API”的直接例子。
 
-## 44.3 State typing preservation 反过来要求 staged commit
+## 27.3 State typing preservation 反过来要求 staged commit
 
 theorem：
 
@@ -2853,13 +1843,13 @@ atomic commit
 
 ---
 
-## 45. Manifest：Lean 怎样进入普通 C，而不进入普通 C Build
+## 28. Manifest：Lean 怎样进入普通 C，而不进入普通 C Build
 
 形式化如果要求每个应用 consumer 都安装 Lean，工程边界就失败了。
 
 本版 Salts 快照 已经采用 checked-in generated artifact 模式。
 
-## 45.1 Builtin Signature Manifest
+## 28.1 Builtin Signature Manifest
 
 Lean 验证有限 builtin type/signature relation，然后生成：
 
@@ -2891,7 +1881,7 @@ checked-in C artifact
 
 没有漂移。
 
-## 45.2 Builtin Operator Policy
+## 28.2 Builtin Operator Policy
 
 同样，CFlow operator policy 的有限 relation 由 formal package 检查，并生成：
 
@@ -2902,7 +1892,7 @@ cflow/include/cflow/generated/
 
 这样 C optimizer/runtime 消费普通 C table/header，而不是在 hot path 调 theorem prover。
 
-## 45.3 Machine Schema
+## 28.3 Machine Schema
 
 Machine state/action enum schema 也有：
 
@@ -2931,7 +1921,7 @@ checked-in C artifact
 ordinary C compilation
 ~~~
 
-## 45.4 Generator 也是 trusted bridge
+## 28.4 Generator 也是 trusted bridge
 
 这里必须诚实：
 
@@ -2956,11 +1946,11 @@ C consumer interpretation
 
 ---
 
-## 46. Certificate 与 Proof Trace：两个不同的 Runtime Bridge
+## 29. Certificate 与 Proof Trace：两个不同的 Runtime Bridge
 
 这两个概念经常被混在一起。
 
-## 46.1 Proof Trace
+## 29.1 Proof Trace
 
 回答：
 
@@ -2982,7 +1972,7 @@ Trace 是：
 Transformation Witness
 ~~~
 
-## 46.2 Certificate
+## 29.2 Certificate
 
 回答：
 
@@ -3038,11 +2028,11 @@ generator provenance
 
 ---
 
-## 47. Formal Trusted Base 与 Execution Trusted Base 必须分开
+## 30. Formal Trusted Base 与 Execution Trusted Base 必须分开
 
 讨论“trusted computing base”时必须指定层次。
 
-## 47.1 Formal proof trusted base
+## 30.1 Formal proof trusted base
 
 至少包括：
 
@@ -3064,7 +2054,7 @@ but prove the wrong thing
 
 所以 specification review 与 theorem proof 同样重要。
 
-## 47.2 Bridge trusted base
+## 30.2 Bridge trusted base
 
 包括：
 
@@ -3078,7 +2068,7 @@ type/callable identity mapping
 
 这些把 formal world 连到 C artifact。
 
-## 47.3 Execution trusted base
+## 30.3 Execution trusted base
 
 包括：
 
@@ -3104,7 +2094,7 @@ platform CI
 benchmark
 ~~~
 
-## 47.4 External liveness assumptions
+## 30.4 External liveness assumptions
 
 像：
 
@@ -3123,7 +2113,7 @@ user callback eventually returns
 
 ---
 
-## 48. Proof / Test / Runtime Check 的协作方式
+## 31. Proof / Test / Runtime Check 的协作方式
 
 一个成熟 feature 不应该问：
 
@@ -3201,7 +2191,7 @@ Measurement
 
 ---
 
-## 49. What We Learned
+## 32. What We Learned
 
 第十一章真正建立的是全书的可信方法，而不是“Lean 章节”。
 
