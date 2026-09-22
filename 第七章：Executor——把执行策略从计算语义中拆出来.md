@@ -1,5 +1,33 @@
 # 第七章：Executor——把执行策略从计算语义中拆出来
 
+
+> **本章路线**
+>
+> Reactive 已经把一次 live execution 收敛到 Subscription，但 Subscription 仍然需要一个更小的 primitive 来“真正执行 Task”。本章继续向下拆：
+>
+> ~~~text
+> Graph / Reactive / Machine / Actor
+>            ↓
+>          Task
+>            ↓
+>        Executor
+>            ↓
+> Manual / Serial / Worker
+> ~~~
+>
+> Executor 只回答四类问题：
+>
+> ~~~text
+> admission
+> execution ordering
+> bounded capacity
+> lifecycle / shutdown
+> ~~~
+>
+> 它不理解 Graph operator、Reactive demand、Machine transition 或 Actor message。
+>
+> 这一章的专业性关键在于：**Task ledger、capacity、serial ownership、shutdown 和 self-callback deadlock boundary 都已经有现成 Lean protocol model，可以直接约束 C implementation。**
+
 上一章做到 Reactive 以后，系统已经能够回答很多问题：
 
 ```text
@@ -1758,3 +1786,931 @@ External input
 下一章将继续沿着这个方向展开：
 
 > **怎样利用 Type、Callable 和 Serial Executor 构造一个真正有类型的 Event / State Machine 模型，并把传统 callback table 提升成可验证的状态转换 IR。**
+
+---
+
+
+# 31. Semantic Contract：Executor 最小但并不模糊
+
+Executor 的 API 可以很小，但它的 contract 必须非常精确。
+
+## 31.1 Task admission 是一次明确的 ownership boundary
+
+最简单的 task 仍然可以是：
+
+~~~c
+void task(void *user);
+~~~
+
+但真实工程中，一个 accepted task 往往还需要：
+
+~~~text
+run
+cancel
+finalize
+user
+~~~
+
+原因很直接。
+
+如果 Executor 在 shutdown 时选择：
+
+~~~text
+cancel pending
+~~~
+
+那么“这个 task 没执行”并不意味着：
+
+~~~text
+什么都不用做
+~~~
+
+它可能仍然需要：
+
+~~~text
+release retained user state
+return buffer to pool
+settle promise/future
+decrement outstanding ownership
+~~~
+
+因此一个 task descriptor 更接近：
+
+~~~text
+accepted
+    ↓
+exactly one of:
+    run
+    cancel
+    ↓
+optional finalize
+~~~
+
+Rejected admission 则必须：
+
+> 不调用任何 task callback，也不偷走 caller ownership。
+
+这条规则让 FULL/CLOSED 不再是模糊错误码，而是 ownership protocol。
+
+## 31.2 Capacity 是语义边界，不是性能 hint
+
+如果 Executor 声明：
+
+~~~text
+capacity = N
+~~~
+
+那么 queued work 必须满足：
+
+~~~text
+queued <= N
+~~~
+
+不能在满了以后：
+
+~~~text
+偷偷 malloc 一个 overflow queue
+~~~
+
+否则上层看到的 backpressure contract 就是假的。
+
+因此 FULL 的意义是：
+
+> **当前 resource boundary 已经到达；下一步 policy 由上层决定。**
+
+Executor 本身不自动：
+
+~~~text
+drop
+retry forever
+block any caller
+spill to heap
+create new worker
+~~~
+
+## 31.3 Serial 的核心不是“一条线程”，而是 single mutable owner
+
+Serial Executor 真正保证的是：
+
+~~~text
+running <= 1
+~~~
+
+不是：
+
+~~~text
+must have a dedicated thread
+~~~
+
+所以 Serial 可以由：
+
+~~~text
+manual caller-driven queue
+single worker
+external event loop adapter
+~~~
+
+实现。
+
+这也是为什么 State Machine / Actor 可以依赖 serial semantics，而不依赖某个具体 thread topology。
+
+## 31.4 Worker 只提供 concurrent capability，不授权语义并行
+
+Worker Executor 能并行运行 task，并不意味着：
+
+~~~text
+任意 Graph node
+任意 State transition
+任意 Actor message
+~~~
+
+都允许并行。
+
+真正的决定关系仍然是：
+
+~~~text
+semantic layer says parallelism is legal
+        +
+Executor provides CONCURRENT capability
+        ↓
+parallel execution admitted
+~~~
+
+Mechanism 不替 policy 决策。
+
+## 31.5 Lifecycle 必须从 OPEN 明确走向 CLOSED
+
+Executor lifecycle 至少需要：
+
+~~~text
+OPEN
+    ↓ shutdown
+CLOSING
+    ↓ all accepted work settles
+CLOSED
+~~~
+
+一旦不再 OPEN：
+
+~~~text
+new post
+    → CLOSED / rejected
+~~~
+
+而已经 accepted 的 task 如何处理，取决于 explicit shutdown policy：
+
+~~~text
+DRAIN
+CANCEL_PENDING
+~~~
+
+这比：
+
+~~~text
+destroy() then hope callbacks stop
+~~~
+
+安全得多。
+
+## 31.6 Same-executor callback 不能同步等待自己
+
+这是一个很容易被 API 忽略的 deadlock boundary。
+
+如果当前正在某 Executor callback 内：
+
+~~~text
+queue is full
+~~~
+
+然后调用一个可能等待 capacity 的 blocking post，或者：
+
+~~~text
+wait_idle()
+~~~
+
+要求“等到自己也执行完”，就会形成 self-deadlock。
+
+所以 contract 必须允许显式返回：
+
+~~~text
+WOULD_BLOCK
+~~~
+
+这不是实现细节。
+
+这是执行模型的一部分。
+
+---
+
+# 32. Lean：Executor 已经有完整协议模型
+
+当前 Salts formal calculus 已经包含：
+
+~~~text
+CMetaCFlowCalculus/CFlow/ExecutorProtocol.lean
+CMetaCFlowCalculus/Proofs/ExecutorProtocol.lean
+~~~
+
+模型不是从 thread API 出发，而是从协议事实出发。
+
+它定义：
+
+~~~text
+ExecutorKind
+    manual
+    serial
+    worker
+
+ShutdownPolicy
+    drain
+    cancelPending
+
+Lifecycle
+    open
+    closing
+    closed
+
+TaskPhase
+    queued
+    running
+    completed
+    cancelled
+
+AdmissionResult
+    accepted
+    full
+    closed
+    wouldBlock
+~~~
+
+这与 C API 的边界非常接近。
+
+## 32.1 Bounded：队列永远不越过 capacity
+
+formal state 定义：
+
+~~~text
+Bounded(state)
+:=
+queued <= capacity
+~~~
+
+而 theorem：
+
+~~~text
+accepted_post_is_bounded_and_conserved
+~~~
+
+证明只要当前还有 room，一次 accepted post 后：
+
+~~~text
+queued' = queued + 1
+accepted' = accepted + 1
+Safe(state')
+~~~
+
+更一般的：
+
+~~~text
+tryPost_preserves_safe
+~~~
+
+证明 ACCEPTED/FULL/CLOSED 都不会破坏 Safe invariant。
+
+这直接约束 C：
+
+> 如果 C backend 在 FULL 时仍然偷偷存入 task，那么它不是“实现不同”，而是违反模型。
+
+## 32.2 Task ledger conservation：accepted task 不会凭空消失
+
+formal model 定义：
+
+~~~text
+accepted
+=
+queued
++
+running
++
+completed
++
+cancelled
+~~~
+
+并证明：
+
+~~~text
+state_conserved
+~~~
+
+以及最终 settlement 后：
+
+~~~text
+accepted
+=
+completed + cancelled
+~~~
+
+对应 theorem：
+
+~~~text
+settled_tasks_have_exactly_one_terminal_outcome
+~~~
+
+这给 shutdown 一个非常强的工程目标：
+
+> 每个 accepted task 最终必须拥有且只拥有一个 terminal outcome。
+
+不是：
+
+~~~text
+maybe ran
+maybe got lost during destroy
+~~~
+
+## 32.3 SerialSafe：Manual / Serial 同时最多一个 running task
+
+formal definition：
+
+~~~text
+manual / serial:
+    running <= 1
+
+worker:
+    no such restriction
+~~~
+
+并且：
+
+~~~text
+start_preserves_safe
+~~~
+
+保证 start transition 不破坏这个约束。
+
+这就是 single mutable owner 的数学形式。
+
+## 32.4 FULL 与 CLOSED 不改变 task ledger
+
+已有 theorem：
+
+~~~text
+full_post_preserves_task_ledger
+post_shutdown_rejected
+~~~
+
+说明 rejected post：
+
+~~~text
+does not append a task
+~~~
+
+只更新相应 rejection observation。
+
+这和 ownership contract 完全一致：
+
+~~~text
+rejected admission
+    ↓
+caller still owns task/user
+~~~
+
+## 32.5 Same-callback blocking operation 必须 fail fast
+
+现有 theorem：
+
+~~~text
+self_blocking_operations_fail_fast
+~~~
+
+直接表达：
+
+当：
+
+~~~text
+caller = callback of same Executor
+queue full
+~~~
+
+时：
+
+~~~text
+blockingPost
+    → WOULD_BLOCK
+
+waitIdle
+    → WOULD_BLOCK
+~~~
+
+这是 Lean 很实际地帮助 API 设计的例子。
+
+如果没有模型，很容易写出一个“看起来方便”的 blocking API，直到 production 遇到 callback self-deadlock。
+
+## 32.6 Shutdown settlement
+
+formal model区分：
+
+~~~text
+drain
+cancelPending
+~~~
+
+并证明：
+
+~~~text
+beginShutdown_preserves_safe
+settleShutdown_settled
+settleShutdown_quiescent
+close_produces_closed_quiescent
+~~~
+
+于是 CLOSED 的含义不是：
+
+~~~text
+一个 bool 被设成 true
+~~~
+
+而是：
+
+~~~text
+lifecycle = CLOSED
++
+queued = 0
++
+running = 0
+~~~
+
+这就是 ClosedQuiescent。
+
+## 32.7 这里仍然不证明 OS fairness
+
+formal settleShutdown 是一个 summary transition，并明确写着：
+
+> running task 最终结束、drain-mode queued task 最终被驱动，是外部 premise，不是 OS-liveness theorem。
+
+所以 Lean 证明：
+
+~~~text
+if accepted work is driven/settled
+then protocol accounting is correct
+~~~
+
+它不证明：
+
+~~~text
+worker thread 一定永不挂死
+OS 一定调度
+user task 一定 return
+~~~
+
+这一点和第六章 safety/liveness 边界完全一致。
+
+---
+
+# 33. Current C Implementation：Task protocol 已经比简单 fn/user 更完整
+
+对照当前 Salts：
+
+~~~text
+qigao/salts
+master: ad389928b437c0612c1c60844fe53677f3ed27a6
+~~~
+
+当前 built-in Executor 的 task descriptor 已经明确为：
+
+~~~c
+typedef struct cflow_executor_task {
+    task_fn run;
+    task_fn cancel;
+    task_fn finalize;
+    void *user;
+} cflow_executor_task;
+~~~
+
+其 contract 是：
+
+~~~text
+successful admission
+    ↓
+exactly one of run/cancel
+    ↓
+finalize if present
+
+rejected admission
+    ↓
+no task callback
+~~~
+
+这与 Lean task ledger 的“exactly one terminal outcome”非常吻合。
+
+## 33.1 Manual Executor 是显式 caller-driven queue
+
+当前 Manual implementation 持有：
+
+~~~text
+bounded task array
+count
+settling
+capacity
+accepted/completed/cancelled counters
+rejection counters
+lifecycle
+shutdown policy
+running flag
+~~~
+
+它不是一个“测试专用假对象”。
+
+它表达了一种真实 execution policy：
+
+> task admission 与 task driving 分离，何时 run_one/run_ready 由 owner 决定。
+
+这非常适合：
+
+~~~text
+deterministic test
+external batch/event loop
+single-thread ownership boundary
+~~~
+
+## 33.2 FULL 被直接统计，而不是自动扩容
+
+Manual try_post：
+
+~~~text
+if count >= capacity
+    rejected_full++
+    return FULL
+~~~
+
+没有 hidden fallback allocation。
+
+这正好实现了 formal Bounded。
+
+## 33.3 Shutdown policy 只选择一次
+
+当前实现会记录：
+
+~~~text
+shutdown_policy_selected
+~~~
+
+第一次 shutdown 决定：
+
+~~~text
+DRAIN
+or
+CANCEL_PENDING
+~~~
+
+后续如果尝试用另一个 policy 重写 shutdown meaning，会失败。
+
+这避免：
+
+~~~text
+closing halfway
+then application changes semantics
+~~~
+
+## 33.4 CANCEL_PENDING 会执行 cancel/finalize
+
+pending task 被 cancel 时：
+
+~~~text
+cancel(user)
+finalize(user)
+cancelled++
+~~~
+
+不是单纯丢弃 queue row。
+
+这就是 ownership protocol 真正落地的地方。
+
+## 33.5 callback context 通过 thread-local 边界识别
+
+Manual implementation 记录当前正在执行哪个 Executor state。
+
+因此：
+
+~~~text
+post that would need waiting
+wait_idle
+~~~
+
+在 same-executor callback 中可以返回 WOULD_BLOCK，而不是自锁。
+
+这是 formal self_blocking_operations_fail_fast 的现实 counterpart。
+
+---
+
+# 34. Manual / Serial / Worker：三种实现共享的是协议，不是结构
+
+本章应该避免把三种 Executor 讲成三套 framework。
+
+真正共享的是：
+
+~~~text
+Task admission
+capacity
+lifecycle
+settlement
+statistics
+capabilities
+~~~
+
+## 34.1 Manual
+
+~~~text
+CAP_MANUAL
+caller drives work
+running <= 1
+~~~
+
+最适合 deterministic control。
+
+## 34.2 Serial
+
+~~~text
+CAP_SERIAL
+execution may be automatically driven
+semantic guarantee: single running task
+~~~
+
+适合：
+
+~~~text
+Machine mutation
+Actor state
+single-owner callbacks
+~~~
+
+## 34.3 Worker
+
+~~~text
+CAP_CONCURRENT
+multiple accepted tasks may run concurrently
+~~~
+
+适合：
+
+~~~text
+parallel Plan
+independent work
+I/O/computation dispatch
+~~~
+
+但只有上层 semantic admission 已经允许时才应该使用并行。
+
+---
+
+# 35. Executor 与 Scheduler 为什么仍然不是同一个对象
+
+第六章已经看到 Scheduler 还需要：
+
+~~~text
+delay
+clock
+cancel by task id
+advance virtual time
+timer queue
+~~~
+
+Executor 则只需要：
+
+~~~text
+accept Task
+run Task
+bound work
+settle lifecycle
+~~~
+
+所以：
+
+~~~text
+Executor
+    = execution resource / ordering primitive
+
+Scheduler
+    = temporal dispatch policy
+~~~
+
+Scheduler 可以内部使用 Executor，但上层不应该因此把二者混为一个 interface。
+
+典型关系是：
+
+~~~text
+timer/readiness
+    ↓
+Scheduler
+    ↓
+Executor / posting context
+    ↓
+Task
+~~~
+
+也可能：
+
+~~~text
+Manual Scheduler
+    ↓
+Manual Executor
+~~~
+
+但这是组合，不是继承。
+
+---
+
+# 36. Evidence：Executor 必须验证协议，而不仅是“task 跑了”
+
+这一章至少需要以下证据。
+
+## 36.1 Capacity evidence
+
+对于 capacity=N：
+
+~~~text
+accept up to N queued work
+N+1
+    → FULL
+drain one
+    → capacity reusable
+~~~
+
+并检查：
+
+~~~text
+peak_pending
+rejected_full
+~~~
+
+## 36.2 Ledger evidence
+
+在：
+
+~~~text
+normal completion
+cancel-pending shutdown
+drain shutdown
+~~~
+
+之后检查：
+
+~~~text
+accepted
+=
+completed + cancelled
+~~~
+
+这与 Lean theorem 一一对应。
+
+## 36.3 Serial evidence
+
+同时提交多个 task，必须证明：
+
+~~~text
+running never exceeds 1
+~~~
+
+这里可以用 instrumentation / atomic counter 测试，而不是只检查最终输出顺序。
+
+## 36.4 Self-callback evidence
+
+在 task callback 内测试：
+
+~~~text
+wait_idle(same executor)
+    → WOULD_BLOCK
+
+blocking post when full
+    → WOULD_BLOCK
+~~~
+
+这类测试非常重要，因为普通 happy-path test 根本看不出 deadlock risk。
+
+## 36.5 Shutdown evidence
+
+分别测试：
+
+~~~text
+DRAIN
+    queued work runs/finalizes
+
+CANCEL_PENDING
+    queued work cancels/finalizes
+
+after closing
+    new post rejected
+~~~
+
+以及 repeated/invalid shutdown policy behavior。
+
+## 36.6 Sanitizer / ownership evidence
+
+Task user ownership 最容易出错的路径恰恰是：
+
+~~~text
+accepted then cancelled
+run callback recursively posts
+finalize releases last ref
+destroy races with pending work
+~~~
+
+这些需要：
+
+~~~text
+ASan / UBSan
+stress / race-focused tests
+~~~
+
+作为 C implementation evidence。
+
+Lean 不会替你发现 use-after-free。
+
+---
+
+# 37. What We Learned
+
+第七章完成了 Part II 最后一层拆分：
+
+~~~text
+Graph
+    = computation description
+
+Stream
+    = construction façade
+
+Reactive Subscription
+    = live execution state
+
+Scheduler
+    = when / where to resume
+
+Executor
+    = bounded Task execution primitive
+~~~
+
+Executor 的高级之处并不是它知道很多。
+
+恰恰相反：
+
+> **它足够小，所以才能被很多高级模型复用。**
+
+现有 Lean protocol 进一步把几个经常只写在注释里的规则变成了 theorem：
+
+~~~text
+queued <= capacity
+
+accepted
+=
+queued + running + completed + cancelled
+
+Serial:
+running <= 1
+
+FULL/CLOSED:
+no task admitted
+
+same callback:
+blocking operations → WOULD_BLOCK
+
+shutdown settled:
+accepted = completed + cancelled
+
+CLOSED:
+queued = 0 and running = 0
+~~~
+
+这正是这本书的方法：
+
+~~~text
+find the smallest useful C primitive
+      ↓
+state its semantic contract
+      ↓
+formalize the dangerous boundaries
+      ↓
+make C implementation refine that model
+      ↓
+test the runtime/ownership parts Lean does not cover
+~~~
+
+Part II 到这里形成完整链：
+
+~~~text
+Callable
+   ↓
+Typed Graph
+   ↓
+Stream façade
+   ↓
+Reactive live execution
+   ↓
+Executor primitive
+~~~
+
+下一步开始进入另一类高级程序：
+
+> **当输入不再只是 Value，而是 Typed Event；当系统必须长期拥有 State 时，怎样从这些 primitive 组合出 State Machine？**
+
+这就是 Part III。
+
