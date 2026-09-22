@@ -1,32 +1,54 @@
 # 第四章：从 Callable 到 Graph——把计算本身变成数据
 
-
 > **本章路线**
 >
-> 第三章已经把单个行为变成 typed Callable。第四章开始把“多个行为之间的关系”变成显式 IR，并建立后续所有 Stream / Reactive / Plan / Optimizer 共享的 canonical pipeline。
+> 前三章解决的是“一个事实只写一次”：类型契约通过 Generic 收敛，行为契约通过 Callable 收敛。
 >
-> ~~~text
-> Plain C Pipeline
->      ↓
-> Typed Callable Chain
->      ↓
-> Surface Graph
->      ↓
-> Validate
->      ↓
-> Normalize
->      ↓
-> Observable Semantics
->      ↓
-> C Verification / Lean Obligation
->      ↓
-> Execution Backends
+> Part II 从一个完全不同的问题开始：
+>
+> **一段已经写对的 C 计算，为什么还需要被保存成 Graph？**
+>
+> 先看普通 C：
+>
+> ~~~c
+> static bool is_even(int x)
+> {
+>     return (x & 1) == 0;
+> }
+>
+> static int square(int x)
+> {
+>     return x * x;
+> }
+>
+> long sum_even_squares(const int *xs, size_t n)
+> {
+>     long total = 0;
+>
+>     for (size_t i = 0; i < n; ++i) {
+>         int x = xs[i];
+>         if (!is_even(x))
+>             continue;
+>         total += square(x);
+>     }
+>
+>     return total;
+> }
 > ~~~
 >
-> 从这一章开始，全书会持续复用同一个数据流例子：
+> 这段代码没有问题，而且对一次性的局部计算来说通常就是最好的实现。
+>
+> 问题在于：**一旦它被写成控制流，Filter → Map → Reduce 这段计算关系就消失了。**
+>
+> library 无法在执行前把它当成一个对象去 inspect、type-check、normalize、rewrite、compile，
+> 也无法证明某次 transformation 是否保持 observable result。
+>
+> 所以 Graph 不是为了替换 for loop，而是为了在执行之前把“整个计算”保留下来。
+>
+> 本章持续使用同一条 canonical pipeline：
 >
 > ~~~text
-> `Source<int>`
+> Source<int>
 >     ↓
 > Filter(is_even)
 >     ↓
@@ -35,171 +57,58 @@
 > Reduce(sum)
 > ~~~
 >
-> 后续章节不会重新发明示例，而是不断给同一条 pipeline 增加 Stream façade、WAIT/Demand、Executor、verified rewrite 和 lowering。
+> 这一章先只建立 typed program object。Lean 不是 Graph 出现的理由；
+> 只有当后面开始证明 normalize / rewrite / optimization 是否保持语义时，Lean 才进入。
 
-上一章完成了一个非常重要的变化。
+## 1. Plain C 的问题不是不能算，而是“算之前看不到整个计算”
 
-最开始，我们处理的是：
+把上面的循环稍微拆开，可以更清楚地看到业务关系：
 
-```text
-Typed Data
-```
+~~~c
+for (size_t i = 0; i < n; ++i) {
+    int x = xs[i];
 
-后来进一步得到：
+    /* Filter */
+    if (!is_even(x))
+        continue;
 
-```text
-Typed Callable
-```
+    /* Map */
+    int y = square(x);
 
-于是一个函数不再只是：
-
-```text
-function pointer
-```
-
-而可以同时具有：
-
-```text
-Signature
-Effects
-Properties
-Capture
-Dispatch
-```
-
-甚至可以通过：
-
-```text
-Lambda
-Bind
-Generator
-```
-
-构造新的 Callable。
-
-这时，一个新的问题自然出现：
-
-> **如果一个函数已经可以成为一个有类型、有语义的数据对象，那么多个函数之间的计算关系，能不能也成为数据？**
-
-例如：
-
-```text
-User
- ↓
-enabled : User -> bool
- ↓
-name : User -> String
-```
-
-代码当然可以直接写成：
-
-```c
-if (enabled(user)) {
-    String result = name(user);
+    /* Reduce */
+    total += y;
 }
-```
+~~~
 
-但一旦直接执行以后：
+真正稳定的知识其实只有：
 
-```text
-enabled
-name
-```
+~~~text
+Source<int>
+Filter(int -> bool)
+Map(int -> int)
+Reduce(int × int -> int)
+~~~
 
-之间的关系就只存在于：
+但在普通 C 里，这些知识散落在 for / if / continue / temporary / accumulator update 之中。
 
-```text
-控制流
-```
+如果下一步只想执行，完全不需要 Graph。
 
-里面。
+如果下一步想做：
 
-如果希望在执行之前：
+~~~text
+两个 Map 能不能融合？
+这个 Filter 能不能提前？
+这条 pipeline 能不能预编译一次、执行很多次？
+这个执行计划还对应原来的计算吗？
+~~~
 
-```text
-检查它
-分析它
-修改它
-优化它
-选择执行方式
-```
+那么 library 首先必须拥有一个东西：
 
-那么就需要先把：
+> **计算在执行前的结构化表示。**
 
-> **计算本身保存下来。**
+这就是 CFlow Graph 的起点。
 
-这就是 Graph 出现的原因。
-
----
-
-## 1. Graph 首先不是为了“画图”
-
-提到 Graph，很容易想到：
-
-```text
-Node
-Edge
-```
-
-或者可视化流程图。
-
-但这里 Graph 真正的意义不是为了画图。
-
-它解决的是一个更重要的问题：
-
-> **把一段原本只能通过执行表达的计算，变成一个普通的数据结构。**
-
-例如原来的程序：
-
-```c
-x = f(input);
-y = g(x);
-result = h(y);
-```
-
-可以先表示成：
-
-```text
-Input
-  ↓
-f
-  ↓
-g
-  ↓
-h
-  ↓
-Output
-```
-
-一旦这个关系被保存下来，程序就第一次拥有了两个阶段：
-
-```text
-Describe
-   ↓
-Execute
-```
-
-而不是：
-
-```text
-Describe = Execute
-```
-
-这一步非常关键。
-
-因为只有当：
-
-```text
-Program
-```
-
-首先成为：
-
-```text
-Data
-```
-
-以后，系统才能在执行之前对它做进一步处理。
+Graph 把原来只存在于控制流里的关系保存为普通 C 数据。之后的 Stream、Optimizer、Plan、Direct/AOT 都消费这同一份事实，而不是各自重新解释用户意图。
 
 ---
 
