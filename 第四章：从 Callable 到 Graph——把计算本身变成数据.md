@@ -1630,7 +1630,7 @@ and
 later execution paths should avoid repeated Graph interpretation when possible
 ~~~
 
-这会自然引到第十章的 Plan / Direct / AOT。
+这会自然引到第七章的 Plan / Direct / AOT。
 
 ---
 
