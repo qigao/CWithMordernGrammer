@@ -1126,1492 +1126,17 @@ Do not silently fallback.
 
 ---
 
-## 19. Control Plane 的复杂度是可以接受的
+## 19. 从原则进入完整流水线
 
-现在控制面已经越来越丰富：
+到这里，核心边界已经足够明确：Graph 用来描述和分析，Plan 把已经做出的选择固化，Direct/AOT 只在更严格的 eligibility 下进一步删除 runtime abstraction。控制面可以做更多工作，但执行面不应该重新推导已经确定的事实。
 
-```text
-Normalize
-Validate
-Infer
-Analyze
-Optimize
-Compile
-Certificate
-```
+这种设计可以概括为 **Pay Before Execution**，但它不是一个未经测量的性能结论。它只规定成本应该放在哪里：signature、topology、effect、property、dispatch 与 execution mode 尽可能在 build/admission/compile 阶段解析；真实收益仍然要由后面的 benchmark 和 toolchain evidence 验证。
 
-看起来甚至比普通 C 循环复杂很多。
-
-但它和 runtime 的成本性质不同。
-
-假设：
-
-```text
-Plan compile = 1 ms
-```
-
-然后这个 Plan 执行：
-
-```text
-10,000 次
-```
-
-每次处理：
-
-```text
-100,000 values
-```
-
-那么：
-
-```text
-1 ms compile cost
-```
-
-几乎可以忽略。
-
-而每个 value 少一个：
-
-```text
-type lookup
-```
-
-少一次：
-
-```text
-generic dispatch
-```
-
-可能反而更重要。
-
-所以关键不是：
-
-```text
-系统总代码是不是复杂
-```
-
-而是：
-
-> **复杂度放在哪里。**
+因此本章后半部分不再继续重复“control plane 应该更聪明”的原则，而是用一条 canonical pipeline 把 Normalize、Rewrite、Plan、Direct/AOT、Parallel Reduce、Certificate、Proof Trace 与 cost evidence 串起来。这里也继续保持实现边界：完整 Filter → Map → Reduce pipeline 可以进入 compiled Plan，而当前 closed Direct/AOT path 主要覆盖 Filter/Map stage。
 
 ---
 
-## 20. 一个很重要的原则：Pay Before Execution
-
-可以把这种设计总结成：
-
-## Pay Before Execution
-
-也就是：
-
-```text
-多做一些
-    build-time / admission-time / plan-time work
-```
-
-换取：
-
-```text
-少做一些
-    per-value / hot-path work
-```
-
-例如：
-
-```text
-Signature Validation
-    once
-
-Topology Resolution
-    once
-
-Effect Analysis
-    once
-
-Handler Selection
-    once
-```
-
-然后：
-
-```text
-Function Call
-    millions of times
-```
-
-这是一种非常适合：
-
-```text
-C library
-high-performance runtime
-systems programming
-```
-
-的成本分配方式。
-
----
-
-## 21. CMeta 的 Runtime Metadata 也不应该被滥用
-
-有了：
-
-```text
-Type Descriptor
-```
-
-以后，很容易什么都写成：
-
-```c
-type->traits->copy(...)
-```
-
-这种模式。
-
-但如果一个 Generic 已经在编译期明确：
-
-```text
-T = int
-```
-
-那么没有必要每个 element 都：
-
-```text
-lookup int traits
-```
-
-更好的方式是：
-
-```text
-构建/实例化阶段
-    ↓
-选择 int 的 copy strategy
-    ↓
-hot path 直接执行
-```
-
-这说明：
-
-> **Runtime Metadata 应该服务动态边界，而不是替代静态 C。**
-
----
-
-## 22. Dynamic Boundary 与 Static Interior
-
-这是整个系统很值得明确的一条架构原则。
-
-例如：
-
-```text
-Plugin
-External Publisher
-Scheduler Provider
-Collector Provider
-```
-
-这些地方确实可能：
-
-```text
-运行时才知道具体实现
-```
-
-所以：
-
-```text
-Interface
-Descriptor
-Dynamic Dispatch
-```
-
-非常合理。
-
-但一旦进入：
-
-```text
-已知 Graph
-已知 Callable
-已知 Plan
-```
-
-内部就应该尽可能：
-
-```text
-static
-direct
-pre-bound
-```
-
-可以表示成：
-
-```mermaid
-flowchart LR
-    A["Dynamic Boundary"]
-    B["Admission / Validation"]
-    C["Static Execution Interior"]
-
-    A --> B --> C
-```
-
-例如：
-
-```text
-Publisher Interface
-    ↓
-获得 typed value
-    ↓
-Plan 内部 direct map/filter
-    ↓
-Collector Interface
-```
-
-动态只保留在边界。
-
----
-
-## 23. 这和传统“Everything is Virtual”完全不同
-
-一些通用 framework 会把：
-
-```text
-Publisher
-Operator
-Subscriber
-State
-Message
-```
-
-全部设计成：
-
-```text
-virtual object
-```
-
-这样实现简单统一。
-
-但代价是：
-
-```text
-每一步都保留 runtime polymorphism
-```
-
-这里采取的是另一种策略：
-
-```text
-需要 runtime polymorphism 的地方
-    使用 Interface
-
-已经能够静态确定的地方
-    尽量消除 polymorphism
-```
-
-也就是：
-
-```text
-Selective Dynamicism
-```
-
-而不是：
-
-```text
-Universal Dynamicism
-```
-
----
-
-## 24. 编译成 Plan 以后，Graph 甚至应该可以完全不参与执行
-
-这是 Plan 最重要的边界之一。
-
-如果执行过程中仍然需要不断：
-
-```text
-graph_node(...)
-graph_edge(...)
-```
-
-说明 Compile 阶段还没有真正完成。
-
-理想模型：
-
-```text
-Graph
-   ↓
-Compile
-   ↓
-Plan
-
---- execution boundary ---
-
-Plan
-   ↓
-Value
-   ↓
-Value
-```
-
-当前 Plan contract 明确要求执行不查询 Graph/Node/Edge/Subgraph，这实际上建立了很干净的 runtime boundary。
-
-这样 Graph 可以继续服务：
-
-```text
-debug
-inspection
-recompile
-```
-
-但不再是 execution dependency。
-
----
-
-## 25. 这也使 Cache-Friendly Execution 更容易
-
-Graph 往往是：
-
-```text
-pointer-rich
-metadata-rich
-```
-
-的数据结构。
-
-例如：
-
-```text
-Node *
-Edge *
-Descriptor *
-Callable *
-```
-
-这种结构非常适合编辑。
-
-但 CPU hot loop 更喜欢：
-
-```text
-紧凑数组
-连续 step
-预解析 pointer
-少 branch
-```
-
-Plan 可以采用更接近：
-
-```text
-Instruction Array
-```
-
-的形式。
-
-例如：
-
-```text
-Step[0]
-Step[1]
-Step[2]
-```
-
-顺序执行。
-
-这不仅减少：
-
-```text
-semantic lookup
-```
-
-也可能改善：
-
-```text
-instruction cache
-data locality
-branch prediction
-```
-
----
-
-## 26. 对最简单的情况，Plan 甚至仍然太多
-
-如果：
-
-```text
-Graph
-```
-
-完全静态、结构简单，而且：
-
-```text
-call targets
-types
-lifetimes
-```
-
-都已确定，那么最理想结果仍然是：
-
-```text
-Direct
-```
-
-例如：
-
-```text
-Stream API
-    ↓
-Graph
-    ↓
-Optimize
-    ↓
-Direct Stage IR
-    ↓
-ordinary C loop
-```
-
-所以执行后端可以形成层次：
-
-```text
-Direct
-    最低 runtime abstraction
-
-Plan
-    预编译 runtime execution
-
-Interpreter
-    通用 fallback / debugging / complex cases
-```
-
-这里不是所有 Graph 都必须走同一条路。
-
----
-
-## 27. Interpreter 仍然有价值
-
-强调 Direct / Plan 并不意味着：
-
-```text
-Graph Interpreter 没有意义
-```
-
-Interpreter 非常适合：
-
-```text
-最初实现
-debugging
-testing
-rare graph shape
-dynamic configuration
-semantic reference
-```
-
-特别是一个 reference interpreter 可以成为：
-
-```text
-行为基准
-```
-
-用于比较：
-
-```text
-Optimized Graph
-Plan
-Direct Backend
-```
-
-是否保持相同结果。
-
-因此多个 execution form 可以共同存在：
-
-```text
-Reference Interpreter
-Optimized Interpreter
-Plan
-Direct
-```
-
-但生产 hot path 可以优先选择更轻形式。
-
----
-
-## 28. 这就引出一个新问题：怎么知道 Plan 还是对应那个 Graph？
-
-假设：
-
-```text
-Graph v10
-```
-
-生成：
-
-```text
-Plan
-```
-
-然后 Graph 被修改成：
-
-```text
-Graph v11
-```
-
-如果继续使用旧 Plan：
-
-```text
-结果可能已经不再对应当前 Graph
-```
-
-所以必须建立：
-
-```text
-Version Binding
-```
-
-例如：
-
-```text
-Plan.graph_version = 10
-```
-
-执行或验证时确认：
-
-```text
-Graph.version == Plan.graph_version
-```
-
-否则拒绝。
-
-这使：
-
-```text
-Graph mutation
-```
-
-与：
-
-```text
-Compiled Artifact
-```
-
-之间形成清楚的 stale detection。
-
----
-
-## 29. Version 还不够时，可以加入 Fingerprint
-
-Version 适合：
-
-```text
-同一个 Graph object
-```
-
-的 mutation。
-
-但如果 Graph：
-
-```text
-serialized
-cloned
-rebuilt
-```
-
-地址和 version context 都可能变化。
-
-这时可以进一步使用：
-
-```text
-Fingerprint
-```
-
-描述：
-
-```text
-这个 normalized program 的结构身份
-```
-
-例如：
-
-```text
-operator order
-types
-callable identity
-relations
-```
-
-共同参与 fingerprint。
-
-于是：
-
-```text
-Plan
-Certificate
-Optimization Trace
-```
-
-可以绑定到更明确的 semantic artifact。
-
----
-
-## 30. 为什么需要 Certificate
-
-做到这里以后：
-
-```text
-Graph
-```
-
-经历了：
-
-```text
-Normalize
-Optimize
-Compile
-```
-
-最后得到：
-
-```text
-Plan
-```
-
-那么一个重要问题是：
-
-> **怎样证明这个 Plan 真的是由这张 Graph 合法生成的？**
-
-特别是如果未来：
-
-```text
-Optimizer
-```
-
-越来越复杂，或者：
-
-```text
-Plan
-```
-
-需要持久化、审查、测试。
-
-这时可以构造：
-
-```text
-Certificate
-```
-
-记录：
-
-```text
-Graph Version
-Fingerprint
-Opcode
-Instruction Index
-Callable Index
-Effects
-Properties
-Input Type
-Output Type
-```
-
-等信息。
-
-当前 `certificate.h` 中的 runtime plan certificate 就会保存 opcode/instruction/callable indexes、effects/properties、input/output types、callable，以及 graph version、fingerprint、path/order，并可以重新对 normalized Graph + Plan 进行检查。
-
----
-
-## 31. Certificate 不是为了增加 Runtime 负担
-
-Certificate 的目标不是：
-
-```text
-每处理一个 value
-都验证一次 certificate
-```
-
-而是：
-
-```text
-build / admission / debug / audit
-```
-
-阶段使用。
-
-例如：
-
-```text
-Graph
- ↓
-Plan Compile
- ↓
-Certificate
- ↓
-Check
- ↓
-Approved Plan
-
---- hot path ---
-
-Approved Plan
- ↓
-Execute
-```
-
-也就是：
-
-> **把可信度检查也放在执行前。**
-
----
-
-## 32. Proof Trace 则记录“为什么 Graph 被改成这样”
-
-Certificate 更关注：
-
-```text
-Plan 是否对应 Graph
-```
-
-而 optimizer trace 更关注：
-
-```text
-Graph A
-为什么可以变成
-Graph B
-```
-
-例如：
-
-```text
-Map(f)
- ↓
-Map(f)
-```
-
-被优化成：
-
-```text
-Map(f)
-```
-
-trace 可以记录：
-
-```text
-Rule:
-    IDEMPOTENT_MAP_ELIMINATION
-
-Source:
-    node 4..5
-
-Result:
-    node 4
-
-Source Graph Version:
-    12
-
-Optimized Graph Version:
-    13
-```
-
-这使优化不再是：
-
-```text
-神秘地少了一个 Node
-```
-
-而成为：
-
-```text
-可以审计的 transformation
-```
-
-当前 optimizer 的 trace 就显式绑定 source coordinates 以及 source/optimized graph version。
-
----
-
-## 33. Lean 可以证明 Rewrite Rule，而 C 记录 Rewrite Instance
-
-这时 Lean 和 C 的分工开始非常清晰。
-
-Lean 可以证明：
-
-```text
-对于任意满足 IdempotentLaw 的 f
-
-Map(f) ; Map(f)
-
-与
-
-Map(f)
-
-具有相同可观察结果
-```
-
-这是：
-
-```text
-General Theorem
-```
-
-但实际某次 C program 中：
-
-```text
-Node 7 / callable normalize_user
-```
-
-是否应用了这个规则，则由 C optimizer 记录：
-
-```text
-Rewrite Instance
-```
-
-于是可以形成：
-
-```text
-Lean:
-    证明 Rule
-
-C Optimizer:
-    应用 Rule
-
-Trace:
-    记录 Instance
-```
-
-这种结构比：
-
-```text
-要求 Lean 直接执行 production optimizer
-```
-
-简单得多，也更符合工程现实。
-
----
-
-## 34. 这其实已经很像一个小型 Verified Compiler
-
-到这里，CFlow execution pipeline 已经逐渐具备：
-
-```text
-Front-end representation
-Normalization
-IR
-Semantic Analysis
-Optimization
-Lowering
-Backend Selection
-Plan Compilation
-Certificate
-Execution
-```
-
-再加：
-
-```text
-Lean semantic proof
-```
-
-结构上已经非常接近：
-
-```text
-verified / proof-assisted compiler
-```
-
-只是它编译的不是：
-
-```text
-完整 C 语言
-```
-
-而是：
-
-```text
-有限 Typed Computation DSL / Graph IR
-```
-
-也正因为语言有限，formalization 才更加现实。
-
----
-
-## 35. Finite 在这里再次成为优势
-
-如果 Graph language 允许：
-
-```text
-任意 runtime reflection
-任意 operator
-任意类型关系
-任意 callback ABI
-```
-
-那么：
-
-```text
-Analyzer
-Optimizer
-Proof Model
-```
-
-都会非常复杂。
-
-但如果：
-
-```text
-Operator Universe
-Signature Universe
-Type Relation
-Optimization Rule
-```
-
-都是有限的，就可以：
-
-```text
-枚举
-验证
-生成
-证明
-```
-
-所以前面坚持：
-
-```text
-Finite
-```
-
-现在开始产生巨大的复利。
-
----
-
-## 36. Control Plane 可以越来越强
-
-整个 Control Plane 可以逐渐拥有：
-
-```text
-Schema
-Type Registry
-Signature Relation
-Generic Identity
-Graph Validation
-Effect Analysis
-Property Analysis
-Inference
-Optimizer
-Plan Compiler
-Certificate Checker
-Lean-generated Manifest
-```
-
-这看起来很丰富。
-
-但它的目标不是：
-
-```text
-让 runtime 更聪明
-```
-
-而是：
-
-> **把 runtime 将来会问的问题提前回答掉。**
-
-最终可能形成：
-
-```text
-Question:
-    callable type?
-
-Answered before execution.
-
-Question:
-    next node?
-
-Answered before execution.
-
-Question:
-    parallel legal?
-
-Answered before execution.
-
-Question:
-    raw or adapter?
-
-Answered before execution.
-```
-
----
-
-## 37. Execution Plane 则应该越来越“笨”
-
-理想的 Execution Plane 可以简单到：
-
-```text
-load
-call
-branch
-store
-```
-
-例如：
-
-```c
-for (...) {
-    int x = input[i];
-
-    if (!even(x))
-        continue;
-
-    long y = square(x);
-
-    output[out++] = y;
-}
-```
-
-或者：
-
-```c
-step0(plan, ...);
-step1(plan, ...);
-step2(plan, ...);
-```
-
-它不应该再：
-
-```text
-理解 CMeta
-理解 Graph schema
-做类型推导
-判断优化规则
-```
-
-因为这些已经是 Control Plane 的工作。
-
----
-
-## 38. 这形成整个体系最核心的性能哲学
-
-可以把它总结为：
-
-```text
-Rich Compile / Control Time
-        ↓
-Simple Runtime
-```
-
-或者：
-
-```text
-More Knowledge Before Execution
-        ↓
-Less Work During Execution
-```
-
-甚至可以更简洁地表达：
-
-## Know More, Do Less
-
-CMeta 让系统：
-
-```text
-知道更多
-```
-
-CFlow 利用这些知识：
-
-```text
-提前做决定
-```
-
-最终执行器因此：
-
-```text
-做得更少
-```
-
----
-
-## 39. 这也是为什么高级 API 不一定意味着高 Runtime Cost
-
-用户看到：
-
-```text
-stream
-    .filter(even)
-    .map(square)
-    .collect(...)
-```
-
-很容易以为：
-
-```text
-大量 wrapper
-大量 dynamic object
-大量 indirect call
-```
-
-但如果架构正确，真正发生的可以是：
-
-```text
-Stream DSL
-    ↓
-Typed Graph
-    ↓
-Optimize
-    ↓
-Direct / Plan
-    ↓
-ordinary C
-```
-
-所以：
-
-> **抽象层次和运行时成本并不是同一个维度。**
-
-高级 API 可以存在于：
-
-```text
-Control Plane
-```
-
-而不一定存在于：
-
-```text
-Execution Plane
-```
-
----
-
-## 40. 同样的原则也适用于 Machine 和 Actor
-
-Machine Build 可以提前完成：
-
-```text
-ID normalization
-Type validation
-Transition validation
-Reachability
-Ambiguity checks
-```
-
-那么 runtime 就不需要每处理一个 Event 都：
-
-```text
-重新检查整个 machine schema
-```
-
-Actor 也一样。
-
-可以在 start/admission 时确认：
-
-```text
-Machine
-Executor capability
-Scheduler capability
-Mailbox capacity
-Type contracts
-```
-
-执行阶段只处理：
-
-```text
-dequeue
-guard
-action
-commit
-```
-
-所以：
-
-```text
-Rich Control Plane
-```
-
-不是只针对 Stream。
-
-它是整个 execution architecture 的统一原则。
-
----
-
-## 41. 为什么这仍然是一套 C 风格的系统
-
-虽然已经出现：
-
-```text
-Compiler
-IR
-Plan
-Certificate
-Formal Proof
-```
-
-这些听起来非常“高级”的概念，但最终仍然坚持：
-
-```text
-explicit structs
-explicit ownership
-explicit status
-bounded resource
-ordinary function pointer
-ordinary C ABI
-```
-
-没有要求：
-
-```text
-GC
-VM
-JIT
-hidden scheduler
-mandatory heap
-runtime reflection engine
-```
-
-这也是它和很多高级 runtime framework 的根本区别。
-
-它试图做的不是：
-
-> 在 C 上模拟一个新的虚拟世界。
-
-而是：
-
-> **在普通 C 周围增加足够的静态和控制面知识，让普通 C 本身更容易被生成、验证和优化。**
-
----
-
-## 42. 完整执行链现在已经变得清楚
-
-到这里，可以把 CFlow 的 execution pipeline 概括为：
-
-```mermaid
-flowchart LR
-    A["High-level API"]
-    B["Surface Graph"]
-    C["Normalize"]
-    D["Primitive IR"]
-    E["Analyze / Optimize"]
-    F["Direct IR / Plan"]
-    G["Certificate / Trace"]
-    H["Execute"]
-
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    E --> F
-    F --> G
-    G --> H
-```
-
-其中：
-
-```text
-A ~ G
-```
-
-都属于：
-
-```text
-Control Plane
-```
-
-而：
-
-```text
-H
-```
-
-才是真正的：
-
-```text
-Execution Plane
-```
-
-真正理想的设计，是：
-
-> **让前者尽可能丰富，让后者尽可能小。**
-
----
-
-## 43. 从最开始看，这其实仍然是在解决“重复复杂度”
-
-回到第一章：
-
-```text
-重复代码
-    ↓
-Macro
-```
-
-后来：
-
-```text
-重复事实
-    ↓
-Schema
-```
-
-再后来：
-
-```text
-重复类型规则
-    ↓
-CMeta
-```
-
-现在遇到的是：
-
-```text
-每个 Value 重复做相同的分析
-```
-
-解决方法仍然一样：
-
-> **把不会变化的知识提取出来，只计算一次。**
-
-所以：
-
-```text
-Plan
-Direct IR
-Certificate
-```
-
-从某种意义上说仍然延续着最早的思想：
-
-```text
-Don't Repeat Yourself
-```
-
-只是这次重复的不是 source code。
-
-而是：
-
-```text
-runtime decision
-```
-
----
-
-## 44. 下一步：当优化越来越强，可信度变成新的问题
-
-做到这里以后，我们已经可以：
-
-```text
-生成 Graph
-改变 Graph
-删除 Node
-融合 Node
-选择并行
-生成 Plan
-消除 Runtime Metadata
-```
-
-这些能力越强，一个问题就越重要：
-
-> **我们凭什么相信这些 transformation 没有改变程序语义？**
-
-单元测试当然仍然重要。
-
-但如果 optimizer rule 逐渐增加，仅靠：
-
-```text
-几个 example
-```
-
-很难说明：
-
-```text
-对于所有输入都成立
-```
-
-所以接下来需要更系统地讲清：
-
-```text
-Lean
-Semantic Law
-Rewrite Proof
-Generated Manifest
-Certificate
-Refinement
-```
-
-之间到底是什么关系。
-
-也就是：
-
-> **形式化不是为了取代 C，而是为了给那些“我们准备在运行前替程序做掉的决定”建立可信边界。**
-
----
-
-## 小结：高级抽象的最终目的，是让执行阶段更简单
-
-这一章最核心的思想可以压缩成：
-
-```text
-High-level API
-    ↓
-Rich Semantic IR
-    ↓
-Analyze
-    ↓
-Optimize
-    ↓
-Compile
-    ↓
-Simple Execution
-```
-
-或者：
-
-```text
-Metadata
-    不是为了让每个 Value 都去查
-
-Graph
-    不是为了让每个 Value 都去遍历
-
-Effects / Properties
-    不是为了每个调用都重新判断
-
-Type Relations
-    不是为了 Runtime 每次重新推导
-```
-
-它们真正的价值是：
-
-> **把一次又一次重复的运行时决策，提前变成一次构建期决策。**
-
-所以最终的目标不是：
-
-```text
-Rich Runtime
-```
-
-而是：
-
-## Rich Control Plane → Simple Execution Plane
-
-CMeta 让程序：
-
-```text
-知道更多
-```
-
-CFlow 利用这些知识：
-
-```text
-提前检查
-提前推导
-提前优化
-提前编译
-```
-
-最终真正运行时：
-
-```text
-反而做更少的事情
-```
-
-这也是整套设计能否继续保持 C 风格的关键。
-
-下一章将继续回答这里留下的最后一个重要问题：
-
-> **当我们开始根据 Type、Effect、Property 和 Graph Structure 自动改变程序以后，怎样证明这些改变是可信的？**
-
-下一章将进入 **Lean、Semantic Law、Verified Rewrite、Manifest 与 Certificate——如何为有限的 C Meta / Flow 系统建立一个实际可用的形式化可信边界。**
-
----
-
-
-## 45. End-to-End Case：canonical pipeline 从 Surface API 走到 Plan
+## 20. End-to-End Case：canonical pipeline 从 Surface API 走到 Plan
 
 回到 Part II 一直使用的 pipeline：
 
@@ -2655,7 +1180,7 @@ parameters
 
 真正的执行链从这里开始。
 
-## 45.1 Step 1 — Surface Graph
+## 20.1 Step 1 — Surface Graph
 
 Surface Graph 的职责是：
 
@@ -2679,7 +1204,7 @@ easy to diagnose
 fastest per-value execution representation
 ~~~
 
-## 45.2 Step 2 — Normalize
+## 20.2 Step 2 — Normalize
 
 本版 CFlow 实现：
 
@@ -2721,7 +1246,7 @@ Executor state
 
 这是非常重要的边界。
 
-## 45.3 Step 3 — Optimize
+## 20.3 Step 3 — Optimize
 
 Optimizer 继续使用：
 
@@ -2761,7 +1286,7 @@ property_blocked_*
 
 > **不能证明/满足 admission 的 rewrite，应该明确“不做”，而不是 silent best effort。**
 
-## 45.4 Step 4 — Compile Plan
+## 20.4 Step 4 — Compile Plan
 
 完整 canonical pipeline 含 terminal Reduce。
 
@@ -2799,7 +1324,7 @@ Plan 不是另一个 Graph。
 remove repeated topology decisions from execution
 ~~~
 
-## 45.5 Step 5 — Execute
+## 20.5 Step 5 — Execute
 
 Sequential Plan evaluation拿到：
 
@@ -2831,7 +1356,7 @@ decide rewrite
 
 ---
 
-## 46. 一个真实 Rewrite：为什么 Metadata Bit 还不够
+## 21. 一个真实 Rewrite：为什么 Metadata Bit 还不够
 
 canonical pipeline 本身只有一个 Map，不适合为了展示 rewrite 硬造第二个 stage。
 
@@ -2893,7 +1418,7 @@ Trace of Instance
 
 的分工。
 
-## 46.1 Property claim 只负责 admission
+## 21.1 Property claim 只负责 admission
 
 C callable 可以声明：
 
@@ -2933,7 +1458,7 @@ rewrite trace
 
 第十一章会把这条链完整展开。
 
-## 46.2 Lean 已经有对应 theorem
+## 21.2 Lean 已经有对应 theorem
 
 本版 formal calculus 的 Rewrite proof 中已经包含：
 
@@ -2956,7 +1481,7 @@ certified_rewrite_preserves_observations
 
 ---
 
-## 47. Direct / AOT：最简单的路径应该连 Plan 都不需要
+## 22. Direct / AOT：最简单的路径应该连 Plan 都不需要
 
 Plan 已经比 Graph Interpreter 简单很多。
 
@@ -2979,7 +1504,7 @@ stage 数量也有显式上限。
 
 它要求每个 stage 满足严格 eligibility。
 
-## 47.1 Direct eligibility 是删除 runtime abstraction 的资格
+## 22.1 Direct eligibility 是删除 runtime abstraction 的资格
 
 当前 direct stage eligibility 会检查：
 
@@ -3014,7 +1539,7 @@ return type itself direct-eligible
 
 > **我们什么时候有资格完全跳过通用 invoke/runtime layer？**
 
-## 47.2 AOT dispatch 也分多种 authority
+## 22.2 AOT dispatch 也分多种 authority
 
 当前 Stage IR 可表示：
 
@@ -3038,7 +1563,7 @@ direct static C call
 
 eligibility 必须与真实 dispatch authority 一致。
 
-## 47.3 Direct macro 的重要 promise
+## 22.3 Direct macro 的重要 promise
 
 当前 generated Direct array path 明确承诺：
 
@@ -3075,7 +1600,7 @@ silently fall back to Kernel
 
 这正是第十四章 No Silent Fallback 的提前实践。
 
-## 47.4 但当前 Direct 不等于完整 Reduce pipeline
+## 22.4 但当前 Direct 不等于完整 Reduce pipeline
 
 这是书里必须诚实写清楚的一点。
 
@@ -3111,7 +1636,7 @@ compiled Plan
 
 ---
 
-## 48. Parallel Reduce：并行是 Execution Refinement，不是 Graph Rewrite
+## 23. Parallel Reduce：并行是 Execution Refinement，不是 Graph Rewrite
 
 Reduce 是一个特别好的例子。
 
@@ -3135,7 +1660,7 @@ ordered parallel reduce
 
 这不是同一类 transformation。
 
-## 48.1 Semantic rewrite 与 physical execution refinement 要分开
+## 23.1 Semantic rewrite 与 physical execution refinement 要分开
 
 例如：
 
@@ -3165,7 +1690,7 @@ execution refinement rule
 
 这是非常成熟的边界。
 
-## 48.2 并行 Reduce 需要完整 admission contract
+## 23.2 并行 Reduce 需要完整 admission contract
 
 至少需要：
 
@@ -3188,7 +1713,7 @@ worker pool exists
 
 就自动 parallelize Reduce。
 
-## 48.3 Unsupported parallel mode 不能 silent sequential retry
+## 23.3 Unsupported parallel mode 不能 silent sequential retry
 
 当前 Plan contract 明确：
 
@@ -3224,7 +1749,7 @@ quietly rerun sequentially
 
 ---
 
-## 49. Certificate：Execution artifact 为什么仍然需要被绑定到 Graph
+## 24. Certificate：Execution artifact 为什么仍然需要被绑定到 Graph
 
 Plan 预解码以后，Graph topology 不再进入 execution。
 
@@ -3273,7 +1798,7 @@ typed parameter
 
 而是一个可检查 execution witness。
 
-## 49.1 Certificate 不是 wire format
+## 24.1 Certificate 不是 wire format
 
 当前实现明确：
 
@@ -3293,7 +1818,7 @@ treat raw pointer/address as stable identity
 
 这与前面 semantic identity 的原则一致。
 
-## 49.2 Version + fingerprint 防止 stale artifact
+## 24.2 Version + fingerprint 防止 stale artifact
 
 Graph 被 mutation 后：
 
@@ -3317,7 +1842,7 @@ fingerprint
 
 > **让一个 execution artifact 无法在 source program 已变化后继续被误当成可信。**
 
-## 49.3 Lean 已经证明 certificate/refinement observation preservation
+## 24.3 Lean 已经证明 certificate/refinement observation preservation
 
 当前 formal proof 中已有：
 
@@ -3359,7 +1884,7 @@ C runtime witness
 
 ---
 
-## 50. Proof Trace：为什么还需要记录“发生了哪一次 Rewrite”
+## 25. Proof Trace：为什么还需要记录“发生了哪一次 Rewrite”
 
 Certificate 主要回答：
 
@@ -3416,7 +1941,7 @@ optimizer says success
 
 ---
 
-## 51. Cost Model：Lean 也不应该“证明 benchmark 数字”
+## 26. Cost Model：Lean 也不应该“证明 benchmark 数字”
 
 形式化可以讨论：
 
@@ -3478,7 +2003,7 @@ empirical evidence
 
 ---
 
-## 52. Performance Evidence：第十章必须建立 measurement discipline
+## 27. Performance Evidence：第十章必须建立 measurement discipline
 
 本版 CFlow 实现 已经有专门 benchmark targets：
 
@@ -3507,7 +2032,7 @@ statistic
 baseline
 ~~~
 
-## 52.1 canonical data-flow benchmark 应至少比较
+## 27.1 canonical data-flow benchmark 应至少比较
 
 ~~~text
 hand-written C loop
@@ -3532,7 +2057,7 @@ not eligible
 
 而不是强行给出一个 fallback 数字。
 
-## 52.2 Control-plane cost 也要测
+## 27.2 Control-plane cost 也要测
 
 Build Once, Execute Many 不是说 build cost 等于零。
 
@@ -3553,7 +2078,7 @@ execution
 
 这比单独展示一个 hot-loop ns/op 更有工程意义。
 
-## 52.3 不在没有 fresh measurement 时写“X 倍更快”
+## 27.3 不在没有 fresh measurement 时写“X 倍更快”
 
 书可以解释：
 
@@ -3569,11 +2094,11 @@ execution
 
 ---
 
-## 53. Machine / Actor 也遵循同一条 Control/Execution Plane 原则
+## 28. Machine / Actor 也遵循同一条 Control/Execution Plane 原则
 
 第八、九章看起来与 Graph optimizer 不同，其实原则完全一致。
 
-## 53.1 Machine build 时做复杂工作
+## 28.1 Machine build 时做复杂工作
 
 Build 阶段已经可以完成：
 
@@ -3590,7 +2115,7 @@ terminal transition validation
 
 于是 runtime SmallStep 不需要每次重新扫描/证明整个 schema。
 
-## 53.2 Actor init/start 时做 capability admission
+## 28.2 Actor init/start 时做 capability admission
 
 Actor control plane可以确认：
 
@@ -3625,7 +2150,7 @@ Do Less
 
 ---
 
-## 54. What We Learned
+## 29. What We Learned
 
 第十章终于把前面看起来很多的组件压缩成一条统一原则。
 
