@@ -2078,11 +2078,11 @@ Execution State
 
 ## 34. Current C Implementation：Stream 真的就是 Graph façade
 
-对照当前 Salts：
+对照本版 Salts 实现快照：
 
 ~~~text
 qigao/salts
-master: ad389928b437c0612c1c60844fe53677f3ed27a6
+snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
 当前 cflow_stream 的核心形态非常直接：
@@ -2188,7 +2188,7 @@ stream.graph.nodes[...] = ...
 
 ## 35. Evidence：canonical pipeline 已经存在于真实测试里
 
-当前 CFlow 的 certificate tests 已经使用几乎和本书完全一致的 pipeline：
+本版 CFlow 实现 的 certificate tests 已经使用几乎和本书完全一致的 pipeline：
 
 ~~~text
 filter even
