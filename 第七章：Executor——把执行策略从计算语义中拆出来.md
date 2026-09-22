@@ -296,7 +296,7 @@ run_ready()
 
 这种 Manual Executor 有一个非常重要的用途：
 
-## 测试
+**测试**
 
 例如希望测试：
 
@@ -1197,604 +1197,19 @@ flowchart LR
 
 ---
 
-## 20. Executor 如何服务 Stream
+## 20. 从执行机制进入协议验证
 
-对于同步 Stream：
+到这里，Executor 已经不需要再通过“它能服务 Stream、Reactive、Machine、Actor”来证明价值。Manual、Serial、Concurrent Worker 三种实现共享的是同一组更小的协议：明确 admission/ownership、bounded capacity、FULL/CLOSED、shutdown settlement、single mutable owner，以及 capability 与 scheduling policy 的分离。
 
-```text
-Array
- ↓
-Filter
- ↓
-Map
- ↓
-Reduce
-```
-
-最简单执行方式甚至不一定需要 Task Queue。
-
-但当开始支持：
-
-```text
-Parallel Reduce
-```
-
-以后，可以把 input 拆分成多个 chunk：
-
-```text
-Chunk 1
-Chunk 2
-Chunk 3
-```
-
-然后：
-
-```text
-Executor.try_post(chunk_task)
-```
-
-并行计算。
-
-因此 Executor 为 Stream 提供的是：
-
-```text
-可选的 execution backend
-```
-
-而不是 Stream 的必需 runtime。
+后半章因此直接验证这些协议。Lean 只建模有限状态与 task ledger；C implementation 则负责真实 queue、thread/callback context 与 lifecycle；CI/测试再验证 capacity、serial safety、self-callback、shutdown 和 ownership。Executor 是否支持并行语义仍由上层 admission 决定，而不是 Worker 自行推断。
 
 ---
 
-## 21. Executor 如何服务 Reactive
-
-Reactive Subscription 在：
-
-```text
-WAIT
-```
-
-以后被：
-
-```text
-wake
-```
-
-唤醒。
-
-正确行为通常不是：
-
-```text
-wake callback 直接重新进入整条 Graph
-```
-
-而是：
-
-```text
-wake
- ↓
-schedule Subscription task
- ↓
-Executor
- ↓
-pump Graph
-```
-
-这样外部 callback 与 Graph execution stack 解耦。
-
-它可以减少：
-
-```text
-reentrancy
-unexpected callback nesting
-thread-context drift
-```
-
-问题。
-
----
-
-## 22. Executor 如何服务 State Machine
-
-State Machine 则主要需要：
-
-```text
-Serial
-```
-
-例如：
-
-```text
-Event
- ↓
-enqueue transition work
- ↓
-Serial Executor
- ↓
-Guard
- ↓
-Action
- ↓
-Commit State
-```
-
-这样：
-
-```text
-Producer 可以并发
-```
-
-但：
-
-```text
-State mutation 串行
-```
-
-这是一种非常强的组合。
-
----
-
-## 23. Executor 如何服务 Actor
-
-Actor 可以有很多 Producer：
-
-```mermaid
-flowchart LR
-    P1["Producer A"]
-    P2["Producer B"]
-    P3["Producer C"]
-
-    M["Mailbox"]
-    E["Serial Executor"]
-    S["Actor State"]
-
-    P1 --> M
-    P2 --> M
-    P3 --> M
-
-    M --> E --> S
-```
-
-多个线程可以同时：
-
-```text
-send(Event)
-```
-
-但真正修改 Actor state 的逻辑：
-
-```text
-永远由 Serial Executor 串行执行
-```
-
-因此 Actor 不需要：
-
-```text
-一个 Actor 一个 Thread
-```
-
-只需要：
-
-```text
-一个 Actor 一个串行语义
-```
-
-这比传统 thread-per-actor 模型更容易扩展。
-
----
-
-## 24. 这也是为什么 Actor 可以共享线程池
-
-假设有：
-
-```text
-100,000 Actors
-```
-
-如果：
-
-```text
-1 Actor = 1 OS Thread
-```
-
-显然不现实。
-
-但如果：
-
-```text
-Actor
-    只是 Mailbox + State + Serial Logical Execution
-```
-
-那么多个 Actor 可以共享：
-
-```text
-少量 Worker Threads
-```
-
-只要保证：
-
-```text
-同一个 Actor 的 Task 不并发 commit
-```
-
-即可。
-
-因此：
-
-```text
-Concurrency
-```
-
-和：
-
-```text
-Parallelism
-```
-
-被真正分开。
-
-Actor 可以是：
-
-```text
-concurrent
-```
-
-但每个 actor state update：
-
-```text
-serial
-```
-
-而不同 actor 之间：
-
-```text
-parallel
-```
-
----
-
-## 25. Executor 也让 Machine 与 Actor 不需要重新发明线程系统
-
-这是整个分层设计非常重要的结果。
-
-如果没有 Executor：
-
-```text
-Machine
-    自己管理 thread
-
-Actor
-    自己管理 thread
-
-Reactive
-    又管理 thread
-```
-
-如果有 Executor：
-
-```text
-Machine
-    使用 Serial Executor
-
-Actor
-    组合 Machine + Executor + Scheduler
-
-Reactive
-    使用 Scheduler / Executor
-
-Plan
-    可选使用 Concurrent Executor
-```
-
-可以表示成：
-
-```mermaid
-flowchart TD
-    E["Executor"]
-
-    E --> P["Parallel Plan"]
-    E --> R["Reactive Subscription"]
-    E --> M["State Machine"]
-    E --> A["Actor"]
-```
-
-Executor 因而成为一个真正的：
-
-```text
-shared execution primitive
-```
-
----
-
-## 26. Executor 其实也是对 CMeta 设计的一次验证
-
-为什么？
-
-因为 Executor 本身就使用了很多前面形成的能力：
-
-```text
-Interface
-Capabilities
-Enum / Status
-Bounded Protocol
-Explicit Lifecycle
-```
-
-而它又反过来成为：
-
-```text
-Stream
-Reactive
-Machine
-Actor
-```
-
-的基础。
-
-这说明整个系统开始形成：
-
-```text
-小 Primitive
-    ↓
-组合
-    ↓
-复杂模型
-```
-
-而不是：
-
-```text
-一个巨大的 Framework
-    ↓
-所有东西都只能在 Framework 里面工作
-```
-
----
-
-## 27. 从 Executor 又自然走向 Event
-
-做到这里以后，一个很有意思的事情发生了。
-
-Executor 的输入本质上是：
-
-```text
-Task
-```
-
-而 Reactive 的输入可能是：
-
-```text
-Wake Event
-```
-
-State Machine 的输入则很明显是：
-
-```text
-Business Event
-```
-
-Actor 的输入也是：
-
-```text
-Message / Event
-```
-
-所以接下来的一个自然问题就是：
-
-> **既然 Type System 已经能够描述 Value，能不能把 Event 也变成 Typed Value？**
-
-例如：
-
-```text
-LoginEvent
-TimeoutEvent
-DataEvent
-```
-
-每个 Event 都可以拥有：
-
-```text
-Event ID
-Payload Type
-Payload Value
-```
-
-这样 Executor 上层就能够进一步构造：
-
-```text
-Event Processing
-```
-
----
-
-## 28. Event 一旦加入 State，就自然变成 Machine
-
-例如：
-
-```text
-State
-+
-Event
-+
-Guard
-+
-Action
-```
-
-就形成：
-
-```text
-Transition
-```
-
-也就是：
-
-```text
-(State, Event)
-    ↓
-Guard
-    ↓
-Action
-    ↓
-New State
-```
-
-而前面已经有：
-
-```text
-Type
-Callable
-Executor
-```
-
-所以这一模型不需要从零开始。
-
-这也是下一章的主题：
-
-## Event 与 State Machine
-
----
-
-## 29. 这一阶段真正得到的设计原则
-
-从 Executor 的演进中，可以总结出几条非常重要的原则。
-
-### 第一，执行机制应该独立于计算语义
-
-```text
-Graph
-≠
-Executor
-```
-
----
-
-### 第二，能力比具体实现重要
-
-```text
-SERIAL
-CONCURRENT
-MANUAL
-```
-
-比：
-
-```text
-某个具体 class / struct
-```
-
-更值得上层依赖。
-
----
-
-### 第三，资源必须有界
-
-```text
-bounded queue
-explicit FULL
-```
-
-比：
-
-```text
-hidden unbounded growth
-```
-
-更可靠。
-
----
-
-### 第四，Mechanism 不替 Application 决定 Policy
-
-```text
-FULL
-```
-
-以后：
-
-```text
-retry / drop / block / fail
-```
-
-由上层决定。
-
----
-
-### 第五，复杂系统应该由小模型组合
-
-```text
-Executor
-```
-
-不需要知道：
-
-```text
-Stream
-Reactive
-Actor
-```
-
-但它可以全部服务。
-
----
-
-## 30. 完整演进链继续向前
-
-到目前为止，我们已经得到：
-
-```text
-Macro
- ↓
-Type
- ↓
-Generic / Inference
- ↓
-CMeta
- ↓
-Callable
- ↓
-Lambda / Bind
- ↓
-Graph
- ↓
-Stream
- ↓
-Reactive
- ↓
-Executor
-```
-
-而 Executor 进一步暴露出一个新的统一对象：
-
-```text
-Event
-```
-
-因为：
-
-```text
-Reactive wake
-State transition
-Actor message
-External input
-```
-
-从某种意义上都可以被理解成：
-
-> **一个被执行系统接收并处理的 typed event。**
-
-下一章将继续沿着这个方向展开：
-
-> **怎样利用 Type、Callable 和 Serial Executor 构造一个真正有类型的 Event / State Machine 模型，并把传统 callback table 提升成可验证的状态转换 IR。**
-
----
-
-
-## 31. Semantic Contract：Executor 最小但并不模糊
+## 21. Semantic Contract：Executor 最小但并不模糊
 
 Executor 的 API 可以很小，但它的 contract 必须非常精确。
 
-## 31.1 Task admission 是一次明确的 ownership boundary
+## 21.1 Task admission 是一次明确的 ownership boundary
 
 最简单的 task 仍然可以是：
 
@@ -1852,7 +1267,7 @@ Rejected admission 则必须：
 
 这条规则让 FULL/CLOSED 不再是模糊错误码，而是 ownership protocol。
 
-## 31.2 Capacity 是语义边界，不是性能 hint
+## 21.2 Capacity 是语义边界，不是性能 hint
 
 如果 Executor 声明：
 
@@ -1888,7 +1303,7 @@ spill to heap
 create new worker
 ~~~
 
-## 31.3 Serial 的核心不是“一条线程”，而是 single mutable owner
+## 21.3 Serial 的核心不是“一条线程”，而是 single mutable owner
 
 Serial Executor 真正保证的是：
 
@@ -1914,7 +1329,7 @@ external event loop adapter
 
 这也是为什么 State Machine / Actor 可以依赖 serial semantics，而不依赖某个具体 thread topology。
 
-## 31.4 Worker 只提供 concurrent capability，不授权语义并行
+## 21.4 Worker 只提供 concurrent capability，不授权语义并行
 
 Worker Executor 能并行运行 task，并不意味着：
 
@@ -1938,7 +1353,7 @@ parallel execution admitted
 
 Mechanism 不替 policy 决策。
 
-## 31.5 Lifecycle 必须从 OPEN 明确走向 CLOSED
+## 21.5 Lifecycle 必须从 OPEN 明确走向 CLOSED
 
 Executor lifecycle 至少需要：
 
@@ -1972,7 +1387,7 @@ destroy() then hope callbacks stop
 
 安全得多。
 
-## 31.6 Same-executor callback 不能同步等待自己
+## 21.6 Same-executor callback 不能同步等待自己
 
 这是一个很容易被 API 忽略的 deadlock boundary。
 
@@ -2002,7 +1417,7 @@ WOULD_BLOCK
 
 ---
 
-## 32. Lean：Executor 已经有完整协议模型
+## 22. Lean：Executor 已经有完整协议模型
 
 本版 Salts 快照 formal calculus 已经包含：
 
@@ -2045,7 +1460,7 @@ AdmissionResult
 
 这与 C API 的边界非常接近。
 
-## 32.1 Bounded：队列永远不越过 capacity
+## 22.1 Bounded：队列永远不越过 capacity
 
 formal state 定义：
 
@@ -2081,7 +1496,7 @@ tryPost_preserves_safe
 
 > 如果 C backend 在 FULL 时仍然偷偷存入 task，那么它不是“实现不同”，而是违反模型。
 
-## 32.2 Task ledger conservation：accepted task 不会凭空消失
+## 22.2 Task ledger conservation：accepted task 不会凭空消失
 
 formal model 定义：
 
@@ -2128,7 +1543,7 @@ maybe ran
 maybe got lost during destroy
 ~~~
 
-## 32.3 SerialSafe：Manual / Serial 同时最多一个 running task
+## 22.3 SerialSafe：Manual / Serial 同时最多一个 running task
 
 formal definition：
 
@@ -2150,7 +1565,7 @@ start_preserves_safe
 
 这就是 single mutable owner 的数学形式。
 
-## 32.4 FULL 与 CLOSED 不改变 task ledger
+## 22.4 FULL 与 CLOSED 不改变 task ledger
 
 已有 theorem：
 
@@ -2175,7 +1590,7 @@ rejected admission
 caller still owns task/user
 ~~~
 
-## 32.5 Same-callback blocking operation 必须 fail fast
+## 22.5 Same-callback blocking operation 必须 fail fast
 
 现有 theorem：
 
@@ -2206,7 +1621,7 @@ waitIdle
 
 如果没有模型，很容易写出一个“看起来方便”的 blocking API，直到 production 遇到 callback self-deadlock。
 
-## 32.6 Shutdown settlement
+## 22.6 Shutdown settlement
 
 formal model区分：
 
@@ -2242,7 +1657,7 @@ running = 0
 
 这就是 ClosedQuiescent。
 
-## 32.7 这里仍然不证明 OS fairness
+## 22.7 这里仍然不证明 OS fairness
 
 formal settleShutdown 是一个 summary transition，并明确写着：
 
@@ -2267,7 +1682,7 @@ user task 一定 return
 
 ---
 
-## 33. Current C Implementation：Task protocol 已经比简单 fn/user 更完整
+## 23. Current C Implementation：Task protocol 已经比简单 fn/user 更完整
 
 对照本版 Salts 实现快照：
 
@@ -2303,7 +1718,7 @@ no task callback
 
 这与 Lean task ledger 的“exactly one terminal outcome”非常吻合。
 
-## 33.1 Manual Executor 是显式 caller-driven queue
+## 23.1 Manual Executor 是显式 caller-driven queue
 
 当前 Manual implementation 持有：
 
@@ -2333,7 +1748,7 @@ external batch/event loop
 single-thread ownership boundary
 ~~~
 
-## 33.2 FULL 被直接统计，而不是自动扩容
+## 23.2 FULL 被直接统计，而不是自动扩容
 
 Manual try_post：
 
@@ -2347,7 +1762,7 @@ if count >= capacity
 
 这正好实现了 formal Bounded。
 
-## 33.3 Shutdown policy 只选择一次
+## 23.3 Shutdown policy 只选择一次
 
 当前实现会记录：
 
@@ -2372,7 +1787,7 @@ closing halfway
 then application changes semantics
 ~~~
 
-## 33.4 CANCEL_PENDING 会执行 cancel/finalize
+## 23.4 CANCEL_PENDING 会执行 cancel/finalize
 
 pending task 被 cancel 时：
 
@@ -2386,7 +1801,7 @@ cancelled++
 
 这就是 ownership protocol 真正落地的地方。
 
-## 33.5 callback context 通过 thread-local 边界识别
+## 23.5 callback context 通过 thread-local 边界识别
 
 Manual implementation 记录当前正在执行哪个 Executor state。
 
@@ -2403,7 +1818,7 @@ wait_idle
 
 ---
 
-## 34. Manual / Serial / Worker：三种实现共享的是协议，不是结构
+## 24. Manual / Serial / Worker：三种实现共享的是协议，不是结构
 
 本章应该避免把三种 Executor 讲成三套 framework。
 
@@ -2418,7 +1833,7 @@ statistics
 capabilities
 ~~~
 
-## 34.1 Manual
+## 24.1 Manual
 
 ~~~text
 CAP_MANUAL
@@ -2428,7 +1843,7 @@ running <= 1
 
 最适合 deterministic control。
 
-## 34.2 Serial
+## 24.2 Serial
 
 ~~~text
 CAP_SERIAL
@@ -2444,7 +1859,7 @@ Actor state
 single-owner callbacks
 ~~~
 
-## 34.3 Worker
+## 24.3 Worker
 
 ~~~text
 CAP_CONCURRENT
@@ -2463,7 +1878,7 @@ I/O/computation dispatch
 
 ---
 
-## 35. Executor 与 Scheduler 为什么仍然不是同一个对象
+## 25. Executor 与 Scheduler 为什么仍然不是同一个对象
 
 第六章已经看到 Scheduler 还需要：
 
@@ -2520,11 +1935,11 @@ Manual Executor
 
 ---
 
-## 36. Evidence：Executor 必须验证协议，而不仅是“task 跑了”
+## 26. Evidence：Executor 必须验证协议，而不仅是“task 跑了”
 
 这一章至少需要以下证据。
 
-## 36.1 Capacity evidence
+## 26.1 Capacity evidence
 
 对于 capacity=N：
 
@@ -2543,7 +1958,7 @@ peak_pending
 rejected_full
 ~~~
 
-## 36.2 Ledger evidence
+## 26.2 Ledger evidence
 
 在：
 
@@ -2563,7 +1978,7 @@ completed + cancelled
 
 这与 Lean theorem 一一对应。
 
-## 36.3 Serial evidence
+## 26.3 Serial evidence
 
 同时提交多个 task，必须证明：
 
@@ -2573,7 +1988,7 @@ running never exceeds 1
 
 这里可以用 instrumentation / atomic counter 测试，而不是只检查最终输出顺序。
 
-## 36.4 Self-callback evidence
+## 26.4 Self-callback evidence
 
 在 task callback 内测试：
 
@@ -2587,7 +2002,7 @@ blocking post when full
 
 这类测试非常重要，因为普通 happy-path test 根本看不出 deadlock risk。
 
-## 36.5 Shutdown evidence
+## 26.5 Shutdown evidence
 
 分别测试：
 
@@ -2604,7 +2019,7 @@ after closing
 
 以及 repeated/invalid shutdown policy behavior。
 
-## 36.6 Sanitizer / ownership evidence
+## 26.6 Sanitizer / ownership evidence
 
 Task user ownership 最容易出错的路径恰恰是：
 
@@ -2628,7 +2043,7 @@ Lean 不会替你发现 use-after-free。
 
 ---
 
-## 37. What We Learned
+## 27. What We Learned
 
 第七章完成了 Part II 最后一层拆分：
 
