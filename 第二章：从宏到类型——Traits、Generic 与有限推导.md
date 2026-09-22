@@ -1784,6 +1784,147 @@ Lean 属于可信 control plane，不属于应用 hot path。
 
 ---
 
+
+### 31.1 对照当前 Salts：这些抽象已经怎样落成真实 C
+
+为了避免这一节停留在概念伪代码，可以直接看当前 Salts 的 CMeta implementation snapshot：
+
+~~~text
+qigao/salts
+master: ad389928b437c0612c1c60844fe53677f3ed27a6
+~~~
+
+当前基础 type descriptor 已经明确区分：
+
+~~~c
+typedef struct cmeta_type_desc {
+    const char *name;
+    size_t size;
+    size_t align;
+    cmeta_type_kind kind;
+    const struct cmeta_type_desc *pointee;
+    const cmeta_type_traits *traits;
+    const cmeta_type_identity *identity;
+} cmeta_type_desc;
+~~~
+
+这里最关键的不是字段数量，而是：
+
+~~~text
+descriptor address
+    ≠
+semantic identity
+~~~
+
+identity 被显式放进 descriptor，正是因为跨 Translation Unit 时不能把 object address 当成 type meaning。
+
+更高层的数据描述也继续保持这一边界。当前 cmeta_data_desc 包含：
+
+~~~text
+struct_size
+abi_version
+stable_id
+display_name
+kind
+storage_type
+shape
+versioned operation providers
+~~~
+
+这说明 metadata 并不是一个随便增长的匿名 struct，而已经开始承担两个工程责任：
+
+1. semantic identity / stable meaning；
+2. ABI-versioned provider boundary。
+
+这两件事会在第十二章继续展开。
+
+#### TypeFunction 也没有 runtime evaluator
+
+当前 TypeFunction 的实现仍然遵循本章一直强调的路线：
+
+~~~text
+finite relation rows
+      ↓
+macro expansion
+      ↓
+ordinary typedef names
+      ↓
+TypeEval performs token lookup
+~~~
+
+例如一元、二元、三元 relation 最终分别生成普通 C typedef。
+
+如果某个输入组合没有 row，就不会有对应 typedef：
+
+~~~text
+no relation row
+    ↓
+no generated type key
+    ↓
+compile-time failure
+~~~
+
+因此 No Default 并不是文档约定，而是 implementation shape 的直接结果。
+
+这正是一个很好的 Modern C 例子：
+
+> **把“推导”提前到 control plane，最终只给 C compiler 留下一组已经决定好的普通声明。**
+
+#### Traits 也是 capability contract，不是动态反射
+
+当前 type descriptor 可以关联 traits；调用方显式要求：
+
+~~~text
+EQUAL
+HASH
+COMPARE
+COPY
+MOVE
+DESTROY
+~~~
+
+缺失 capability 会得到明确状态，而不是在 runtime 猜测如何操作一个 object。
+
+这再次说明 CMeta 的目标不是：
+
+~~~text
+discover everything dynamically
+~~~
+
+而是：
+
+~~~text
+declare finite knowledge
+validate it early
+use it cheaply later
+~~~
+
+#### 这一实现快照给本章增加了一个重要要求
+
+从现在开始，书中凡是出现：
+
+~~~text
+type descriptor
+semantic identity
+trait
+TypeFunction
+~~~
+
+都应该同时回答两层问题：
+
+~~~text
+semantic model:
+    this concept means what?
+
+C representation:
+    this knowledge is stored/generated where?
+~~~
+
+如果两层长期分离，书就会重新退回“架构设计文档”。
+
+
+---
+
 ## 32. Evidence：怎样证明类型系统真的跨出了“单文件宏实验”
 
 这一章至少需要四种不同证据。
