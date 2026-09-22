@@ -167,6 +167,21 @@ State Machine / Actor
 
 > **控制平面可以丰富，执行平面应该简单。**
 
+## 出版构建
+
+各章 Markdown 仍然是唯一可编辑正文；出版顺序由 [BOOK_MANIFEST.txt](./BOOK_MANIFEST.txt) 统一定义。
+
+本地可以只用 Python 标准库完成整书 QA，并生成确定性的单文件 Markdown 书稿：
+
+```bash
+python3 scripts/validate_book.py
+python3 scripts/build_book.py
+```
+
+生成结果位于 `dist/C-with-Modern-Grammar.md`，不会提交到仓库。GitHub Actions 的 `Publication` workflow 会在 Pull Request 与 `master` 上执行同样的校验/构建，并把合并后的书稿上传为 workflow artifact。
+
+PDF / EPUB 排版刻意保持为下一层能力，这样日常写作和 review 不需要安装 Pandoc、LaTeX、Node 或 Lean。
+
 ## 仓库历史
 
 这套书稿最初位于 `qigao/salts` 仓库中，之后独立迁移为当前书稿仓库。
