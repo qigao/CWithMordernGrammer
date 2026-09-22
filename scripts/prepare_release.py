@@ -50,8 +50,12 @@ def main() -> None:
 
     OUTPUT.write_text(prepared, encoding="utf-8", newline="\n")
     epub_prepared = re.sub(
-        r"(diagrams/diagram-\\d{3})\\.svg", r"\\1.png", prepared
+        r"(diagrams/diagram-\d{3})\.svg", r"\1.png", prepared
     )
+    if "diagrams/diagram-" in epub_prepared and ".svg" in epub_prepared:
+        raise SystemExit("EPUB preparation retained SVG diagram references")
+    if epub_prepared.count(".png)") != len(diagrams):
+        raise SystemExit("EPUB PNG diagram reference count mismatch")
     EPUB_OUTPUT.write_text(epub_prepared, encoding="utf-8", newline="\n")
     print(
         f"prepared {OUTPUT.relative_to(ROOT)} and "
