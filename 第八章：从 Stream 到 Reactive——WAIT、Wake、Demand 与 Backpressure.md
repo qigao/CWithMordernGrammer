@@ -1,135 +1,102 @@
 # 第八章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure
 
-
-> **本章路线**
+> **Part III 从真实 I/O 开始。**
 >
-> 前两章已经把 canonical pipeline 固定为一张 reusable Typed Graph。本章不改变 Filter / Map / Reduce 的计算关系，只给“执行”增加时间、等待和下游需求：
+> 前四章已经证明：复杂的数据转换可以保存成 Graph、以 LINQ-like surface 构造，并在执行前被证明、优化和 lower。
 >
-> ~~~text
-> immutable Graph
->      +
-> movable Publisher
->      +
-> Subscription-owned live state
->      +
-> Scheduler
->      ↓
-> Reactive execution
+> 现在换一个完全不同的问题：
+>
+> **如果下一个值来自文件、Socket、Timer，而此刻还没有准备好怎么办？**
+>
+> Plain C 的阻塞版本非常简单：
+>
+> ~~~c
+> FILE *fp = fopen(path, "rb");
+> if (fp == NULL)
+>     return -1;
+>
+> unsigned char buffer[4096];
+> size_t n = fread(buffer, 1, sizeof(buffer), fp);
+>
+> fclose(fp);
 > ~~~
 >
-> canonical pipeline 仍然是：
+> 这段代码没有错。问题是 `fread()` 返回以前，当前线程就是 progress owner。
 >
-> ~~~text
-> `Source<int>`
->     ↓
-> Filter(is_even)
->     ↓
-> Map(square)
->     ↓
-> Reduce(sum)
+> edition Salts snapshot 中，同一个问题可以使用 bounded async file facade 表达：
+>
+> ~~~c
+> typedef struct read_probe {
+>     bool done;
+>     cflow_io_completion completion;
+> } read_probe;
+>
+> static void on_read(void *user, cflow_io_request_id request_id,
+>                     cflow_io_lease_id lease_id,
+>                     cflow_io_native_file_operation_kind operation,
+>                     const cflow_io_completion *completion)
+> {
+>     read_probe *probe = user;
+>     (void)request_id;
+>     (void)lease_id;
+>     (void)operation;
+>     probe->completion = *completion;
+>     probe->done = true;
+> }
+>
+> cflow_io_file file = {0};
+> read_probe probe = {0};
+> unsigned char buffer[4096];
+>
+> cflow_io_file_config config = {
+> #if defined(_WIN32)
+>     .backend_kind = CFLOW_IO_NATIVE_IOCP,
+> #elif defined(__linux__)
+>     .backend_kind = CFLOW_IO_NATIVE_IO_URING,
+> #else
+>     .backend_kind = CFLOW_IO_NATIVE_POLL,
+> #endif
+>     .request_capacity = 8u,
+>     .command_capacity = 8u,
+>     .completion_batch_capacity = 8u,
+>     .open_flags = CFLOW_IO_FILE_READ,
+>     .completion = on_read,
+>     .completion_user = &probe,
+> };
+>
+> if (cflow_io_file_open(&file, path, &config) != SALTS_OK)
+>     return -1;
+>
+> cflow_io_file_submit_result submitted =
+>     cflow_io_file_try_read_at(&file, 1u, buffer, sizeof(buffer), 0u);
+>
+> if (submitted.status != CFLOW_IO_FILE_SUBMIT_ACCEPTED)
+>     return -1;
+>
+> while (!probe.done) {
+>     size_t progressed = 0;
+>     if (cflow_io_file_run_ready(&file, 32u, &progressed) != SALTS_OK)
+>         return -1;
+> }
 > ~~~
 >
-> 真正新增的是 source 每次 resume 可以回答：
+> 这里最关键的变化不是“用了 callback”。
+>
+> 真正变化的是：
 >
 > ~~~text
-> VALUE
-> VALUE_AND_DONE
-> WAIT
-> DONE
-> ERROR
+> operation accepted
+>     ↓
+> caller no longer owns completion timing
+>     ↓
+> later terminal completion
+>     ↓
+> computation may continue
 > ~~~
 >
-> 因此本章的核心不再是“数据怎样转换”，而是：
+> 当这种 completion 被投影成 Publisher 时，Graph 里的 `Filter / Map / Reduce` 完全不用重写；source progression 只需要从 `VALUE / DONE` 扩展为 `VALUE / WAIT / DONE / ERROR`。
 >
-> **什么时候允许继续、谁拥有等待状态、谁消耗 demand、Wake 是否会丢失，以及 terminal 如何成为唯一事实源。**
-
-上一章做到 Stream 以后，整个数据转换模型已经比较完整：
-
-```text
-Range
-  ↓
-Filter
-  ↓
-Map
-  ↓
-Reduce / Collect
-```
-
-如果数据来自：
-
-```text
-Array
-Vec
-List
-Range
-```
-
-这种已经存在于内存中的对象，那么执行过程非常直接。
-
-执行器不断：
-
-```text
-next
-next
-next
-```
-
-Publisher 每次都可以立即回答：
-
-```text
-VALUE
-```
-
-或者：
-
-```text
-DONE
-```
-
-这就是典型的同步 Stream。
-
-但 Graph 做出来以后，我们很快发现一个重要事实：
-
-> **Graph 中的 Map、Filter、Reduce 并不关心数据来自哪里。**
-
-它们真正关心的只是：
-
-```text
-输入一个 T
-然后按照既定语义处理它
-```
-
-既然如此，Publisher 为什么一定要是：
-
-```text
-Array
-Container
-```
-
-呢？
-
-它也完全可能是：
-
-```text
-Socket
-Timer
-Message Queue
-File Reader
-UI Event
-Sensor
-Async API
-```
-
-这时问题发生了变化。
-
-不是 Graph 不能处理这些数据，而是：
-
-> **数据现在可能还没有到。**
-
-这就是从 Stream 向 Reactive 演进的真正起点。
-
----
-
+> 这就是 Reactive 的工程起点。
 ## 1. 同步 Publisher 隐含了一个非常强的假设
 
 传统 iterator 可以概念上写成：
@@ -606,7 +573,78 @@ Typed Graph
 
 ---
 
-## 8. 但是有 WAIT 之后，仅仅“能恢复”还不够
+## 8. 同一个边界也适用于网络：NativeIO / CNet 只改变 Source，不复制 Graph
+
+文件 I/O 只是第一个例子。
+
+edition snapshot 的 NativeIO 直接暴露 fixed-capacity backend、generation-checked endpoint/request，以及 `submit → observe terminal` 协议。
+
+一个已经创建并 attach 的 stream socket 可以概念上这样提交接收：
+
+~~~c
+native_io_backend backend = {0};
+native_io_backend_config backend_config = {
+    .kind = NATIVE_IO_BACKEND_EPOLL,
+    .endpoint_capacity = 64u,
+    .request_capacity = 128u,
+    .completion_batch_capacity = 32u,
+};
+
+native_io_endpoint endpoint = {0};
+native_io_request request = {0};
+unsigned char buffer[4096];
+
+native_io_backend_init(&backend, &backend_config);
+native_io_backend_attach_socket(&backend, native_socket, &endpoint);
+
+native_io_operation op = {
+    .kind = NATIVE_IO_OPERATION_STREAM_RECV,
+    .endpoint = endpoint,
+    .buffer = buffer,
+    .length = sizeof(buffer),
+};
+
+native_io_backend_submit(&backend, &op, &request);
+
+native_io_completion events[32];
+size_t count = 0;
+native_io_backend_observe(&backend, events, 32u, 0u, &count);
+~~~
+
+这段 API 暴露了几个重要事实：
+
+~~~text
+backend 不创建隐藏 worker thread
+endpoint/request capacity 在 init 时固定
+submit accepted 后 payload borrow 持续到 terminal completion
+cancel 只是请求取消，真正 terminal 仍以 completion 为准
+unsupported backend 不 silent fallback
+~~~
+
+CNet 在 NativeIO 上继续拥有 connection / TLS / datagram / session 语义；CFlow 则可以通过 `cflow_publisher_from_io_actor()` 把 I/O completion 投影成 typed Publisher。
+
+所以层次是：
+
+~~~text
+NativeIO
+    owns OS operation progress
+
+CNet
+    owns connection / transport protocol meaning
+
+CFlow Reactive Publisher
+    owns WAIT / Wake / Demand / typed emission
+
+Graph
+    still owns Filter / Map / Reduce meaning
+~~~
+
+这正是本书第三部分要反复证明的观点：
+
+> **高级应用不是再造一套 runtime，而是让已有 semantic owner 在清楚的边界上组合。**
+
+---
+## 9. 但是有 WAIT 之后，仅仅“能恢复”还不够
 
 假设一个 Socket 非常快：
 
@@ -659,7 +697,7 @@ value
 
 ---
 
-## 9. Backpressure 的最简单形式：Demand
+## 10. Backpressure 的最简单形式：Demand
 
 一个非常清楚的方案是：
 
@@ -707,7 +745,7 @@ Demand -= 1
 
 ---
 
-## 10. 一个非常关键的语义：Demand 不是 Publisher Pull Count
+## 11. 一个非常关键的语义：Demand 不是 Publisher Pull Count
 
 这一点很容易写错。
 
@@ -784,7 +822,7 @@ Demand becomes 0
 
 ---
 
-## 11. 这意味着 Executor 必须知道“什么时候继续 pull”
+## 12. 这意味着 Executor 必须知道“什么时候继续 pull”
 
 有了 Demand 后，执行器不能简单：
 
@@ -846,7 +884,7 @@ Subscription
 
 ---
 
-## 12. 为什么需要 Subscription，而不是让 Graph 自己保存这些状态
+## 13. 为什么需要 Subscription，而不是让 Graph 自己保存这些状态
 
 Graph 表示：
 
@@ -922,7 +960,7 @@ Machine Instance
 
 ---
 
-## 13. Subscription 也让 Ownership 变得明确
+## 14. Subscription 也让 Ownership 变得明确
 
 一次异步执行很容易遇到生命周期问题。
 
@@ -999,7 +1037,7 @@ flowchart LR
 
 ---
 
-## 14. WAIT 以后必须特别小心 Lost Wakeup
+## 15. WAIT 以后必须特别小心 Lost Wakeup
 
 异步系统中一个经典问题是：
 
@@ -1077,7 +1115,7 @@ signal-concurrent-with-arm
 
 ---
 
-## 15. 这也是 Lean 开始真正进入执行模型的地方
+## 16. 这也是 Lean 开始真正进入执行模型的地方
 
 对于：
 
@@ -1137,7 +1175,7 @@ arm 不会让系统永久 WAIT
 
 ---
 
-## 16. Scheduler 是在这里自然出现的
+## 17. Scheduler 是在这里自然出现的
 
 如果外部事件调用：
 
@@ -1197,7 +1235,7 @@ Scheduler
 
 ---
 
-## 17. Scheduler 回答的是“什么时候执行”
+## 18. Scheduler 回答的是“什么时候执行”
 
 前面已经出现过：
 
@@ -1248,7 +1286,7 @@ Scheduler
 
 ---
 
-## 18. Manual Clock 对测试特别重要
+## 19. Manual Clock 对测试特别重要
 
 真实 Timer 基于：
 
@@ -1307,7 +1345,7 @@ Scheduler
 
 ---
 
-## 19. 从 Reactive 原语进入状态语义
+## 20. 从 Reactive 原语进入状态语义
 
 前十八节已经引入这一章真正新增的东西：WAIT、arm/wake、Demand、Subscription、bounded scheduling，以及 Scheduler 与时间控制。Graph 和 operator semantics 并没有因此变成另一套 framework。
 
@@ -1317,7 +1355,7 @@ Scheduler
 
 ---
 
-## 20. Canonical Example：Graph 不变，Source 开始拥有时间
+## 21. Canonical Example：Graph 不变，Source 开始拥有时间
 
 上一章的同步 Stream 可以理解成：
 
@@ -1401,7 +1439,7 @@ custom asynchronous publisher
 
 ---
 
-## 21. Semantic Contract：Reactive 新增的是 execution state，而不是 Graph state
+## 22. Semantic Contract：Reactive 新增的是 execution state，而不是 Graph state
 
 这一章最重要的分层是：
 
@@ -1413,7 +1451,7 @@ Subscription
     = one live execution
 ~~~
 
-### 32.1 WAIT 只是 source outcome，不是“已经注册成功”
+### 22.1 WAIT 只是 source outcome，不是“已经注册成功”
 
 source 返回 WAIT 时，只说明：
 
@@ -1451,7 +1489,7 @@ READY
 
 把 WAIT 与 armed suspension 分开，是处理 lost wakeup 的关键。
 
-### 32.2 Wake 不产生 demand
+### 22.2 Wake 不产生 demand
 
 Wake 的意义只是：
 
@@ -1477,7 +1515,7 @@ demand
 
 两者来自不同事实源。
 
-### 32.3 Demand 是 downstream-value demand，不是 Publisher pull count
+### 22.3 Demand 是 downstream-value demand，不是 Publisher pull count
 
 这是 Reactive 中最容易被写错的地方之一。
 
@@ -1524,7 +1562,7 @@ other cardinality-changing operators
 
 都可以共享一致的 demand 语义。
 
-### 32.4 Terminal 必须有唯一事实源
+### 22.4 Terminal 必须有唯一事实源
 
 Reactive run 的终止不能由多个 bool 拼出来：
 
@@ -1578,7 +1616,7 @@ whole-run DONE
 
 不能被压成一个状态。
 
-### 32.5 Cancel 是显式语义，不是 Error 的别名
+### 22.5 Cancel 是显式语义，不是 Error 的别名
 
 Cancel 应该：
 
@@ -1595,7 +1633,7 @@ ERROR("cancelled")
 
 因为 cancellation 是 control-plane decision，而 error 是 computation/source failure。
 
-### 32.6 Subscription 是 live state 的唯一 owner
+### 22.6 Subscription 是 live state 的唯一 owner
 
 Graph 不应该保存：
 
@@ -1633,7 +1671,7 @@ borrows:
 
 ---
 
-## 22. Lean：这一章已经有真实的 Reactive small-step calculus
+## 23. Lean：这一章已经有真实的 Reactive small-step calculus
 
 这里不需要再发明一套“可能的 Lean 模型”。
 
@@ -1668,7 +1706,7 @@ CancelStep
 
 这正好展示 Lean 怎样反过来帮助 C 设计变清楚。
 
-### 33.1 Demand.consume：零 demand 不能 emit
+### 23.1 Demand.consume：零 demand 不能 emit
 
 formal model 将 demand 定义为有限剩余数量，并让：
 
@@ -1704,7 +1742,7 @@ zero_demand_no_value
 
 这正好对应 C runtime 最重要的 backpressure safety property。
 
-### 33.2 Source VALUE 不直接消耗 downstream demand
+### 23.2 Source VALUE 不直接消耗 downstream demand
 
 现有 theorem：
 
@@ -1734,7 +1772,7 @@ other cardinality-changing computation
 
 这正是前面“Demand 不是 Publisher pull count”的形式化版本。
 
-### 33.3 WAIT → arm → wake 保留 continuation 与 demand
+### 23.3 WAIT → arm → wake 保留 continuation 与 demand
 
 现有 theorem：
 
@@ -1759,7 +1797,7 @@ wake generation advances exactly once
 
 > Wake 本身不是一次数据消费，也不是一次状态重建；它只是安全恢复同一个 continuation。
 
-### 33.4 Lost Wakeup 不是一句“加个锁”就能解决
+### 23.4 Lost Wakeup 不是一句“加个锁”就能解决
 
 formal model 直接区分：
 
@@ -1800,7 +1838,7 @@ avoid lost wakeup
 
 它把 race condition 变成了明确 state machine contract。
 
-### 33.5 Terminal 是 absorbing
+### 23.5 Terminal 是 absorbing
 
 现有 theorem：
 
@@ -1831,7 +1869,7 @@ terminal -> CANCELLED
 
 这给 C implementation 一个非常直接的 refinement target。
 
-### 33.6 Safety 与 Liveness 必须分开
+### 23.6 Safety 与 Liveness 必须分开
 
 上面的 theorem 大部分是 safety：
 
@@ -1859,7 +1897,7 @@ OS 一定返回 I/O completion
 
 ---
 
-## 23. Current C Implementation：formal state 已经有清晰的 C counterpart
+## 24. Current C Implementation：formal state 已经有清晰的 C counterpart
 
 对照本版 Salts 实现快照：
 
@@ -1868,7 +1906,7 @@ qigao/salts
 snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
-### 34.1 Source outcome 是五态 protocol
+### 24.1 Source outcome 是五态 protocol
 
 当前 C API 直接定义：
 
@@ -1891,7 +1929,7 @@ cancel()
 
 所以等待不是一个 bool，而是一个明确协议对象。
 
-### 34.2 Publish context 直接传递 downstream demand snapshot
+### 24.2 Publish context 直接传递 downstream demand snapshot
 
 当前 publish context 中保存：
 
@@ -1916,7 +1954,7 @@ min(downstream demand, configured capacity)
 
 这就是 backpressure 与 bounded resources 的连接点。
 
-### 34.3 Subscription 是 opaque execution owner
+### 24.3 Subscription 是 opaque execution owner
 
 Graph 在前两章刻意保持 concrete IR，方便 introspection 和验证。
 
@@ -1958,7 +1996,7 @@ Subscription
 
 不是风格不一致，而是 ownership 不同导致的正确 API 形状。
 
-### 34.4 Subscribe 使用 move-style Publisher ownership
+### 24.4 Subscribe 使用 move-style Publisher ownership
 
 当前 contract 非常明确：
 
@@ -1986,7 +2024,7 @@ Subscriber
 
 这把错误恢复和 destroy 顺序变得可推理。
 
-### 34.5 Request 保留 outstanding demand，即使调度 admission 暂时失败
+### 24.5 Request 保留 outstanding demand，即使调度 admission 暂时失败
 
 request API 明确要求：
 
@@ -2016,7 +2054,7 @@ Demand 是 semantic fact；scheduler admission 是 execution resource fact。
 
 两者不能混在一起。
 
-### 34.6 Wake 可以从任意 driver/event-loop callback 调用
+### 24.6 Wake 可以从任意 driver/event-loop callback 调用
 
 当前：
 
@@ -2044,7 +2082,7 @@ Graph execution
 
 ---
 
-## 24. Scheduler：时间与执行位置是 capability，不是继承层次
+## 25. Scheduler：时间与执行位置是 capability，不是继承层次
 
 当前 Scheduler 同样是小 Interface，而不是 class hierarchy。
 
@@ -2059,7 +2097,7 @@ CALLER_DRIVEN_ZERO_DELAY
 
 并且有多个实现策略。
 
-### 35.1 Inline Scheduler
+### 25.1 Inline Scheduler
 
 ~~~text
 accepted zero-delay task
@@ -2077,7 +2115,7 @@ timer storage
 
 适合明确需要 zero-hop 的边界。
 
-### 35.2 Manual Scheduler
+### 25.2 Manual Scheduler
 
 ~~~text
 bounded ready queue
@@ -2095,7 +2133,7 @@ deterministic batch processing
 tests
 ~~~
 
-### 35.3 Test Scheduler / Manual Clock
+### 25.3 Test Scheduler / Manual Clock
 
 支持：
 
@@ -2114,7 +2152,7 @@ wall clock race
 
 从而可以写 deterministic temporal tests。
 
-### 35.4 Worker Scheduler
+### 25.4 Worker Scheduler
 
 把 dispatch 移到 worker threads，并显式提供 bounded ready/timer capacity 与统计。
 
@@ -2126,13 +2164,13 @@ wall clock race
 
 ---
 
-## 25. Evidence：Reactive 需要同时验证 demand、wait、race 与 bounded resources
+## 26. Evidence：Reactive 需要同时验证 demand、wait、race 与 bounded resources
 
 本章不能只写一个 async demo。
 
 至少需要几类 evidence。
 
-### 36.1 Demand conformance
+### 26.1 Demand conformance
 
 当前 reactive tests 已经检查：
 
@@ -2154,7 +2192,7 @@ demand = 0
 
 这对应 Lean 的 step_value_decrements_demand。
 
-### 36.2 WAIT / Waitable evidence
+### 26.2 WAIT / Waitable evidence
 
 Reactive、Temporal、I/O、Machine adapter tests 都有：
 
@@ -2170,7 +2208,7 @@ arm(waker)
 
 这证明 WAIT 已经是多个 subsystem 共享的 protocol，而不是某个 socket backend 的特殊状态。
 
-### 36.3 Wake race / quiescence evidence
+### 26.3 Wake race / quiescence evidence
 
 Readiness tests 中已经存在非常具体的并发场景：
 
@@ -2188,7 +2226,7 @@ Lean 的 ArmTiming theorem 给 state-machine safety model；
 
 两者不能互相替代。
 
-### 36.4 Bounded scheduler evidence
+### 26.4 Bounded scheduler evidence
 
 Scheduler tests 已经检查 bounded admission，例如：
 
@@ -2210,7 +2248,7 @@ bounded publisher windows
 bounded operator state
 ~~~
 
-### 36.5 Temporal determinism
+### 26.5 Temporal determinism
 
 Timer/temporal tests使用可控 Scheduler/Clock 路径检查：
 
@@ -2227,7 +2265,7 @@ cancel
 
 ---
 
-## 26. What We Learned
+## 27. What We Learned
 
 本章完成的不是：
 
