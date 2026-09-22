@@ -1,138 +1,85 @@
 # 第十一章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象
 
-
 > **本章路线**
 >
-> 第十章已经把连接状态机固定成一个可验证的 Machine。本章不增加第二套 transition semantics，而是在 Machine 外面增加并发对象真正需要的 shell：
+> 第十章已经把 mutable domain state 收进一个 serialized Machine Instance。
 >
-> ~~~text
-> Immutable Machine
->       ↓
-> Machine Instance
->       +
-> Bounded Typed Mailbox
->       +
-> Serial Executor
->       +
-> Concurrent Scheduler
->       +
-> Actor Lifecycle
->       +
-> Producer References
->       ↓
-> Actor
+> 现在看并发程序中更常见的写法：多个线程直接共享一个对象，再用 mutex 保护。
+>
+> ~~~c
+> #include <threads.h>
+>
+> typedef struct account {
+>     mtx_t lock;
+>     long balance;
+>     bool stopping;
+> } account;
+>
+> static bool account_deposit(account *a, long amount)
+> {
+>     bool accepted = false;
+>
+>     mtx_lock(&a->lock);
+>     if (!a->stopping) {
+>         a->balance += amount;
+>         accepted = true;
+>     }
+>     mtx_unlock(&a->lock);
+>
+>     return accepted;
+> }
+>
+> static bool account_withdraw(account *a, long amount)
+> {
+>     bool accepted = false;
+>
+>     mtx_lock(&a->lock);
+>     if (!a->stopping && a->balance >= amount) {
+>         a->balance -= amount;
+>         accepted = true;
+>     }
+>     mtx_unlock(&a->lock);
+>
+>     return accepted;
+> }
 > ~~~
 >
-> canonical control program仍然是：
+> 这同样不是“错误 C”。
+>
+> 真正困难的是规模扩大以后，每个 public operation 都必须重复正确处理：
 >
 > ~~~text
-> Disconnected --Connect--------> Connecting
-> Connecting   --ConnectedEvent-> Connected
-> Connecting   --Timeout--------> Disconnected
-> Connected    --Disconnect-----> Closing
-> Closing      --ClosedEvent----> Closed
+> locking order
+> lifecycle gate
+> stale owner/reference
+> bounded admission
+> shutdown race
+> error/failure state
+> callback execution context
 > ~~~
 >
-> Actor 只负责让多个 producer 能够安全地把 Typed Event 送到同一个 serialized mutable owner，并为这段长期执行增加 identity、lifecycle、stale reference 和 failure boundary。
+> 如果后来再加入网络 callback、timer callback、worker thread，状态所有权会越来越难从函数签名里看出来。
+>
+> Actor 的价值不是把 mutex 换成一个时髦名字，而是把共享修改模型改成：
+>
+> ~~~text
+> many producers
+>      ↓
+> bounded typed mailbox
+>      ↓
+> one serialized mutable owner
+>      ↓
+> Machine transition
+> ~~~
+>
+> 所以这一章真正新增的只有外围并发契约：mailbox、admission、lifecycle、producer reference、stale identity 和 failure boundary。
+>
+> **Actor 不重新定义 domain transition；它复用第十章的 Machine semantics。**
 
-上一章做到 State Machine 以后，我们已经拥有一个很完整的有状态执行模型：
-
-```text
-Typed State
-+
-Typed Event
-+
-Guard
-+
-Action
-+
-Transition
-+
-Serial Executor
-```
-
-Machine Instance 拥有自己的：
-
-```text
-Current State
-```
-
-外部通过：
-
-```text
-Event
-```
-
-驱动它变化。
-
-与此同时，前面已经解决了几个非常关键的问题：
-
-```text
-Executor
-    负责执行
-
-Serial Executor
-    保证单一 mutation owner
-
-Bounded Mailbox
-    负责有界 admission
-
-Scheduler
-    负责时间与异步推进
-
-WAIT / Wake
-    负责暂停与恢复
-```
-
-做到这里以后，一个新的发现其实已经非常明显。
-
-如果一个 Machine：
-
-```text
-拥有私有 State
-```
-
-外部不能直接修改它；
-
-所有输入都通过：
-
-```text
-Message / Event
-```
-
-进入；
-
-多个线程可以同时发送消息；
-
-但真正修改 State 的 Transition 始终：
-
-```text
-Serialized
-```
-
-那么它实际上已经非常接近：
-
-**Actor**
-
-所以 Actor 并不是在这个阶段突然决定重新设计的一套并发框架。
-
-更自然的发展路径是：
-
-```text
-Machine
-+
-Mailbox
-+
-Serial Execution
-+
-Concurrent Producers
-+
-Lifecycle
-    ↓
-Actor
-```
+这也解释了为什么 Actor 不需要“一对象一线程”。真正需要的是单一 mutation owner，而执行资源可以继续由 Executor / Scheduler 共享。
 
 ---
+
 
 ## 1. Actor 真正重要的并不是“线程”
 
