@@ -1115,7 +1115,7 @@ Reduce<int>(sum)
 
 > **把只存在于控制流里的关系，提升成可以检查和变换的数据。**
 
-### 31.1 Graph 不是执行结果，而是执行前的知识
+### 19.1 Graph 不是执行结果，而是执行前的知识
 
 一旦关系被保存下来，我们第一次同时拥有：
 
@@ -1154,7 +1154,7 @@ Graph 不是“装着一些 node 的数组”。
 
 它至少需要满足四类 contract。
 
-### 32.1 Topology well-formedness
+### 20.1 Topology well-formedness
 
 每条 Edge 必须引用存在的 node/port。
 
@@ -1169,7 +1169,7 @@ impossible entry/tail
 
 这属于结构合法性。
 
-### 32.2 Type preservation across edges
+### 20.2 Type preservation across edges
 
 如果：
 
@@ -1199,7 +1199,7 @@ Input<int>
 
 每一步的类型都是 admission 的一部分，而不是 runtime cast 的猜测。
 
-### 32.3 Operator contract
+### 20.3 Operator contract
 
 Node 不只保存 Callable。
 
@@ -1233,7 +1233,7 @@ input type
 
 而不是只看 function pointer。
 
-### 32.4 Mutation / snapshot boundary
+### 20.4 Mutation / snapshot boundary
 
 Graph 构造阶段可以修改 owning IR。
 
@@ -1265,7 +1265,7 @@ execute
 
 这里最重要的是先建立 Graph semantics 的基础。
 
-### 33.1 Well-formed Graph
+### 21.1 Well-formed Graph
 
 可以定义一个 predicate：
 
@@ -1292,7 +1292,7 @@ WellFormed(g) → ...
 
 而不是每个 rewrite 都重新证明一遍结构合法性。
 
-### 33.2 Graph observable semantics
+### 21.2 Graph observable semantics
 
 必须先回答：
 
@@ -1324,7 +1324,7 @@ observe(normalized, input)
 
 如果没有 observable semantics，“结构更简单”本身并不能推出“程序等价”。
 
-### 33.3 Normalize preservation
+### 21.3 Normalize preservation
 
 Normalize 最先应该拥有的 theorem 不是“更快”，而是：
 
@@ -1350,7 +1350,7 @@ Primitive / Normalized Graph
 
 可以是两种不同 physical representation，但仍然属于同一个 semantic program。
 
-### 33.4 Lean 暂时不证明 Graph storage layout
+### 21.4 Lean 暂时不证明 Graph storage layout
 
 这一章仍然要保持 proof boundary。
 
@@ -1403,7 +1403,7 @@ cflow_edge
   stores typed topology coordinates
 ~~~
 
-### 34.1 Edge 是显式 IR row
+### 22.1 Edge 是显式 IR row
 
 本版 snapshot 中 `cflow_edge` 的 public definition 已经明确到端口：
 
@@ -1420,7 +1420,7 @@ typedef struct cflow_edge {
 
 Branch、Relation、Subgraph 可以在同一 IR 中拥有显式拓扑。
 
-### 34.2 Node 保存的是 operator semantics + callable + type knowledge
+### 22.2 Node 保存的是 operator semantics + callable + type knowledge
 
 同一 snapshot 中，node 的职责可以概括成：
 
@@ -1449,7 +1449,7 @@ Typed Graph Node
 
 因此 Graph 是前面 Meta 能力的 integration point，而不是另起一套 type system。
 
-### 34.3 Graph 是 owning handle，但 rows 是 read-only introspection
+### 22.3 Graph 是 owning handle，但 rows 是 read-only introspection
 
 当前 API 的边界非常专业：
 
@@ -1467,7 +1467,7 @@ node/edge/subgraph rows
 
 > “struct 是 public 的”不等于“每个 field 都允许 caller 任意写”。
 
-### 34.4 Version 把 downstream artifacts 绑定到具体 Graph state
+### 22.4 Version 把 downstream artifacts 绑定到具体 Graph state
 
 当前 owning Graph 持有 process-local nonzero mutation token。
 
@@ -1488,7 +1488,7 @@ runtime admission
 
 > “我是不是还绑定在原来那张未变化的 Graph 上？”
 
-### 34.5 Normalize / Optimize 都输出新的 Graph
+### 22.5 Normalize / Optimize 都输出新的 Graph
 
 当前 optimizer contract 已经明确：
 
@@ -1546,7 +1546,7 @@ compare output again
 
 这非常重要，因为它把几类 evidence 分开了。
 
-### 35.1 Structural evidence
+### 23.1 Structural evidence
 
 检查：
 
@@ -1559,7 +1559,7 @@ fused chains
 
 是否满足预期结构。
 
-### 35.2 Differential semantic evidence
+### 23.2 Differential semantic evidence
 
 同一 input 分别经过：
 
@@ -1572,7 +1572,7 @@ compiled plan
 
 如果 observable result 不同，就说明 transformation chain 有真实 regression。
 
-### 35.3 Formal evidence
+### 23.3 Formal evidence
 
 Lean 负责证明：
 
@@ -1582,7 +1582,7 @@ Lean 负责证明：
 preserves observable semantics
 ~~~
 
-### 35.4 Runtime evidence
+### 23.4 Runtime evidence
 
 C differential tests 则负责检查：
 
