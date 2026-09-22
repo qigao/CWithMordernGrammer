@@ -440,7 +440,7 @@ measurement limitations
 
 ---
 
-# Part III — 在 CMeta / CFlow 上设计高级应用
+# Part III — 在 CMeta / CFlow 上构造高级应用
 
 Part III 的主题不是继续增加语言 feature。
 
