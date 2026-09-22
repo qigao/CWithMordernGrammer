@@ -95,6 +95,10 @@ CMeta / CFlow：类型化计算
 - Lean / 形式化语义；
 - 在保留普通 C 执行模型的同时构建更现代的基础设施。
 
+## 全书结构规范
+
+下一阶段统一采用 **Problem → Plain C → Design → Semantics → Lean → Implementation → Evidence** 的方法重构各章。详细规范见 [BOOK_ARCHITECTURE.md](./BOOK_ARCHITECTURE.md) 和 [CHAPTER_TEMPLATE.md](./CHAPTER_TEMPLATE.md)。
+
 ## 章节目录
 
 1. [第一章：CMeta 的起点——从写 C 宏的痛苦开始](./%E7%AC%AC%E4%B8%80%E7%AB%A0%EF%BC%9ACMeta%20%E7%9A%84%E8%B5%B7%E7%82%B9%E2%80%94%E2%80%94%E4%BB%8E%E5%86%99%20C%20%E5%AE%8F%E7%9A%84%E7%97%9B%E8%8B%A6%E5%BC%80%E5%A7%8B.md)

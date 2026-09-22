@@ -75,6 +75,10 @@ This book is intended for developers interested in:
 - formal reasoning and verified transformations;
 - building modern infrastructure while keeping a plain-C execution model.
 
+## Book architecture
+
+The next editorial phase follows a unified **Problem → Plain C → Design → Semantics → Lean → Implementation → Evidence** method. See [BOOK_ARCHITECTURE.md](./BOOK_ARCHITECTURE.md) and the reusable [chapter template](./CHAPTER_TEMPLATE.md).
+
 ## Chapters
 
 1. [CMeta's Starting Point — From the Pain of Writing C Macros](./%E7%AC%AC%E4%B8%80%E7%AB%A0%EF%BC%9ACMeta%20%E7%9A%84%E8%B5%B7%E7%82%B9%E2%80%94%E2%80%94%E4%BB%8E%E5%86%99%20C%20%E5%AE%8F%E7%9A%84%E7%97%9B%E8%8B%A6%E5%BC%80%E5%A7%8B.md)
