@@ -1,4 +1,4 @@
-# 第十章：Rich Control Plane，Simple Execution Plane——把复杂性提前，把 Hot Path 重新变回普通 C
+# 第七章：从 Graph 到 Plan 与 Direct——把复杂性提前，把 Hot Path 变回普通 C
 
 
 > **本章路线**

@@ -1,4 +1,4 @@
-# 第八章：从 Event 到 State Machine——把状态变化变成可验证的执行模型
+# 第十章：从 Event 到 State Machine——把状态变化变成可验证的执行模型
 
 
 > **本章路线**

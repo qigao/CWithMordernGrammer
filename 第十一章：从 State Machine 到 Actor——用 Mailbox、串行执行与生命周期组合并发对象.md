@@ -1,4 +1,4 @@
-# 第九章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象
+# 第十一章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象
 
 
 > **本章路线**

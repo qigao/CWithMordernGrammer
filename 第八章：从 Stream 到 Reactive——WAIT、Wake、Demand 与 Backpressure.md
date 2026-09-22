@@ -1,4 +1,4 @@
-# 第六章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure
+# 第八章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure
 
 
 > **本章路线**

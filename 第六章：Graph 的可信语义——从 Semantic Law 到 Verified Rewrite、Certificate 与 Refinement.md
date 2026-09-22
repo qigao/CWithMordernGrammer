@@ -1,4 +1,4 @@
-# 第十一章：Lean 与可信边界——从 Semantic Law 到 Verified Rewrite、Manifest 与 Certificate
+# 第六章：Graph 的可信语义——从 Semantic Law 到 Verified Rewrite、Certificate 与 Refinement
 
 
 > **本章路线**
