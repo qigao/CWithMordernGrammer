@@ -1518,227 +1518,15 @@ Lean
 
 ---
 
-## 27. Callable Algebra 开始出现
+## 27. 从 Callable 表达进入可验证 Contract
 
-到了这里，函数已经不再只是：
+到这里，行为已经从裸函数地址扩展成有限、可检查的 Callable representation：signature 负责类型边界，capture/context 负责环境，dispatch authority 说明真实调用路径，effects/properties 提供后续分析需要的 metadata，而 Plain C function pointer 仍然是 baseline。
 
-```text
-可以调用
-```
-
-而开始可以：
-
-```text
-构造
-绑定
-组合
-分析
-推导
-```
-
-例如：
-
-```text
-f : A -> B
-g : B -> C
-```
-
-可以组成：
-
-```text
-g ∘ f : A -> C
-```
-
-一个：
-
-```text
-F : A × B -> C
-```
-
-可以通过 Bind 得到：
-
-```text
-F_b : A -> C
-```
-
-一个普通函数：
-
-```text
-A -> B
-```
-
-可以通过 capture 变成：
-
-```text
-带状态的 A -> B Callable
-```
-
-这已经逐渐形成：
-
-```text
-Callable Algebra
-```
+Callable composition、Bind 与 property law 的意义将在后面的 Graph/optimizer 里继续出现，因此这里不再单独做一轮“Callable Algebra → Graph”的概念复述。后半章直接把这些能力收紧成可实现 contract，再核对 Lean law、当前 C representation、lifetime/ABI/performance evidence，以及后续 Graph 持续复用的 canonical callables。
 
 ---
 
-## 28. 这一步为什么非常关键
-
-前面处理的是：
-
-```text
-Data
-```
-
-例如：
-
-```text
-User
-Vec<int>
-Map<Key,Value>
-```
-
-现在开始处理：
-
-```text
-Behavior
-```
-
-例如：
-
-```text
-User -> bool
-User -> String
-String × String -> String
-```
-
-可以把这次变化理解为：
-
-```mermaid
-flowchart LR
-    A["Typed Data"]
-
-    B["Typed Function"]
-
-    C["Callable"]
-
-    D["Lambda / Bind"]
-
-    E["Composable Behavior"]
-
-    A --> B --> C --> D --> E
-```
-
-只有完成这一步以后，才能真正考虑：
-
-> **多个 Callable 能不能连接起来？**
-
----
-
-## 29. 从 Callable 到 Graph 已经只差一步
-
-假设现在有两个 Callable：
-
-```text
-enabled : User -> bool
-```
-
-和：
-
-```text
-name : User -> String
-```
-
-如果只是单独调用：
-
-```c
-enabled(user);
-name(user);
-```
-
-没有什么特别。
-
-但如果开始描述：
-
-```text
-先用 enabled 决定是否保留 User
-然后用 name 转成 String
-```
-
-那么已经产生：
-
-```text
-计算关系
-```
-
-也就是：
-
-```text
-User
-   ↓
-Filter(enabled)
-   ↓
-User
-   ↓
-Map(name)
-   ↓
-String
-```
-
-这时我们真正需要保存的不再只是：
-
-```text
-一个 Callable
-```
-
-而是：
-
-```text
-多个 Callable 之间的连接关系
-```
-
-这就是 Graph 出现的地方。
-
----
-
-## 30. 完整演进路线开始变得清晰
-
-到这里，前面的发展可以连成：
-
-```text
-Macro
- ↓
-Structured Facts
- ↓
-Type
- ↓
-Traits
- ↓
-Generic
- ↓
-Finite Inference
- ↓
-CMeta
- ↓
-Typed Function
- ↓
-Callable
- ↓
-Lambda / Bind
- ↓
-Callable Algebra
- ↓
-Graph
-```
-
-Graph 并不是突然增加的一个 feature。
-
-而是一个很自然的结论：
-
-> **既然函数已经成为有类型、有语义、可以被保存和组合的数据，那么多个函数之间的计算关系，也应该可以成为数据。**
-
----
-
-## 31. Semantic Contract：Callable 到底承诺什么
+## 28. Semantic Contract：Callable 到底承诺什么
 
 到这里，需要把“Callable 很方便”进一步收紧成可实现、可验证的 contract。
 
@@ -1872,7 +1660,7 @@ ASSOCIATIVE
 
 ---
 
-## 32. Lean：从“属性标签”进入可验证 Callable Algebra
+## 29. Lean：从“属性标签”进入可验证 Callable Algebra
 
 这一章 Lean 的价值比上一章更进一步。
 
@@ -1984,7 +1772,7 @@ rewrite blindly
 
 ---
 
-## 33. C Implementation：有限表达形式，少数执行路径
+## 30. C Implementation：有限表达形式，少数执行路径
 
 这一章的实现目标不是创造越来越多 Runtime object。
 
@@ -2212,7 +2000,7 @@ simpler execution path
 
 ---
 
-## 34. Evidence：Callable 必须和 Plain C baseline 比较
+## 31. Evidence：Callable 必须和 Plain C baseline 比较
 
 本章的证据不能只有“能调用”。
 
@@ -2310,7 +2098,7 @@ invalid metadata path
 
 ---
 
-## 35. Canonical Example：为 Graph 准备三个 Callable
+## 32. Canonical Example：为 Graph 准备三个 Callable
 
 从这一章开始，我们建立后面会持续复用的数据流例子。
 
@@ -2355,7 +2143,7 @@ Reduce(sum)
 
 ---
 
-## 36. What We Learned
+## 33. What We Learned
 
 这一章完成了从：
 
@@ -2390,7 +2178,7 @@ typed behavior
 
 ---
 
-## 小结：函数第一次从“代码地址”变成“程序对象”
+**小结：函数第一次从“代码地址”变成“程序对象”**
 
 传统 C callback 的核心是：
 
@@ -2471,6 +2259,6 @@ Semantic Law
 
 答案就是：
 
-## Graph
+**Graph**
 
 而 Graph 也将成为 CFlow 真正出现的起点。
