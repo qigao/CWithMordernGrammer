@@ -1479,7 +1479,7 @@ trust boundary
 
 ## 25. Case Study A：Idempotent Map——从 Property Claim 到 Verified Rewrite
 
-第十章使用过：
+第七章将继续使用：
 
 ~~~text
 Map(clamp)
@@ -1623,7 +1623,7 @@ Reactive 是另一种 proof 使用方式。
 
 它不是 optimizer rewrite，而是执行协议。
 
-第六章已经引用当前 theorem：
+第八章的 Reactive 执行协议会继续使用当前 theorem：
 
 ~~~text
 step_value_decrements_demand
@@ -1748,7 +1748,7 @@ cancel waits until old callback waker is quiescent
 
 ## 27. Case Study C：Machine——Proof 把“状态机设计”变成 Typed Program Contract
 
-第八章的 Machine 提供第三种用法。
+第十章的 Machine 提供第三种用法。
 
 现有 theorem 包括：
 
@@ -2193,7 +2193,7 @@ Measurement
 
 ## 32. What We Learned
 
-第十一章真正建立的是全书的可信方法，而不是“Lean 章节”。
+本章真正建立的是全书的可信方法，而不是“Lean 章节”。
 
 现在可以把证据链压缩成：
 
