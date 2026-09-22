@@ -66,7 +66,7 @@ Protocol
 
 答案应该非常明确：
 
-## 不是。
+**不是。**
 
 如果继续沿着：
 
@@ -259,7 +259,7 @@ Ordinary C Implementation
 
 可以简单概括成：
 
-## Code First, Meta Later
+**Code First, Meta Later**
 
 因为只有真实代码出现以后，才能知道：
 
@@ -351,7 +351,7 @@ syntactic similarity
 
 整个体系中最重要的限制之一，就是：
 
-## Finite
+**Finite**
 
 例如：
 
@@ -764,7 +764,7 @@ Error Introduction
 
 Fail-fast 之外，还需要更严格的一条：
 
-## 不静默改变语义
+**不静默改变语义**
 
 例如调用方要求：
 
@@ -1190,7 +1190,7 @@ Vec reserve
 
 这是非常重要的：
 
-## Ownership of Meaning
+**Ownership of Meaning**
 
 每个 module 应该拥有：
 

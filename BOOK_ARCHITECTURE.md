@@ -101,7 +101,7 @@ Evidence
 
 > **问题是什么 → 为什么需要抽象 → 抽象承诺什么 → 为什么可信 → 在 C 里怎样实现 → 成本是多少。**
 
-# Part I — 从 C 到类型化计算基础
+# Part I — 从普通 C 到类型化计算
 
 ## Chapter 1 — Macro Reuse
 
@@ -156,7 +156,7 @@ Lean 目标：
 - composition laws；
 - property admission 与 semantic law 的边界。
 
-# Part II — 从 Callable 到可组合计算
+# Part II — 从 Callable 到可组合执行
 
 ## Chapter 4 — Graph as Typed IR
 
@@ -235,7 +235,7 @@ Implementation：state representation、atomic/concurrency boundary、manual clo
 
 Evidence：deterministic tests、queue saturation、throughput/latency、thread ownership。
 
-# Part III — 从数据流到高级应用执行模型
+# Part III — 有状态、并发与 Lowering
 
 ## Chapter 8 — State Machine
 
@@ -359,7 +359,7 @@ C Implementation
 
 Lean 在这里角色有限但明确：不要把 linker/ABI/toolchain 问题误写成形式化问题。
 
-# Part V — 从 Primitive 到高级应用
+# Part V — 高级应用、克制与方法论
 
 ## Chapter 13 — Serialization / RPC / Plugin / Workflow
 
