@@ -2510,7 +2510,7 @@ Lean 证明 WellTyped，不会替 C 发现 buffer lifetime bug。
 
 ## 30. What We Learned
 
-第八章让全书第一次拥有真正的长期 mutable domain state，但仍然没有引入一个“大 runtime”。
+本章让全书第一次拥有真正的长期 mutable domain state，但仍然没有引入一个“大 runtime”。
 
 State Machine 是已有 primitive 的组合：
 
