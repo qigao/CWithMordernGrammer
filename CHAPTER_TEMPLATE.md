@@ -1,152 +1,370 @@
 # Chapter Template
 
-本模板定义逐章重构时的默认结构。它是编辑约束，不要求机械套用标题。
+本模板定义下一轮重写的默认约束。
 
-## 1. Problem
+核心原则：
 
-从真实的普通 C 问题开始，不提前引入 CMeta/CFlow。
+> **Embedded C example first. Prose explains code; prose does not replace code.**
 
-明确：
+不是每章都必须机械拥有同样标题，但叙事顺序应尽量稳定。
 
-- 最初简单版本是什么；
-- 复杂性从哪里出现；
-- 哪些部分只是代码重复；
-- 哪些部分已经变成知识重复。
+## 1. Show the Plain C problem
 
-## 2. Plain C Baseline
+先给真实 C。
 
-给出直接 C 实现。
+例如不要先写：
 
-回答：
+~~~text
+“callback ownership 很复杂”
+~~~
 
-- 完全不用抽象时代码是什么样；
-- 它为什么并不“错误”；
-- 什么时候出现组合、状态、维护或安全成本；
-- baseline 的性能、ABI、ownership 特征。
+而是先给：
 
-> 新抽象必须明确比 baseline 多解决了什么，否则不要引入。
+~~~c
+struct request {
+    void (*done)(void *);
+    void *ctx;
+    int state;
+    bool cancelled;
+};
+~~~
 
-## 3. Design
+让读者直接看到重复、ownership、state 或 composition 问题。
 
-一步一步引入最小抽象。
+这一节必须回答：
 
-必须交代：
+- 当前代码能工作吗？
+- 它为什么在小规模时完全合理？
+- 当需求增加以后，哪一份 fact 开始重复？
+- 哪个 contract 开始由多个地方共同维护？
 
-- data model；
-- API；
-- ownership；
-- lifetime；
-- failure；
-- boundedness；
-- static/dynamic boundary；
-- 哪些事情明确不属于本层。
+## 2. Show the duplication / ambiguity in code
 
-避免从“我们需要一个 Framework”开始。
+最好给一个具体 failure mode：
 
-## 4. Semantic Contract
+~~~c
+typedef struct User {
+    long id;
+} User;
 
-用与实现无关的方式说明该层承诺什么。
+static const Field fields[] = {
+    {"id", offsetof(User, id), sizeof(int)} /* stale */
+};
+~~~
 
-至少回答：
+或者：
 
-- observable behavior 是什么；
-- invariant 是什么；
-- 哪些顺序可观察；
-- 哪些状态非法；
-- 哪些 metadata 只是 claim；
-- 哪些关系是真正 semantic law。
+~~~c
+if (state == CONNECTING && event == OK) ...
+if (state == CONNECTING && event == TIMEOUT) ...
+~~~
 
-这一节是 C implementation 与 Lean 之间的接口。
+不要只写“维护困难”。
 
-## 5. Lean / Proof Obligation
+## 3. Introduce the smallest design
 
-按需要选择：
+然后才引入 CMeta/CFlow vocabulary。
 
-### A. Full proof
+例如：
 
-适用于 rewrite correctness、state invariants、finite inference。
+~~~c
+Struct(User,
+    (long, id)
+);
+~~~
 
-### B. Model + key theorem
+或者：
 
-只建立足以影响设计的 formal model。
+~~~c
+typed(Vec, UserVec, User);
+~~~
 
-### C. Explicit non-proof boundary
+或者：
 
-明确某问题属于 ABI、allocator、OS scheduling、performance、toolchain 或 empirical concurrency，因此 Lean 不应该假装证明它。
+~~~text
+typed Event
++
+transition table
+~~~
 
-每次引入 theorem，都要回答：
+设计必须说明：
 
-> 这个 theorem 允许 C 实现安全地做什么以前不能做的事情？
+- single source of truth 在哪里；
+- ownership 在哪里；
+- unsupported case 怎样失败；
+- boundedness 在哪里；
+- 哪些算法仍然属于 ordinary C。
 
-## 6. C Implementation
+## 4. Show the after-code
 
-把设计落回真实 C。
+新设计必须落到 C 调用侧：
 
-尽量包括：
+~~~c
+UserVec users = {0};
 
-- public declarations；
-- private representation；
-- generated declarations/definitions；
-- actual data layout；
-- status/error path；
-- cross-TU ownership；
-- hot path；
-- lowering result。
+UserVec_init(&users, 64u);
+UserVec_push_back(&users, user);
+UserVec_destroy(&users);
+~~~
 
-复杂宏同时给 expansion 或等价 plain-C representation。
+如果有生成层，再给概念性或 exact generated shape。
 
-## 7. Evidence
+复杂宏不用逐 token 教学。
 
-按主张选择证据：
+只需要回答：
 
-- compile-pass / compile-fail；
-- unit / integration tests；
-- deterministic scheduler tests；
-- stress / sanitizer；
-- Lean proof；
-- exhaustive finite check；
-- benchmark；
-- generated C / disassembly；
-- installed consumer / ABI test。
+> **最后得到什么 C type/function/data structure？**
 
-不能用测试替代 semantic proof，也不能用 theorem 替代 runtime/ABI/performance evidence。
+## 5. Say what new problem becomes easy
 
-## 8. What We Learned
+每个 abstraction 必须明确多解决了什么。
 
-明确：
+例如：
 
-- 哪个设计原则被确认；
-- 哪个原始假设被推翻；
-- Lean 是否改变了设计；
-- control-plane knowledge 是否让 runtime 更简单；
-- 下一章为什么自然出现。
+~~~text
+Generic
+    → 多个 library generic kinds 共享同一个 declaration protocol
 
-# Canonical worked examples
+Graph
+    → 整个 computation 可以被 inspect / rewrite / compile
 
-从 Chapter 4 开始复用同一个 data-flow example：
+Plan
+    → execution 不再 per-value 查 node/edge
+
+Machine
+    → state relation 变成 typed analyzable data
+
+Actor
+    → multi-producer admission + single mutable owner
+~~~
+
+没有新增能力，就不值得引入 abstraction。
+
+## 6. Semantic Contract — only when semantics matter
+
+当 abstraction 开始：
+
+~~~text
+rewrite
+optimize
+schedule
+transition
+cancel
+commit
+~~~
+
+才需要把 observable semantics 单独写清楚。
+
+至少说明：
+
+- 什么结果可观察；
+- 什么顺序可观察；
+- illegal state 是什么；
+- metadata 是 claim 还是 truth；
+- fallback 是否允许。
+
+Part I 的 Generic/Struct/Traits 通常不需要先构造复杂 formal model。
+
+## 7. Lean — only after a real proof question appears
+
+Lean 不是每章固定栏目。
+
+只在以下问题出现时进入：
+
+### Rewrite correctness
+
+~~~text
+Map(f) ; Map(f)
+    ↓
+Map(f)
+~~~
+
+需要 semantic law。
+
+### Graph normalization
+
+需要 preservation theorem。
+
+### State Machine / Actor
+
+需要 determinism、small-step invariant、lifecycle law。
+
+### Certificate / refinement
+
+需要连接 approved IR 与 execution artifact。
+
+每一个 theorem 都要回答：
+
+> **它授权了 C implementation 做哪一个以前不能安全做的 transformation？**
+
+不要让 Lean 证明：
+
+~~~text
+ABI
+malloc 一定成功
+OS fairness
+network liveness
+benchmark 更快
+~~~
+
+## 8. Show lowering / ordinary-C execution
+
+对于 Graph/CFlow 章节，这是必须项。
+
+至少区分：
+
+~~~text
+Graph interpretation
+Compiled Plan
+Direct/AOT
+~~~
+
+最好直接给 C：
+
+~~~c
+/* graph-ish */
+switch (node->op) { ... }
+
+/* plan */
+step->handler(step, frame);
+
+/* direct */
+if (is_even(x))
+    total += square(x);
+~~~
+
+本书的一个核心承诺是：
+
+> **控制面可以复杂，但 hot path 可以重新简单。**
+
+## 9. Evidence
+
+根据主张选择证据。
+
+### C / compiler
+
+- compile-pass；
+- compile-fail；
+- generated surface；
+- Multi-TU；
+- installed consumer。
+
+### Runtime
+
+- unit/integration；
+- deterministic scheduler；
+- bounded failure；
+- sanitizer；
+- race/stress。
+
+### Formal
+
+- theorem；
+- invariant；
+- preservation；
+- refinement。
+
+### Performance
+
+只有声明 cost/performance 时才给 benchmark。
+
+至少记录：
+
+~~~text
+commit
+compiler
+flags
+platform
+workload
+limitations
+~~~
+
+## 10. What We Learned
+
+最后只回答三件事：
+
+1. 哪个原始 C problem 被消掉了？
+2. 这个设计让哪个以前困难的任务变简单了？
+3. 下一章为什么自然出现？
+
+---
+
+# Canonical examples
+
+## Part I — duplicated contract
+
+持续使用：
+
+~~~c
+User
+IntVec / UserVec
+Option<User>
+Pair<int,double>
+Traits(User, ...)
+~~~
+
+让读者看到同一个 type fact 怎样逐步被复用。
+
+## Part II — LINQ-like computation
+
+持续使用：
+
+~~~c
+long sum_even_squares(const int *xs, size_t n);
+~~~
+
+以及：
 
 ~~~text
 Source<int>
     ↓
-Filter<int>
+Filter(is_even)
     ↓
-Map<int,int>
+Map(square)
     ↓
-Reduce<int,int>
+Reduce(sum)
 ~~~
 
-逐章展示 Graph、Stream、Reactive、Executor、Lean rewrite、Optimizer、Lowering 和 benchmark。
-
-State Machine / Actor 使用第二个贯穿案例：
+逐步展示：
 
 ~~~text
-Event
- → Admission
- → Transition
- → Guard
- → Action
- → Commit
- → Observation
+Callable
+Graph
+Stream
+Lean law
+Optimizer
+Plan
+Direct/AOT
+benchmark
 ~~~
 
-这样全书不会退化成 15 组互不相关的设计说明。
+## Part III — connection/service example
+
+Stateful/concurrent chapters复用：
+
+~~~text
+DISCONNECTED
+CONNECTING
+CONNECTED
+CLOSING
+~~~
+
+和：
+
+~~~text
+CONNECT
+CONNECT_OK
+TIMEOUT
+CLOSE
+~~~
+
+再扩展到：
+
+~~~text
+async I/O
+Machine
+Actor
+RPC/service lifecycle
+~~~
+
+这样全书的代码会真正形成连续工程，而不是 15 组独立 demo。
