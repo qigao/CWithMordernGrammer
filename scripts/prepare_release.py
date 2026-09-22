@@ -1,66 +1,127 @@
 #!/usr/bin/env python3
-"""Prepare the canonical manuscript for HTML/EPUB/PDF rendering.
-
-This script never reads chapter files directly. Its only manuscript input is
-#35's deterministic dist/C-with-Modern-Grammar.md artifact.
-"""
+"""Prepare one canonical manuscript edition for HTML/EPUB/PDF rendering."""
 
 from __future__ import annotations
 
+import argparse
 import re
 import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "dist" / "C-with-Modern-Grammar.md"
-OUT_DIR = ROOT / "dist" / "release"
-DIAGRAM_DIR = OUT_DIR / "diagrams"
-OUTPUT = OUT_DIR / "C-with-Modern-Grammar.release.md"
-EPUB_OUTPUT = OUT_DIR / "C-with-Modern-Grammar.epub.md"
+BOOK_NAME = "C-with-Modern-Grammar"
+FENCE_RE = re.compile(
+    r"(?ms)^(?P<fence>`{3}|~{3})mermaid\s*\n(?P<body>.*?)(?:\n)(?P=fence)\s*$"
+)
 
-FENCE_RE = re.compile(r"(?ms)^(?P<fence>`{3}|~{3})mermaid\s*\n(?P<body>.*?)(?:\n)(?P=fence)\s*$")
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--edition", choices=("cn", "en"), required=True)
+    return parser.parse_args()
+
+
+def normalize_body_horizontal_rules(text: str) -> str:
+    """Prevent Pandoc from treating body horizontal rules as YAML metadata.
+
+    Keep the initial YAML front matter intact. After it, rewrite standalone
+    '---' thematic breaks only when they are outside fenced code blocks.
+    """
+    if not text.startswith("---\n"):
+        raise SystemExit("canonical manuscript is missing initial YAML front matter")
+
+    closing = text.find("\n---\n", 4)
+    if closing < 0:
+        raise SystemExit("canonical manuscript YAML front matter is not closed")
+
+    split = closing + len("\n---\n")
+    front = text[:split]
+    body = text[split:]
+    lines = body.splitlines()
+    normalized: list[str] = []
+    fence: str | None = None
+
+    for line in lines:
+        fence_match = re.match(r"^\\s*([~]{3,}|[\\x60]{3,})", line)
+        if fence_match:
+            marker = fence_match.group(1)[0]
+            if fence is None:
+                fence = marker
+            elif fence == marker:
+                fence = None
+            normalized.append(line)
+            continue
+
+        if fence is None and line.strip() == "---":
+            normalized.append("***")
+        else:
+            normalized.append(line)
+
+    suffix = "\n" if body.endswith("\n") else ""
+    return front + "\n".join(normalized) + suffix
+
 
 def main() -> None:
-    if not SOURCE.is_file():
-        raise SystemExit("missing canonical manuscript; run scripts/build_book.py first")
+    args = parse_args()
+    edition = args.edition
+    source = ROOT / "dist" / edition / f"{BOOK_NAME}.md"
+    out_dir = ROOT / "dist" / "release" / edition
+    diagram_dir = out_dir / "diagrams"
+    output = out_dir / f"{BOOK_NAME}.release.md"
+    epub_output = out_dir / f"{BOOK_NAME}.epub.md"
 
-    text = SOURCE.read_text(encoding="utf-8")
-    if OUT_DIR.exists():
-        shutil.rmtree(OUT_DIR)
-    DIAGRAM_DIR.mkdir(parents=True)
+    if not source.is_file():
+        raise SystemExit(
+            f"missing canonical manuscript for {edition}; "
+            f"run scripts/build_book.py --edition {edition} first"
+        )
+
+    text = normalize_body_horizontal_rules(source.read_text(encoding="utf-8"))
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    diagram_dir.mkdir(parents=True)
     diagrams: list[str] = []
 
     def replace_mermaid(match: re.Match[str]) -> str:
         index = len(diagrams) + 1
         stem = f"diagram-{index:03d}"
         body = match.group("body").rstrip() + "\n"
-        (DIAGRAM_DIR / f"{stem}.mmd").write_text(body, encoding="utf-8", newline="\n")
+        (diagram_dir / f"{stem}.mmd").write_text(
+            body, encoding="utf-8", newline="\n"
+        )
         diagrams.append(stem)
         return f"![Diagram {index}](diagrams/{stem}.svg)"
 
     prepared = FENCE_RE.sub(replace_mermaid, text)
-    prepared = prepared.replace("<!-- chapter-break -->", "::: {.chapter-break}\n:::")
-    prepared, replacements = re.subn(r"(?m)^# C with Modern Grammar\s*\n", "", prepared, count=1)
+    prepared = prepared.replace(
+        "<!-- chapter-break -->", "::: {.chapter-break}\n:::"
+    )
+    prepared, replacements = re.subn(
+        r"(?m)^# C with Modern Grammar\s*\n", "", prepared, count=1
+    )
     if replacements != 1:
-        raise SystemExit("canonical display-title H1 not found exactly once")
+        raise SystemExit(
+            f"{edition}: canonical display-title H1 not found exactly once"
+        )
     if not diagrams:
-        raise SystemExit("no Mermaid diagrams found in canonical manuscript")
+        raise SystemExit(f"{edition}: no Mermaid diagrams found")
     if FENCE_RE.search(prepared):
-        raise SystemExit("Mermaid fence remained after preparation")
+        raise SystemExit(f"{edition}: Mermaid fence remained after preparation")
 
-    OUTPUT.write_text(prepared, encoding="utf-8", newline="\n")
+    output.write_text(prepared, encoding="utf-8", newline="\n")
     epub_prepared = re.sub(
         r"(diagrams/diagram-\d{3})\.svg", r"\1.png", prepared
     )
     if "diagrams/diagram-" in epub_prepared and ".svg" in epub_prepared:
-        raise SystemExit("EPUB preparation retained SVG diagram references")
+        raise SystemExit(f"{edition}: EPUB retained SVG diagram references")
     if epub_prepared.count(".png)") != len(diagrams):
-        raise SystemExit("EPUB PNG diagram reference count mismatch")
-    EPUB_OUTPUT.write_text(epub_prepared, encoding="utf-8", newline="\n")
+        raise SystemExit(f"{edition}: EPUB PNG diagram reference count mismatch")
+    epub_output.write_text(epub_prepared, encoding="utf-8", newline="\n")
     print(
-        f"prepared {OUTPUT.relative_to(ROOT)} and "
-        f"{EPUB_OUTPUT.relative_to(ROOT)} with {len(diagrams)} Mermaid diagrams"
+        f"prepared {edition}: {output.relative_to(ROOT)} and "
+        f"{epub_output.relative_to(ROOT)} with {len(diagrams)} Mermaid diagrams"
     )
+
 
 if __name__ == "__main__":
     main()

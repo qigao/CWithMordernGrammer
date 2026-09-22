@@ -6,9 +6,13 @@ on:
     paths:
       - ".github/workflows/release-formats.yml"
       - "release/**"
+      - "scripts/build_book.py"
+      - "scripts/validate_book.py"
       - "scripts/prepare_release.py"
       - "scripts/validate_release.py"
       - "scripts/sanitize_epub_nav.py"
+      - "cn/BOOK_MANIFEST.txt"
+      - "en/BOOK_MANIFEST.txt"
   push:
     tags:
       - "v*"
@@ -29,9 +33,9 @@ env:
 
 jobs:
   render:
-    name: Render HTML, EPUB, and PDF
+    name: Render bilingual HTML, EPUB, and PDF
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -48,10 +52,14 @@ jobs:
           node-version: "24"
 
       - name: Validate canonical manuscript sources
-        run: python scripts/validate_book.py
+        run: |
+          python scripts/validate_book.py --edition cn
+          python scripts/validate_book.py --edition en
 
-      - name: Build canonical manuscript
-        run: python scripts/build_book.py
+      - name: Build canonical manuscripts
+        run: |
+          python scripts/build_book.py --edition cn
+          python scripts/build_book.py --edition en
 
       - name: Record deterministic source epoch
         run: echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
@@ -88,73 +96,90 @@ jobs:
           unzip -q /tmp/epubcheck.zip -d /tmp
           java -jar "/tmp/epubcheck-${EPUBCHECK_VERSION}/epubcheck.jar" --version
 
-      - name: Prepare release manuscript and diagrams
-        run: python scripts/prepare_release.py
+      - name: Prepare bilingual release manuscripts and diagrams
+        run: |
+          python scripts/prepare_release.py --edition cn
+          python scripts/prepare_release.py --edition en
 
       - name: Render Mermaid diagrams
+        shell: bash
         run: |
           shopt -s nullglob
-          diagrams=(dist/release/diagrams/*.mmd)
-          test "${#diagrams[@]}" -gt 0
-          for source in "${diagrams[@]}"; do
-            svg="${source%.mmd}.svg"
-            png="${source%.mmd}.png"
-            mmdc --input "$source" --output "$svg" \
-              --configFile release/mermaid-config.json \
-              --puppeteerConfigFile release/puppeteer-config.json \
-              --backgroundColor transparent
-            mmdc --input "$source" --output "$png" \
-              --configFile release/mermaid-config.json \
-              --puppeteerConfigFile release/puppeteer-config.json \
-              --backgroundColor white \
-              --scale 2
+          for edition in cn en; do
+            diagrams=(dist/release/"$edition"/diagrams/*.mmd)
+            test "${#diagrams[@]}" -gt 0
+            for source in "${diagrams[@]}"; do
+              svg="${source%.mmd}.svg"
+              png="${source%.mmd}.png"
+              mmdc --input "$source" --output "$svg" \
+                --configFile release/mermaid-config.json \
+                --puppeteerConfigFile release/puppeteer-config.json \
+                --backgroundColor transparent
+              mmdc --input "$source" --output "$png" \
+                --configFile release/mermaid-config.json \
+                --puppeteerConfigFile release/puppeteer-config.json \
+                --backgroundColor white \
+                --scale 2
+            done
           done
 
       - name: Render standalone HTML
         run: |
-          pandoc dist/release/C-with-Modern-Grammar.release.md \
-            --from markdown-raw_html \
-            --to html5 \
-            --standalone \
-            --toc --toc-depth=3 \
-            --section-divs \
-            --embed-resources \
-            --resource-path=dist/release:release \
-            --css release/book.css \
-            --output dist/release/C-with-Modern-Grammar.html
+          for edition in cn en; do
+            pandoc "dist/release/$edition/C-with-Modern-Grammar.release.md" \
+              --from markdown-raw_html \
+              --to html5 \
+              --standalone \
+              --toc --toc-depth=3 \
+              --section-divs \
+              --embed-resources \
+              --resource-path="dist/release/$edition:release" \
+              --css release/book.css \
+              --output "dist/release/$edition/C-with-Modern-Grammar.html"
+          done
 
       - name: Render EPUB3
         run: |
-          pandoc dist/release/C-with-Modern-Grammar.epub.md \
-            --from markdown-raw_html \
-            --to epub3 \
-            --toc --toc-depth=3 \
-            --split-level=1 \
-            --resource-path=dist/release:release \
-            --css release/book.css \
-            --output dist/release/C-with-Modern-Grammar.epub
+          for edition in cn en; do
+            pandoc "dist/release/$edition/C-with-Modern-Grammar.epub.md" \
+              --from markdown-raw_html \
+              --to epub3 \
+              --toc --toc-depth=3 \
+              --split-level=1 \
+              --resource-path="dist/release/$edition:release" \
+              --css release/book.css \
+              --output "dist/release/$edition/C-with-Modern-Grammar.epub"
+          done
 
       - name: Normalize EPUB navigation
-        run: python scripts/sanitize_epub_nav.py
+        run: |
+          python scripts/sanitize_epub_nav.py --edition cn
+          python scripts/sanitize_epub_nav.py --edition en
 
       - name: Validate EPUB conformance
         run: |
-          java -jar "/tmp/epubcheck-${EPUBCHECK_VERSION}/epubcheck.jar" \
-            dist/release/C-with-Modern-Grammar.epub
+          for edition in cn en; do
+            java -jar "/tmp/epubcheck-${EPUBCHECK_VERSION}/epubcheck.jar" \
+              "dist/release/$edition/C-with-Modern-Grammar.epub"
+          done
 
       - name: Render PDF from canonical HTML
         run: |
-          weasyprint \
-            dist/release/C-with-Modern-Grammar.html \
-            dist/release/C-with-Modern-Grammar.pdf
+          for edition in cn en; do
+            weasyprint \
+              "dist/release/$edition/C-with-Modern-Grammar.html" \
+              "dist/release/$edition/C-with-Modern-Grammar.pdf"
+          done
 
-      - name: Record release provenance
+      - name: Record bilingual release provenance
         run: |
-          cp dist/C-with-Modern-Grammar.md dist/release/C-with-Modern-Grammar.md
+          cp dist/cn/C-with-Modern-Grammar.md dist/release/cn/C-with-Modern-Grammar.md
+          cp dist/en/C-with-Modern-Grammar.md dist/release/en/C-with-Modern-Grammar.md
           cp SOURCE_SNAPSHOTS.md dist/release/SOURCE_SNAPSHOTS.md
           {
             echo "source_sha=${GITHUB_SHA}"
             echo "source_date_epoch=${SOURCE_DATE_EPOCH}"
+            echo "editions=cn,en"
             echo "pandoc=${PANDOC_VERSION}"
             echo "mermaid_cli=${MERMAID_CLI_VERSION}"
             echo "weasyprint=${WEASYPRINT_VERSION}"
@@ -164,29 +189,57 @@ jobs:
           } > dist/release/RENDERER_VERSIONS.txt
 
       - name: Validate release artifacts
-        run: python scripts/validate_release.py
+        run: |
+          python scripts/validate_release.py --edition cn
+          python scripts/validate_release.py --edition en
+
+      - name: Prepare uniquely named GitHub Release assets
+        run: |
+          for edition in cn en; do
+            for ext in md html epub pdf; do
+              cp \
+                "dist/release/$edition/C-with-Modern-Grammar.$ext" \
+                "dist/release/C-with-Modern-Grammar-$edition.$ext"
+            done
+          done
 
       - name: Write checksums
         working-directory: dist/release
         run: |
           sha256sum \
-            C-with-Modern-Grammar.md \
-            C-with-Modern-Grammar.html \
-            C-with-Modern-Grammar.epub \
-            C-with-Modern-Grammar.pdf \
+            C-with-Modern-Grammar-cn.md \
+            C-with-Modern-Grammar-cn.html \
+            C-with-Modern-Grammar-cn.epub \
+            C-with-Modern-Grammar-cn.pdf \
+            C-with-Modern-Grammar-en.md \
+            C-with-Modern-Grammar-en.html \
+            C-with-Modern-Grammar-en.epub \
+            C-with-Modern-Grammar-en.pdf \
             SOURCE_SNAPSHOTS.md \
             RENDERER_VERSIONS.txt \
             > SHA256SUMS.txt
 
-      - name: Upload release-format artifact
+      - name: Upload bilingual release-format artifact
         uses: actions/upload-artifact@v4
         with:
-          name: c-with-modern-grammar-release-formats
+          name: c-with-modern-grammar-bilingual-release-formats
           path: |
-            dist/release/C-with-Modern-Grammar.md
-            dist/release/C-with-Modern-Grammar.html
-            dist/release/C-with-Modern-Grammar.epub
-            dist/release/C-with-Modern-Grammar.pdf
+            dist/release/cn/C-with-Modern-Grammar.md
+            dist/release/cn/C-with-Modern-Grammar.html
+            dist/release/cn/C-with-Modern-Grammar.epub
+            dist/release/cn/C-with-Modern-Grammar.pdf
+            dist/release/en/C-with-Modern-Grammar.md
+            dist/release/en/C-with-Modern-Grammar.html
+            dist/release/en/C-with-Modern-Grammar.epub
+            dist/release/en/C-with-Modern-Grammar.pdf
+            dist/release/C-with-Modern-Grammar-cn.md
+            dist/release/C-with-Modern-Grammar-cn.html
+            dist/release/C-with-Modern-Grammar-cn.epub
+            dist/release/C-with-Modern-Grammar-cn.pdf
+            dist/release/C-with-Modern-Grammar-en.md
+            dist/release/C-with-Modern-Grammar-en.html
+            dist/release/C-with-Modern-Grammar-en.epub
+            dist/release/C-with-Modern-Grammar-en.pdf
             dist/release/SOURCE_SNAPSHOTS.md
             dist/release/RENDERER_VERSIONS.txt
             dist/release/SHA256SUMS.txt
@@ -199,10 +252,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           files=(
-            dist/release/C-with-Modern-Grammar.md
-            dist/release/C-with-Modern-Grammar.html
-            dist/release/C-with-Modern-Grammar.epub
-            dist/release/C-with-Modern-Grammar.pdf
+            dist/release/C-with-Modern-Grammar-cn.md
+            dist/release/C-with-Modern-Grammar-cn.html
+            dist/release/C-with-Modern-Grammar-cn.epub
+            dist/release/C-with-Modern-Grammar-cn.pdf
+            dist/release/C-with-Modern-Grammar-en.md
+            dist/release/C-with-Modern-Grammar-en.html
+            dist/release/C-with-Modern-Grammar-en.epub
+            dist/release/C-with-Modern-Grammar-en.pdf
             dist/release/SOURCE_SNAPSHOTS.md
             dist/release/RENDERER_VERSIONS.txt
             dist/release/SHA256SUMS.txt
@@ -213,5 +270,5 @@ jobs:
             gh release create "$GITHUB_REF_NAME" "${files[@]}" \
               --title "C with Modern Grammar ${GITHUB_REF_NAME}" \
               --generate-notes \
-              --notes "All formats were rendered from the same validated canonical Markdown artifact. Implementation provenance is attached in SOURCE_SNAPSHOTS.md; renderer versions and SHA-256 checksums are attached alongside it."
+              --notes "Chinese and English Markdown/HTML/EPUB/PDF formats were rendered from the same validated source commit. Implementation provenance is attached in SOURCE_SNAPSHOTS.md; renderer versions and SHA-256 checksums are attached alongside it."
           fi
