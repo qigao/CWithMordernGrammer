@@ -2229,7 +2229,7 @@ cancel
 
 ## 26. What We Learned
 
-第六章完成的不是：
+本章完成的不是：
 
 ~~~text
 Stream
