@@ -1,123 +1,72 @@
 # 第六章：Graph 的可信语义——从 Semantic Law 到 Verified Rewrite、Certificate 与 Refinement
 
-
 > **本章路线**
 >
-> 前十章已经出现了三种不同的“正确”：
+> Chapter 4–5 已经把一条 LINQ-like pipeline 保存成 typed Graph。
 >
-> ~~~text
-> C code works on tested examples
-> semantic transformation is mathematically valid
-> compiled/runtime artifact still corresponds to the proven model
+> 现在第一次出现一个只有 Graph 才能提出的问题：
+>
+> **如果 optimizer 要把一张 Graph 改写成另一张 Graph，怎样知道它们仍然表示同一个计算？**
+>
+> 先看最小的 C 例子：
+>
+> ~~~c
+> static int clamp_0_100(int x)
+> {
+>     if (x < 0) return 0;
+>     if (x > 100) return 100;
+>     return x;
+> }
+>
+> int original(int x)
+> {
+>     return clamp_0_100(clamp_0_100(x));
+> }
+>
+> int rewritten(int x)
+> {
+>     return clamp_0_100(x);
+> }
 > ~~~
 >
-> 本章不再泛泛讨论 Lean，而是把全书 trusted boundary 拆成明确层次，并用三个已经存在的真实案例做闭环：
+> 对这个具体函数，我们希望把：
 >
-> 1. **Idempotent Map rewrite**：Semantic Law → Lean theorem → optimizer trace；
-> 2. **Reactive WAIT/Demand**：small-step theorem → Subscription runtime invariant；
-> 3. **Machine SmallStep**：determinism/type preservation → Machine build/commit boundary。
+> ~~~text
+> Map(clamp_0_100)
+>        ↓
+> Map(clamp_0_100)
+> ~~~
 >
-> 然后再把 Manifest、Proof Trace、Certificate、C differential tests、ABI tests、benchmark 放到各自正确的位置。
-
-上一章讨论了一个核心原则：
-
-```text
-Rich Control Plane
-        ↓
-Simple Execution Plane
-```
-
-也就是说，我们愿意在执行之前做更多事情：
-
-```text
-Type Validation
-Signature Resolution
-Graph Analysis
-Optimization
-Plan Compilation
-Parallel Eligibility
-```
-
-换取真正执行时更简单的：
-
-```text
-load
-call
-branch
-store
-```
-
-但这个方向越往前推进，一个新的问题就越重要：
-
-> **如果 Control Plane 开始主动改变程序，我们凭什么相信这些改变没有破坏程序语义？**
-
-例如：
-
-```text
-Map(f)
- ↓
-Map(f)
-```
-
-如果 optimizer 删除一个 `Map(f)`，最终变成：
-
-```text
-Map(f)
-```
-
-这已经不只是：
-
-```text
-“程序跑得快一点”
-```
-
-而是：
-
-> **系统主动把用户写的程序换成了另一个程序。**
-
-再例如：
-
-```text
-Sequential Reduce
-```
-
-被改成：
-
-```text
-Parallel Reduce
-```
-
-执行顺序发生了变化。
-
-如果某个函数实际上不满足：
-
-```text
-ASSOCIATIVE
-```
-
-结果就可能不同。
-
-因此，当系统开始拥有：
-
-```text
-Rewrite
-Fusion
-Parallelization
-Lowering
-```
-
-这些能力以后，仅仅依靠：
-
-```text
-“看起来合理”
-```
-
-已经不够。
-
-这也是 Lean 真正开始承担更重要角色的地方。
-
----
-
+> 改写成：
+>
+> ~~~text
+> Map(clamp_0_100)
+> ~~~
+>
+> 但 optimizer 不能因为 metadata 里写了 `IDEMPOTENT` 就相信它。
+>
+> 真正需要的是一个语义条件：
+>
+> ~~~text
+> forall x, clamp(clamp(x)) = clamp(x)
+> ~~~
+>
+> 这就是 Lean 在本书中第一次真正不可替代的位置：
+> **不是帮助 Generic 生成 C，也不是替代测试，而是证明“允许怎样改程序”。**
+>
+> 本章只围绕 Graph/LINQ 的可信变换展开：
+>
+> ~~~text
+> C metadata claim
+>     ↓ admission
+> Semantic Law
+>     ↓ Lean theorem
+> Verified Rewrite Rule
+>     ↓ concrete optimizer application
+> Proof Trace / Certificate
+>     ↓
+> C differential tests
+> ~~~
 ## 1. 为什么测试不能完全解决这个问题
 
 测试当然仍然非常重要。
@@ -994,239 +943,29 @@ Policy 是否只引用 Universe 中存在的 relation
 
 ---
 
-## 15. Machine Schema 同样可以进入 Formal Model
+## 15. Part II 的 Refinement：证明规则，还要绑定具体 Graph Artifact
 
-State Machine 中已经有：
+Lean 证明的是有限 semantic rule；真正执行的仍然是 C optimizer / plan compiler。
 
-```text
-State
-Event
-Transition
-WAIT
-Terminal
-```
+因此还需要把三件事连接起来：
 
-这些本身就是非常典型的：
+~~~text
+theorem
+    说明某类 rewrite 在 premise 下 preserve observation
 
-```text
-transition system
-```
+optimizer instance
+    记录这一次 source Graph 的哪些 node 应用了哪个 rule
 
-因此可以在 Lean 中定义：
+execution artifact
+    证明后续 Plan / Direct stage 仍绑定到获准的 Graph snapshot
+~~~
 
-```text
-Machine Configuration
-Event
-Small Step
-```
+这就是 refinement 在 Part II 的实际含义。
 
-例如：
-
-```text
-(State, Event)
-    →
-NextState
-```
-
-或者复杂一点：
-
-```text
-Running
-Waiting
-Done
-Error
-```
-
-当前 `formal/cmeta_cflow_calculus` 已经覆盖 Types、Effects、Properties、Ownership、Flow syntax、WAIT/Demand/Terminal、Machine small-step 和 rewrite semantics。
-
-这让整个 formal model 不只是：
-
-```text
-compile-time type checker
-```
-
-而逐渐覆盖：
-
-```text
-runtime semantics
-```
+我们不要求 Lean 直接证明整个 C runtime；而是让 proof、trace、certificate 与 differential test 各自承担清楚的责任。
 
 ---
-
-## 16. Small-step Semantics 为什么重要
-
-如果只写：
-
-```text
-run(machine, events)
-=
-final_state
-```
-
-很难描述：
-
-```text
-WAIT
-Wake
-Cancel
-Intermediate Transition
-```
-
-这些行为。
-
-Small-step 更接近：
-
-```text
-Configuration₀
-    ↓ one step
-Configuration₁
-    ↓ one step
-Configuration₂
-```
-
-例如：
-
-```text
-Running
-    → WAIT
-```
-
-再：
-
-```text
-Waiting
-    → Wake
-    → Running
-```
-
-这种模型特别适合表达异步执行。
-
-因此可以证明：
-
-```text
-某一步之后仍然满足 invariant
-```
-
-而不是只能看最终结果。
-
----
-
-## 17. Runtime 的目标变成“Refine Formal Semantics”
-
-到了这里，C runtime 和 Lean model 的关系也可以更准确地描述。
-
-不是：
-
-```text
-Lean program
-    翻译成
-C program
-```
-
-而是：
-
-```text
-Lean Semantics
-    定义允许的行为
-
-C Runtime
-    实现这些行为
-```
-
-也就是说希望建立：
-
-```text
-Runtime Step
-    refines
-Formal Step
-```
-
-例如：
-
-```text
-CFlow runtime:
-    cflow_step_kind = WAIT
-```
-
-应该对应：
-
-```text
-Lean:
-    Waiting transition
-```
-
-Machine transition 成功：
-
-```text
-old state
-event
-new state
-```
-
-应该对应：
-
-```text
-formal small-step relation
-```
-
-这比“Lean 生成全部 C Runtime”更加实际。
-
----
-
-## 18. Refinement 是连接 Proof 和 Implementation 的关键词
-
-形式证明最容易陷入一个问题：
-
-```text
-Lean 中证明的东西很好
-但 C 实现是否真的做的是同一件事？
-```
-
-所以必须明确：
-
-```text
-Model
-```
-
-与：
-
-```text
-Implementation
-```
-
-之间的 mapping。
-
-例如：
-
-```text
-Lean:
-    Step.value
-
-C:
-    CFLOW_STEP_VALUE
-```
-
-```text
-Lean:
-    Waiting
-
-C:
-    CFLOW_STEP_WAIT
-```
-
-```text
-Lean:
-    Terminal.error
-
-C:
-    CFLOW_STEP_ERROR
-```
-
-这种结构对应关系越明确，formal proof 才越容易实际约束实现。
-
----
-
-## 19. Certificate 是另一种更轻的 Refinement Bridge
+## 16. Certificate 是另一种更轻的 Refinement Bridge
 
 不是所有东西都需要：
 
@@ -1287,7 +1026,7 @@ Runtime
 
 ---
 
-## 20. 为什么 Certificate 比“相信 Compiler”更有价值
+## 17. 为什么 Certificate 比“相信 Compiler”更有价值
 
 假设：
 
@@ -1341,7 +1080,7 @@ independent validation boundary
 
 ---
 
-## 21. Proof Trace 与 Certificate 解决的是两个不同问题
+## 18. Proof Trace 与 Certificate 解决的是两个不同问题
 
 两者很容易混淆。
 
@@ -1395,7 +1134,7 @@ Certificate
 
 ---
 
-## 22. 这形成了一条完整可信链
+## 19. 这形成了一条完整可信链
 
 可以把整个过程表示成：
 
@@ -1440,7 +1179,7 @@ trust boundary
 
 ---
 
-## 23. 从可信链进入证据矩阵
+## 20. 从可信链进入证据矩阵
 
 前面已经建立了本章真正需要的 trusted chain：Metadata Claim 负责声明候选事实，Semantic Law 给出数学条件，Lean theorem 证明有限规则，C optimizer 记录 concrete rewrite，Plan/Certificate 再把 execution artifact 绑定回获准的 IR。
 
@@ -1450,7 +1189,7 @@ trust boundary
 
 ---
 
-## 24. Trusted Boundary Matrix：不同证据到底证明什么
+## 21. Trusted Boundary Matrix：不同证据到底证明什么
 
 到了这一章，最容易犯的错误已经不是“没有证明”。
 
@@ -1477,7 +1216,7 @@ trust boundary
 
 ---
 
-## 25. Case Study A：Idempotent Map——从 Property Claim 到 Verified Rewrite
+## 22. Case Study A：Idempotent Map——从 Property Claim 到 Verified Rewrite
 
 第七章将继续使用：
 
@@ -1494,7 +1233,7 @@ Map(clamp)
 
 这个例子可以把整条 trusted chain 走完整。
 
-## 25.1 Claim
+## 22.1 Claim
 
 C metadata 可以声明：
 
@@ -1508,7 +1247,7 @@ IDEMPOTENT
 
 如果 claim 是手写的，它本身不是 proof。
 
-## 25.2 Semantic Law
+## 22.2 Semantic Law
 
 真正需要的是：
 
@@ -1519,7 +1258,7 @@ clamp (clamp x) = clamp x
 
 这才是 rewrite premise。
 
-## 25.3 Rule theorem
+## 22.3 Rule theorem
 
 当前 formal Rewrite proof 已经存在：
 
@@ -1549,7 +1288,7 @@ certified_rewrite_preserves_observations
 
 它不是在每一次运行时重新证明 concrete C function。
 
-## 25.4 Concrete rewrite instance
+## 22.4 Concrete rewrite instance
 
 当前 C optimizer 的 property rewrite 可以产生稳定 rule id：
 
@@ -1579,7 +1318,7 @@ C trace
     = record of rule instance
 ~~~
 
-## 25.5 Trace checker / AOT matcher
+## 22.5 Trace checker / AOT matcher
 
 后续 checker 可以验证：
 
@@ -1617,239 +1356,24 @@ optimizer deletes node
 
 ---
 
-## 26. Case Study B：Reactive——Proof 直接改变 Runtime State Machine
-
-Reactive 是另一种 proof 使用方式。
-
-它不是 optimizer rewrite，而是执行协议。
-
-第八章的 Reactive 执行协议会继续使用当前 theorem：
+Part III 的 Reactive、Machine 与 Actor 会复用同样的 proof discipline：
 
 ~~~text
-step_value_decrements_demand
-zero_demand_no_value
-source_value_preserves_demand
-wait_arm_wake_preserves_source
-signal_before_arm_is_ready
-signal_concurrent_with_arm_is_ready
-arm_issues_fresh_token
-terminal_no_step
-cancel_unarms_and_terminates
+先定义 observable/state semantics
+再证明有限 law
+最后用 C implementation + race/sanitizer tests 验证 refinement
 ~~~
 
-这些 theorem 的价值不是：
-
-~~~text
-“我们给 Reactive 加了形式证明”
-~~~
-
-而是它们直接回答 API/runtime design 的危险问题。
-
-## 26.1 Demand 在哪里消费
-
-theorem：
-
-~~~text
-source_value_preserves_demand
-~~~
-
-配合：
-
-~~~text
-step_value_decrements_demand
-~~~
-
-把设计锁定为：
-
-~~~text
-Publisher VALUE
-    does not consume downstream demand
-
-downstream Emit
-    consumes exactly one demand
-~~~
-
-这不是实现风格。
-
-它决定 Filter / FlatMap 等 cardinality-changing operator 是否能正确 backpressure。
-
-## 26.2 WAIT 与 Arm 必须分离
-
-如果模型只有：
-
-~~~text
-WAITING : Bool
-~~~
-
-很难精确描述 signal-before-arm race。
-
-formal model迫使设计出现：
-
-~~~text
-READY
-PENDING_ARM(waitable)
-SUSPENDED(waitable, generation)
-~~~
-
-然后 theorem：
-
-~~~text
-signal_before_arm_is_ready
-signal_concurrent_with_arm_is_ready
-~~~
-
-明确告诉 C runtime：
-
-> arm race 中已经被观察到的 readiness 不能丢成永久 suspension。
-
-所以 Lean 在这里不是“验证既有设计”。
-
-它实际帮助设计了：
-
-~~~text
-wait registration state
-generation token
-wake semantics
-~~~
-
-## 26.3 C implementation refinement
-
-真正 C runtime 还需要：
-
-~~~text
-mutex/atomic
-callback lifetime
-waitable arm/cancel
-scheduler admission
-driver readiness
-~~~
-
-Lean theorem 本身不证明这些代码没有 race。
-
-因此 bridge 必须是：
-
-~~~text
-formal state transition
-    ↓
-documented C linearization point
-    ↓
-race-focused tests / sanitizer
-~~~
-
-例如 readiness test：
-
-~~~text
-cancel waits until old callback waker is quiescent
-~~~
-
-就是 implementation refinement evidence，而不是 theorem 的替代品。
+但这些 stateful protocol 不属于本章的 LINQ/Graph 主线，因此不在这里提前展开。
 
 ---
-
-## 27. Case Study C：Machine——Proof 把“状态机设计”变成 Typed Program Contract
-
-第十章的 Machine 提供第三种用法。
-
-现有 theorem 包括：
-
-~~~text
-smallStep_deterministic
-smallStep_requires_event_typing
-step_consumes_once
-step_preserves_state_typing
-terminal_no_step
-terminal_state_no_step
-applyTransition_action_failure
-~~~
-
-## 27.1 Build-time facts 成为 theorem premise
-
-Machine.Valid 已经包含：
-
-~~~text
-IDs unique
-references valid
-event schema valid
-guard/action types aligned
-priority keys unique
-all states reachable
-declarations used
-terminal/source rules valid
-~~~
-
-因此 SmallStep proof 不需要在每次 transition 时重复处理所有 structural invalidity。
-
-这就是：
-
-~~~text
-control-plane validation
-    ↓
-stronger theorem premise
-    ↓
-simpler runtime
-~~~
-
-## 27.2 Determinism 反过来约束 transition selection
-
-如果 C builder 允许：
-
-~~~text
-same state
-same event
-same priority
-two enabled transitions
-~~~
-
-而 runtime“按数组顺序拿第一个”，那么 formal smallStep_deterministic 的设计意图就被破坏。
-
-所以 proof obligation 反过来推动：
-
-~~~text
-ambiguous transition
-    → build failure
-~~~
-
-这就是“Lean 帮助设计 API”的直接例子。
-
-## 27.3 State typing preservation 反过来要求 staged commit
-
-theorem：
-
-~~~text
-step_preserves_state_typing
-~~~
-
-要求成功 transition 后 target state value 仍匹配 target declaration。
-
-最自然的 C implementation不是：
-
-~~~text
-mutate current bytes while action runs
-~~~
-
-而是：
-
-~~~text
-action constructs staged target
-validate target/output
-atomic commit
-~~~
-
-这样 failure 才能保持旧 state。
-
-所以：
-
-> **Proof-friendly design 往往也是更清楚的 transactional C design。**
-
----
-
-## 28. Manifest：Lean 怎样进入普通 C，而不进入普通 C Build
+## 23. Manifest：Lean 怎样进入普通 C，而不进入普通 C Build
 
 形式化如果要求每个应用 consumer 都安装 Lean，工程边界就失败了。
 
 本版 Salts 快照 已经采用 checked-in generated artifact 模式。
 
-## 28.1 Builtin Signature Manifest
+## 23.1 Builtin Signature Manifest
 
 Lean 验证有限 builtin type/signature relation，然后生成：
 
@@ -1881,7 +1405,7 @@ checked-in C artifact
 
 没有漂移。
 
-## 28.2 Builtin Operator Policy
+## 23.2 Builtin Operator Policy
 
 同样，CFlow operator policy 的有限 relation 由 formal package 检查，并生成：
 
@@ -1892,36 +1416,7 @@ cflow/include/cflow/generated/
 
 这样 C optimizer/runtime 消费普通 C table/header，而不是在 hot path 调 theorem prover。
 
-## 28.3 Machine Schema
-
-Machine state/action enum schema 也有：
-
-~~~text
-cflow-machine-schema-gen
-    --write / --check
-~~~
-
-生成：
-
-~~~text
-cflow/include/cflow/generated/
-    machine_schema.h
-~~~
-
-这形成一个很清楚的边界：
-
-~~~text
-Lean
-    owns semantic source / proof
-      ↓
-generator
-      ↓
-checked-in C artifact
-      ↓
-ordinary C compilation
-~~~
-
-## 28.4 Generator 也是 trusted bridge
+## 23.3 Generator 也是 trusted bridge
 
 这里必须诚实：
 
@@ -1946,11 +1441,11 @@ C consumer interpretation
 
 ---
 
-## 29. Certificate 与 Proof Trace：两个不同的 Runtime Bridge
+## 24. Certificate 与 Proof Trace：两个不同的 Runtime Bridge
 
 这两个概念经常被混在一起。
 
-## 29.1 Proof Trace
+## 24.1 Proof Trace
 
 回答：
 
@@ -1972,7 +1467,7 @@ Trace 是：
 Transformation Witness
 ~~~
 
-## 29.2 Certificate
+## 24.2 Certificate
 
 回答：
 
@@ -2028,11 +1523,11 @@ generator provenance
 
 ---
 
-## 30. Formal Trusted Base 与 Execution Trusted Base 必须分开
+## 25. Formal Trusted Base 与 Execution Trusted Base 必须分开
 
 讨论“trusted computing base”时必须指定层次。
 
-## 30.1 Formal proof trusted base
+## 25.1 Formal proof trusted base
 
 至少包括：
 
@@ -2054,7 +1549,7 @@ but prove the wrong thing
 
 所以 specification review 与 theorem proof 同样重要。
 
-## 30.2 Bridge trusted base
+## 25.2 Bridge trusted base
 
 包括：
 
@@ -2068,7 +1563,7 @@ type/callable identity mapping
 
 这些把 formal world 连到 C artifact。
 
-## 30.3 Execution trusted base
+## 25.3 Execution trusted base
 
 包括：
 
@@ -2094,7 +1589,7 @@ platform CI
 benchmark
 ~~~
 
-## 30.4 External liveness assumptions
+## 25.4 External liveness assumptions
 
 像：
 
@@ -2113,7 +1608,7 @@ user callback eventually returns
 
 ---
 
-## 31. Proof / Test / Runtime Check 的协作方式
+## 26. Proof / Test / Runtime Check 的协作方式
 
 一个成熟 feature 不应该问：
 
@@ -2191,7 +1686,7 @@ Measurement
 
 ---
 
-## 32. What We Learned
+## 27. What We Learned
 
 本章真正建立的是全书的可信方法，而不是“Lean 章节”。
 
