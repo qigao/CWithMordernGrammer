@@ -8,6 +8,7 @@ on:
       - "release/**"
       - "scripts/prepare_release.py"
       - "scripts/validate_release.py"
+      - "scripts/sanitize_epub_nav.py"
   push:
     tags:
       - "v*"
@@ -132,6 +133,9 @@ jobs:
             --resource-path=dist/release:release \
             --css release/book.css \
             --output dist/release/C-with-Modern-Grammar.epub
+
+      - name: Normalize EPUB navigation
+        run: python scripts/sanitize_epub_nav.py
 
       - name: Validate EPUB conformance
         run: |
