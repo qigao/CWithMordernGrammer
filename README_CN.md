@@ -103,7 +103,7 @@ CMeta / CFlow：类型化计算
 
 **Problem → Plain C → Design → Semantic Contract → Lean / Proof Obligation → C Implementation → Evidence**
 
-全书分为五个 Part。详细编辑架构见 [BOOK_ARCHITECTURE.md](./BOOK_ARCHITECTURE.md)，逐章重构模板见 [CHAPTER_TEMPLATE.md](./CHAPTER_TEMPLATE.md)。
+全书分为五个 Part。详细编辑架构见 [BOOK_ARCHITECTURE.md](./BOOK_ARCHITECTURE.md)，逐章重构模板见 [CHAPTER_TEMPLATE.md](./CHAPTER_TEMPLATE.md)。 书中引用的具体实现与定理使用固定版本，见 [SOURCE_SNAPSHOTS.md](./SOURCE_SNAPSHOTS.md)，避免让出版稿依赖持续变化的 `master`。
 
 ### Part I — 从普通 C 到类型化计算
 
