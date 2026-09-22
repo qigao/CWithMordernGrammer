@@ -83,7 +83,7 @@ The 15 chapters have been restructured around a consistent method:
 
 **Problem → Plain C → Design → Semantic Contract → Lean / Proof Obligation → C Implementation → Evidence**
 
-The book is organized into five parts. The detailed editorial architecture remains in [BOOK_ARCHITECTURE.md](./BOOK_ARCHITECTURE.md), with [CHAPTER_TEMPLATE.md](./CHAPTER_TEMPLATE.md) as the reusable chapter pattern.
+The book is organized into five parts. The detailed editorial architecture remains in [BOOK_ARCHITECTURE.md](./BOOK_ARCHITECTURE.md), with [CHAPTER_TEMPLATE.md](./CHAPTER_TEMPLATE.md) as the reusable chapter pattern. Concrete implementation references are pinned in [SOURCE_SNAPSHOTS.md](./SOURCE_SNAPSHOTS.md) so the book does not depend on moving `master` branches.
 
 ### Part I — From Plain C to Typed Computation
 

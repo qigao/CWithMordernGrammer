@@ -2082,13 +2082,13 @@ predictable ownership
 这与后面的 bounded mailbox、bounded executor queue 是同一设计哲学。
 
 
-### 33.4 对照当前 Salts：Callable 已经是明确的 C value representation
+### 33.4 对照本版 Salts 实现快照：Callable 已经是明确的 C value representation
 
 为了让这一章不只停留在概念 representation，可以直接对照当前实现：
 
 ~~~text
 qigao/salts
-master: ad389928b437c0612c1c60844fe53677f3ed27a6
+snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
 当前核心对象已经收敛为同一个 cmeta_callable。去掉具体 typedef 名称后，其 shape 可以概括为：
@@ -2186,7 +2186,7 @@ follow one known path
 
 ### 33.6 后面的 Direct Path 已经在消费这些知识
 
-当前 CFlow direct admission 已经会利用 Callable 的结构知识。
+本版 CFlow 实现 direct admission 已经会利用 Callable 的结构知识。
 
 例如，一个最简单的 direct candidate 会关心：
 
@@ -2290,7 +2290,7 @@ oversized capture
 
 应该在 construction / admission 阶段失败，而不是把矛盾带进 Graph execution。
 
-当前 CMeta 已经存在共享 effect/property consistency boundary；这类测试以后应该成为“semantic metadata 不是随便几个 bit”的最直接工程证据。
+本版 CMeta 实现 已经存在共享 effect/property consistency boundary；这类测试以后应该成为“semantic metadata 不是随便几个 bit”的最直接工程证据。
 
 ### 34.6 Runtime invocation evidence
 

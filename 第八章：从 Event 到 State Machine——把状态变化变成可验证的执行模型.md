@@ -538,7 +538,7 @@ Action Signature
 Target State Type
 ```
 
-当前 CFlow `Machine` IR 就明确保存 State、Event、Guard、Action、Transition，并让 Guard/Action 同样携带 type、effects 和 properties 信息。
+本版 CFlow 实现 `Machine` IR 就明确保存 State、Event、Guard、Action、Transition，并让 Guard/Action 同样携带 type、effects 和 properties 信息。
 
 ---
 
@@ -920,7 +920,7 @@ Lifecycle
 Scratch Storage
 ```
 
-当前 CFlow 的 Machine runtime 也采用这种划分：Machine 是 immutable IR，而 instance 拥有 initial/current state、bounded Event mailbox 以及执行所需 storage。
+本版 CFlow 实现 的 Machine runtime 也采用这种划分：Machine 是 immutable IR，而 instance 拥有 initial/current state、bounded Event mailbox 以及执行所需 storage。
 
 ---
 
@@ -2422,7 +2422,7 @@ CLOSED / CANCELLED / terminal status
 
 ## 35. Lean：Machine 已经有真正的 SmallStep semantics
 
-当前 Salts formal calculus 中：
+本版 Salts 快照 formal calculus 中：
 
 ~~~text
 CMetaCFlowCalculus/CFlow/Machine.lean
@@ -2667,11 +2667,11 @@ terminal = error(message)
 
 ## 36. Current C Implementation：Machine 定义与 Instance 已经严格分层
 
-对照当前 Salts：
+对照本版 Salts 实现快照：
 
 ~~~text
 qigao/salts
-master: ad389928b437c0612c1c60844fe53677f3ed27a6
+snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
 当前实现明确分成两个层次：

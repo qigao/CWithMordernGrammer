@@ -131,7 +131,7 @@ Executor 并不需要知道：
 
 于是 Executor 可以保持非常小。
 
-当前 CFlow 的 Executor 接口就围绕 `try_post`、`post`、`run_one`、`run_ready`、`wait_idle`、`pending`、`shutdown`、`get_stats` 和 `destroy` 这些最基本的任务执行能力展开，并通过 capability 区分 `MANUAL`、`SERIAL` 和 `CONCURRENT`。
+本版 CFlow 实现 的 Executor 接口就围绕 `try_post`、`post`、`run_one`、`run_ready`、`wait_idle`、`pending`、`shutdown`、`get_stats` 和 `destroy` 这些最基本的任务执行能力展开，并通过 capability 区分 `MANUAL`、`SERIAL` 和 `CONCURRENT`。
 
 ---
 
@@ -2004,7 +2004,7 @@ WOULD_BLOCK
 
 ## 32. Lean：Executor 已经有完整协议模型
 
-当前 Salts formal calculus 已经包含：
+本版 Salts 快照 formal calculus 已经包含：
 
 ~~~text
 CMetaCFlowCalculus/CFlow/ExecutorProtocol.lean
@@ -2269,11 +2269,11 @@ user task 一定 return
 
 ## 33. Current C Implementation：Task protocol 已经比简单 fn/user 更完整
 
-对照当前 Salts：
+对照本版 Salts 实现快照：
 
 ~~~text
 qigao/salts
-master: ad389928b437c0612c1c60844fe53677f3ed27a6
+snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
 当前 built-in Executor 的 task descriptor 已经明确为：

@@ -944,7 +944,7 @@ local policy
 
 的区别。
 
-当前 CFlow 就通过 per-operator admitted relations 建立 builtin operator policy，并由 Lean 验证后生成 `builtin_operator_policy.h`。
+本版 CFlow 实现 就通过 per-operator admitted relations 建立 builtin operator policy，并由 Lean 验证后生成 `builtin_operator_policy.h`。
 
 ---
 
@@ -2857,7 +2857,7 @@ atomic commit
 
 形式化如果要求每个应用 consumer 都安装 Lean，工程边界就失败了。
 
-当前 Salts 已经采用 checked-in generated artifact 模式。
+本版 Salts 快照 已经采用 checked-in generated artifact 模式。
 
 ## 45.1 Builtin Signature Manifest
 

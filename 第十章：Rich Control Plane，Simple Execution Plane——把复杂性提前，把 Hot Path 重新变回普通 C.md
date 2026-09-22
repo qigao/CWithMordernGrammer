@@ -337,7 +337,7 @@ Normalize / Lower
 
 过程。
 
-当前 CFlow 的 `cflow_graph_normalize()` 就负责从 Surface Graph 创建一个独立的 primitive IR snapshot，并明确把它限定为 static IR rewriting，而不是运行时调度或资源获取。
+本版 CFlow 实现 的 `cflow_graph_normalize()` 就负责从 Surface Graph 创建一个独立的 primitive IR snapshot，并明确把它限定为 static IR rewriting，而不是运行时调度或资源获取。
 
 可以理解为：
 
@@ -461,7 +461,7 @@ Relation
 
 无用 Subgraph 可以被删除。
 
-当前 CFlow optimizer 已经包括 canonicalization、dead-subgraph elimination、map fusion、relation simplification 和 property-based rewrites 等 pass。
+本版 CFlow 实现 optimizer 已经包括 canonicalization、dead-subgraph elimination、map fusion、relation simplification 和 property-based rewrites 等 pass。
 
 这就是前面：
 
@@ -2681,7 +2681,7 @@ fastest per-value execution representation
 
 ## 45.2 Step 2 — Normalize
 
-当前 CFlow：
+本版 CFlow 实现：
 
 ~~~text
 cflow_graph_normalize(dst, src)
@@ -2869,7 +2869,7 @@ Map(clamp)
 Map(clamp)
 ~~~
 
-当前 CFlow optimizer 已经有稳定 semantic rewrite id：
+本版 CFlow 实现 optimizer 已经有稳定 semantic rewrite id：
 
 ~~~text
 IDEMPOTENT_MAP_ELIMINATION
@@ -2935,7 +2935,7 @@ rewrite trace
 
 ## 46.2 Lean 已经有对应 theorem
 
-当前 formal calculus 的 Rewrite proof 中已经包含：
+本版 formal calculus 的 Rewrite proof 中已经包含：
 
 ~~~text
 map_idempotent_elimination
@@ -2968,7 +2968,7 @@ Filter / Map pipeline
 
 Plan 仍然可能是多余层次。
 
-当前 CFlow Direct/AOT path 明确支持一个 bounded Stage IR：
+本版 CFlow 实现 Direct/AOT path 明确支持一个 bounded Stage IR：
 
 ~~~text
 Filter
@@ -3480,7 +3480,7 @@ empirical evidence
 
 ## 52. Performance Evidence：第十章必须建立 measurement discipline
 
-当前 CFlow 已经有专门 benchmark targets：
+本版 CFlow 实现 已经有专门 benchmark targets：
 
 ~~~text
 cflow_direct_benchmark

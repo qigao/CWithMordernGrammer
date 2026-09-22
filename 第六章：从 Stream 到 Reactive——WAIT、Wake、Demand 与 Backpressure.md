@@ -225,7 +225,7 @@ DONE
 ERROR
 ```
 
-当前 CFlow runtime 就把可恢复执行的一步显式建模成这五种结果。
+本版 CFlow 实现 runtime 就把可恢复执行的一步显式建模成这五种结果。
 
 它们的语义分别是：
 
@@ -405,7 +405,7 @@ Publisher.resume()
 Publisher.resume()
 ```
 
-当前 CFlow 的 `cflow_waitable` 就是这样的轻量 Interface，只暴露 `arm` 和 `cancel`；`cflow_waker` 本身也只是一个 `wake(user)` callback。
+本版 CFlow 实现 的 `cflow_waitable` 就是这样的轻量 Interface，只暴露 `arm` 和 `cancel`；`cflow_waker` 本身也只是一个 `wake(user)` callback。
 
 ---
 
@@ -465,7 +465,7 @@ resume()
 
 以后再继续。
 
-当前 CFlow 将这种底层模型抽象成 `cflow_resumable`，而 `cflow_publisher` 则在其上增加名称、输出类型、terminal polling 等 Publisher 语义。
+本版 CFlow 实现 将这种底层模型抽象成 `cflow_resumable`，而 `cflow_publisher` 则在其上增加名称、输出类型、terminal polling 等 Publisher 语义。
 
 ---
 
@@ -687,7 +687,7 @@ request(10)
 Demand
 ```
 
-当前 CFlow 的 `cflow_subscription_request(subscription, n)` 就采用这种显式 demand 模型。
+本版 CFlow 实现 的 `cflow_subscription_request(subscription, n)` 就采用这种显式 demand 模型。
 
 于是运行逻辑变成：
 
@@ -776,7 +776,7 @@ Demand still 1
 Demand becomes 0
 ```
 
-当前 CFlow runtime 对这个语义有明确约束：
+本版 CFlow 实现 runtime 对这个语义有明确约束：
 
 > Demand 永远表示 downstream-value demand，而不是 publisher-item demand。
 
@@ -954,7 +954,7 @@ use after free
 stale wake
 ```
 
-当前 CFlow 采用一个比较清楚的模型：
+本版 CFlow 实现 采用一个比较清楚的模型：
 
 ```text
 Publisher
@@ -1220,7 +1220,7 @@ timer
 cancel
 ```
 
-例如当前 CFlow Scheduler protocol 提供：
+例如本版 CFlow 实现 Scheduler protocol 提供：
 
 ```text
 post_after
@@ -2264,7 +2264,7 @@ borrows:
 
 这里不需要再发明一套“可能的 Lean 模型”。
 
-当前 Salts 已经有：
+本版 Salts 快照 已经有：
 
 ~~~text
 formal/cmeta_cflow_calculus/
@@ -2488,11 +2488,11 @@ OS 一定返回 I/O completion
 
 ## 34. Current C Implementation：formal state 已经有清晰的 C counterpart
 
-对照当前 Salts：
+对照本版 Salts 实现快照：
 
 ~~~text
 qigao/salts
-master: ad389928b437c0612c1c60844fe53677f3ed27a6
+snapshot: ad389928b437c0612c1c60844fe53677f3ed27a6
 ~~~
 
 ### 34.1 Source outcome 是五态 protocol

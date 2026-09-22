@@ -240,7 +240,7 @@ Struct Metadata
     可以被 Serializer / Binder 复用
 ```
 
-当前 Salts 已经有一条更具体的实现链：
+本版 Salts 快照 已经有一条更具体的实现链：
 
 ```text
 Format Adapter
@@ -3631,7 +3631,7 @@ Knowledge Duplication
 
 > **格式语法、canonical data events、native semantic shape、native storage lifecycle，分别由谁拥有？**
 
-当前 Salts 已经形成一个很清楚的分层。
+本版 Salts 快照 已经形成一个很清楚的分层。
 
 ---
 
@@ -3730,7 +3730,7 @@ semantic/native binding
 
 ## 45.3 第二层：CSerde 只拥有 Format-Neutral Token Truth
 
-当前 Salts architecture 将 CSerde 定位为：
+本版 Salts 快照 architecture 将 CSerde 定位为：
 
 ~~~text
 canonical token

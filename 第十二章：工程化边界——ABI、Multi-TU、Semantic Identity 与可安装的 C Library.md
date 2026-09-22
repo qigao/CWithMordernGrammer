@@ -2619,7 +2619,7 @@ semantic type equality
 
 这不是抽象洁癖，而是 Multi-TU/DSO correctness。
 
-## 46.1 当前 CMeta 已经把 Identity 从 Descriptor 中显式分离
+## 46.1 本版 CMeta 实现 已经把 Identity 从 Descriptor 中显式分离
 
 当前 type descriptor 包含：
 
@@ -2700,7 +2700,7 @@ cmeta_type_identity_equal(local, peer) == true
 
 ## 46.3 Custom Trait Descriptor 也要跨 TU 保持语义一致
 
-当前 CMeta tests 还覆盖：
+本版 CMeta 实现 tests 还覆盖：
 
 ~~~text
 custom owned_int descriptor in TU A
@@ -2830,7 +2830,7 @@ never compare pointer
 
 ## 48. Static Library / Shared Library：Duplicate Globals 不能成为语义事故
 
-当前 CMeta CMake 有一个非常值得写进书里的工程决定。
+本版 CMeta 实现 CMake 有一个非常值得写进书里的工程决定。
 
 对于 static CMeta archive：
 
@@ -2962,7 +2962,7 @@ use sizeof/offsetof as persistence protocol
 直接假设 caller 和 library 的 struct layout 完全同步
 ~~~
 
-当前 CMeta data descriptor/provider 已经采用：
+本版 CMeta 实现 data descriptor/provider 已经采用：
 
 ~~~text
 struct_size
@@ -3004,7 +3004,7 @@ extension interface
 
 ## 51. CFlow 的 SOVERSION：ABI Version 应该成为真实 Library Artifact
 
-当前 CFlow library snapshot：
+本版 CFlow 实现 library snapshot：
 
 ~~~text
 library version = 4.1.0
@@ -3201,7 +3201,7 @@ reviewable generated diff
 
 ## 55. Install / Export：源码树里能 link 远远不够
 
-当前 Salts 已经使用标准 CMake package/export boundary：
+本版 Salts 快照 已经使用标准 CMake package/export boundary：
 
 ~~~text
 SaltsConfig.cmake
@@ -3260,7 +3260,7 @@ source-tree-only path
 
 ## 55.1 CFlow 的 public dependency 必须通过 target contract 导出
 
-当前 CFlow link contract包含：
+本版 CFlow 实现 link contract包含：
 
 ~~~text
 PUBLIC
@@ -3282,7 +3282,7 @@ PRIVATE
 
 ## 55.2 Public header install 也必须排除 private headers
 
-当前 CFlow install：
+本版 CFlow 实现 install：
 
 ~~~text
 install include/cflow/*.h
@@ -3382,7 +3382,7 @@ assert:
     semantic equality true
 ~~~
 
-当前 CMeta 已经有这种 peer test。
+本版 CMeta 实现 已经有这种 peer test。
 
 ## 57.2 Callable Identity Test
 
@@ -3483,7 +3483,7 @@ macros do not depend on include accident
 generated headers self-consistent
 ~~~
 
-当前 CFlow 已有 public/header C++ compile tests，这类 gate应持续扩展。
+本版 CFlow 实现 已有 public/header C++ compile tests，这类 gate应持续扩展。
 
 ## 59.2 Link ABI
 
@@ -3632,7 +3632,7 @@ status/ownership/lifecycle
     are treated as semantic ABI
 ~~~
 
-当前 Salts 已经有很多真实工程基础：
+本版 Salts 快照 已经有很多真实工程基础：
 
 ~~~text
 structural type identity
