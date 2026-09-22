@@ -1,0 +1,107 @@
+name: Release Formats
+
+on:
+  pull_request:
+    paths:
+      - "release/**"
+      - "scripts/prepare_release.py"
+      - "scripts/render_release.sh"
+      - "scripts/validate_release.py"
+      - "scripts/build_book.py"
+      - "scripts/validate_book.py"
+      - "BOOK_MANIFEST.txt"
+      - ".github/workflows/release-formats.yml"
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-formats-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    name: Render HTML EPUB PDF
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install CJK fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends             fontconfig             fonts-noto-cjk
+          fc-match "Noto Serif CJK SC"
+          fc-match "Noto Sans Mono CJK SC"
+
+      - name: Install pinned Pandoc 3.11
+        env:
+          PANDOC_SHA256: 37edb3bbcf722f921a009941bf5874e2e0c09263226c9b4a2d980788cb062ab6
+        run: |
+          curl --fail --location --retry 3             --output /tmp/pandoc.tar.gz             https://github.com/jgm/pandoc/releases/download/3.11/pandoc-3.11-linux-amd64.tar.gz
+          echo "$PANDOC_SHA256  /tmp/pandoc.tar.gz" | sha256sum --check -
+          tar --extract --gzip --file /tmp/pandoc.tar.gz --directory /tmp
+          echo "/tmp/pandoc-3.11/bin" >> "$GITHUB_PATH"
+
+      - name: Render release formats
+        run: bash scripts/render_release.sh
+
+      - name: Prepare release provenance
+        run: |
+          cp SOURCE_SNAPSHOTS.md dist/release/SOURCE_SNAPSHOTS.md
+          cat > dist/release/RELEASE_NOTES.md <<EOF
+          # C with Modern Grammar
+
+          These publication artifacts were generated from the same validated canonical
+          manuscript at commit `$GITHUB_SHA`.
+
+          Attached formats:
+          - canonical Markdown
+          - standalone HTML
+          - EPUB
+          - PDF
+
+          Implementation/theorem provenance is recorded in `SOURCE_SNAPSHOTS.md`.
+          Renderer/tool/font provenance is recorded in `RENDERER_VERSIONS.txt`.
+          EOF
+
+      - name: Upload rendered book
+        uses: actions/upload-artifact@v7
+        with:
+          name: c-with-modern-grammar-release
+          path: |
+            dist/C-with-Modern-Grammar.md
+            dist/release/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          assets=(
+            dist/C-with-Modern-Grammar.md
+            dist/release/C-with-Modern-Grammar.html
+            dist/release/C-with-Modern-Grammar.epub
+            dist/release/C-with-Modern-Grammar.pdf
+            dist/release/SOURCE_SNAPSHOTS.md
+            dist/release/RENDERER_VERSIONS.txt
+          )
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}"               --title "C with Modern Grammar $GITHUB_REF_NAME"               --notes-file dist/release/RELEASE_NOTES.md
+          fi
