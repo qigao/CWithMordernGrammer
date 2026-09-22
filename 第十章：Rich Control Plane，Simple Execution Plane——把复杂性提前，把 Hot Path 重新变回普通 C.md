@@ -87,7 +87,7 @@ Actor
 
 因此到了这个阶段，一个越来越明确的原则开始形成：
 
-## Rich Control Plane, Simple Execution Plane
+**Rich Control Plane, Simple Execution Plane**
 
 也就是：
 
@@ -854,7 +854,7 @@ Optimization
 
 这时可以使用第二条路线：
 
-## Compiled Plan
+**Compiled Plan**
 
 也就是：
 
