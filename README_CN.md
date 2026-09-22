@@ -169,7 +169,7 @@ State Machine / Actor
 
 ## 仓库历史
 
-这套书稿最初位于 `qigao/salts/book`，之后独立迁移到当前仓库。
+这套书稿最初位于 `qigao/salts` 仓库中，之后独立迁移为当前书稿仓库。
 
 - 原仓库：`qigao/salts`
 - 原分支：`master`
