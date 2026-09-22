@@ -1,0 +1,200 @@
+name: Release Formats
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-formats-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PANDOC_VERSION: "3.11"
+  PANDOC_SHA256: "37edb3bbcf722f921a009941bf5874e2e0c09263226c9b4a2d980788cb062ab6"
+  MERMAID_CLI_VERSION: "11.17.0"
+  WEASYPRINT_VERSION: "70.0"
+  EPUBCHECK_VERSION: "5.4.0"
+
+jobs:
+  render:
+    name: Render HTML, EPUB, and PDF
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Validate canonical manuscript sources
+        run: python scripts/validate_book.py
+
+      - name: Build canonical manuscript
+        run: python scripts/build_book.py
+
+      - name: Record deterministic source epoch
+        run: echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install CJK fonts and renderer system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            fonts-noto-cjk fonts-dejavu-core \
+            libpango-1.0-0 libpangoft2-1.0-0 \
+            default-jre-headless unzip
+          fc-match 'Noto Sans CJK SC'
+
+      - name: Install pinned Pandoc
+        run: |
+          curl -fsSL -o /tmp/pandoc.tar.gz \
+            "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz"
+          echo "${PANDOC_SHA256}  /tmp/pandoc.tar.gz" | sha256sum -c -
+          tar -xzf /tmp/pandoc.tar.gz -C /tmp
+          sudo cp "/tmp/pandoc-${PANDOC_VERSION}/bin/pandoc" /usr/local/bin/pandoc
+          pandoc --version | head -n 1
+
+      - name: Install pinned Mermaid and PDF renderers
+        run: |
+          npm install --global "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}"
+          python -m pip install --disable-pip-version-check "weasyprint==${WEASYPRINT_VERSION}"
+          mmdc --version
+          weasyprint --version
+
+      - name: Install pinned EPUBCheck
+        run: |
+          curl -fsSL -o /tmp/epubcheck.zip \
+            "https://github.com/w3c/epubcheck/releases/download/v${EPUBCHECK_VERSION}/epubcheck-${EPUBCHECK_VERSION}.zip"
+          unzip -q /tmp/epubcheck.zip -d /tmp
+          java -jar "/tmp/epubcheck-${EPUBCHECK_VERSION}/epubcheck.jar" --version
+
+      - name: Prepare release manuscript and diagrams
+        run: python scripts/prepare_release.py
+
+      - name: Render Mermaid diagrams
+        run: |
+          shopt -s nullglob
+          diagrams=(dist/release/diagrams/*.mmd)
+          test "${#diagrams[@]}" -gt 0
+          for source in "${diagrams[@]}"; do
+            target="${source%.mmd}.svg"
+            mmdc --input "$source" --output "$target" \
+              --configFile release/mermaid-config.json \
+              --backgroundColor transparent
+          done
+
+      - name: Render standalone HTML
+        run: |
+          pandoc dist/release/C-with-Modern-Grammar.release.md \
+            --from markdown \
+            --to html5 \
+            --standalone \
+            --toc --toc-depth=3 \
+            --section-divs \
+            --embed-resources \
+            --resource-path=dist/release:release \
+            --css release/book.css \
+            --output dist/release/C-with-Modern-Grammar.html
+
+      - name: Render EPUB3
+        run: |
+          pandoc dist/release/C-with-Modern-Grammar.release.md \
+            --from markdown \
+            --to epub3 \
+            --toc --toc-depth=3 \
+            --split-level=1 \
+            --resource-path=dist/release:release \
+            --css release/book.css \
+            --output dist/release/C-with-Modern-Grammar.epub
+
+      - name: Validate EPUB conformance
+        run: |
+          java -jar "/tmp/epubcheck-${EPUBCHECK_VERSION}/epubcheck.jar" \
+            dist/release/C-with-Modern-Grammar.epub
+
+      - name: Render PDF from canonical HTML
+        run: |
+          weasyprint \
+            dist/release/C-with-Modern-Grammar.html \
+            dist/release/C-with-Modern-Grammar.pdf
+
+      - name: Record release provenance
+        run: |
+          cp dist/C-with-Modern-Grammar.md dist/release/C-with-Modern-Grammar.md
+          cp SOURCE_SNAPSHOTS.md dist/release/SOURCE_SNAPSHOTS.md
+          {
+            echo "source_sha=${GITHUB_SHA}"
+            echo "source_date_epoch=${SOURCE_DATE_EPOCH}"
+            echo "pandoc=${PANDOC_VERSION}"
+            echo "mermaid_cli=${MERMAID_CLI_VERSION}"
+            echo "weasyprint=${WEASYPRINT_VERSION}"
+            echo "epubcheck=${EPUBCHECK_VERSION}"
+            echo "python=$(python --version 2>&1)"
+            echo "node=$(node --version)"
+          } > dist/release/RENDERER_VERSIONS.txt
+
+      - name: Validate release artifacts
+        run: python scripts/validate_release.py
+
+      - name: Write checksums
+        working-directory: dist/release
+        run: |
+          sha256sum \
+            C-with-Modern-Grammar.md \
+            C-with-Modern-Grammar.html \
+            C-with-Modern-Grammar.epub \
+            C-with-Modern-Grammar.pdf \
+            SOURCE_SNAPSHOTS.md \
+            RENDERER_VERSIONS.txt \
+            > SHA256SUMS.txt
+
+      - name: Upload release-format artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-with-modern-grammar-release-formats
+          path: |
+            dist/release/C-with-Modern-Grammar.md
+            dist/release/C-with-Modern-Grammar.html
+            dist/release/C-with-Modern-Grammar.epub
+            dist/release/C-with-Modern-Grammar.pdf
+            dist/release/SOURCE_SNAPSHOTS.md
+            dist/release/RENDERER_VERSIONS.txt
+            dist/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release for tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          files=(
+            dist/release/C-with-Modern-Grammar.md
+            dist/release/C-with-Modern-Grammar.html
+            dist/release/C-with-Modern-Grammar.epub
+            dist/release/C-with-Modern-Grammar.pdf
+            dist/release/SOURCE_SNAPSHOTS.md
+            dist/release/RENDERER_VERSIONS.txt
+            dist/release/SHA256SUMS.txt
+          )
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+              --title "C with Modern Grammar ${GITHUB_REF_NAME}" \
+              --generate-notes \
+              --notes "All formats were rendered from the same validated canonical Markdown artifact. Implementation provenance is attached in SOURCE_SNAPSHOTS.md; renderer versions and SHA-256 checksums are attached alongside it."
+          fi
