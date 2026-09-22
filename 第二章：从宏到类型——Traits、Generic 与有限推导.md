@@ -1,5 +1,24 @@
 # 第二章：从宏到类型——Traits、Generic 与有限推导
 
+
+> **本章路线**
+>
+> 第一章解决的是“如何只维护一份重复事实”。这一章开始处理更困难的问题：**当事实之间存在类型关系时，怎样让 C 在不拥有完整模板语言和 Runtime reflection 的情况下表达、检查和推导这些关系？**
+>
+> ~~~text
+> Plain C types
+>    → Type Descriptor
+>    → Traits / Capability
+>    → Generic Application
+>    → Semantic Identity
+>    → Finite Relation
+>    → Inference
+>    → Lean-checked Semantic Model
+>    → Ordinary C Declarations
+> ~~~
+>
+> 本章是 Lean 第一次真正进入全书主线的地方。但 Lean 的目标不是证明“宏很聪明”，而是验证**有限类型宇宙中的关系是否定义良好**。
+
 上一章最后停在一个非常关键的位置。
 
 最开始，我们只是希望：
@@ -1489,5 +1508,408 @@ Properties
 ```
 
 也会成为后面 Graph 和 CFlow 出现的直接基础。
+
+## 29. Semantic Contract：从“类型描述”到“类型关系”
+
+这一章真正增加的不是更多语法，而是一组比第一章更强的 semantic contract。
+
+### 29.1 Known Types，而不是 All C Types
+
+系统只对显式进入类型宇宙的类型做承诺。
+
+~~~text
+C language types
+      ⊃
+Known Types
+~~~
+
+这不是缺陷，而是一个关键工程选择。
+
+只有 Known Types 才参与：
+
+~~~text
+descriptor
+traits
+generic identity
+type relation
+inference
+verification
+~~~
+
+因此“未知类型”必须保持未知，而不是通过 silent fallback 猜测一个结果。
+
+### 29.2 Type Identity 不等于 Descriptor Address
+
+如果两个 Translation Unit 都描述 Vec<int>，它们可以拥有不同 descriptor object：
+
+~~~text
+TU A: descriptor @ A
+TU B: descriptor @ B
+~~~
+
+但它们必须拥有同一个：
+
+~~~text
+semantic type identity
+~~~
+
+所以必须明确：
+
+> **representation identity 与 semantic identity 是两个不同概念。**
+
+这条规则以后会直接进入 Multi-TU、ABI、Plugin 和 Serialization。
+
+### 29.3 Generic Identity 是结构，而不是字符串昵称
+
+概念上：
+
+~~~text
+Vec<int>
+=
+constructor: Vec
+arguments: [int]
+~~~
+
+而不是：
+
+~~~text
+"IntVec"
+~~~
+
+字符串可以作为名称或诊断信息，但不能替代结构化语义。
+
+### 29.4 TypeFunction 首先是有限 relation
+
+例如：
+
+~~~text
+CommonType(int, int)       = int
+CommonType(int, double)    = double
+CommonType(double, int)    = double
+CommonType(double, double) = double
+~~~
+
+真正需要的核心性质并不是“宏可以展开”，而是：
+
+1. 同一个 admissible input 不能对应两个冲突 output；
+2. relation 中引用的 type 必须存在；
+3. 如果某 relation 宣称覆盖一个 domain，那么这个 domain 必须完整；
+4. 如果设计本来就是 partial relation，domain 之外必须明确失败。
+
+最后一点尤其重要。
+
+本章已经明确选择：
+
+> **No Default.**
+
+所以不应该把 theorem 写成：
+
+~~~text
+forall input, exists output
+~~~
+
+除非某一个具体 TypeFunction 明确声明自己是 total。
+
+更准确的语义是：
+
+~~~text
+functional on admitted inputs
++
+coverage on declared domain
++
+explicit failure outside domain
+~~~
+
+这就是“有限、显式、按需”第一次真正成为数学约束。
+
+---
+
+## 30. Lean：哪些东西值得真正证明
+
+到这一章，Lean 开始有真实价值，因为问题已经从文本生成升级为有限结构上的数学关系。
+
+可以把 proof obligation 分成四类。
+
+### 30.1 Well-formed type universe
+
+例如：
+
+~~~text
+registered semantic identities are unique
+generic constructor references exist
+generic arguments reference known types
+trait references are well formed
+~~~
+
+这类 theorem 验证的是：
+
+> 类型世界本身没有自相矛盾。
+
+### 30.2 Functional relation
+
+对于 TypeFunction：
+
+~~~text
+if R a b = x
+and R a b = y
+then x = y
+~~~
+
+换句话说，一个 admissible input 不能推导出两个冲突类型。
+
+这比“测试了几个 TypeEval”更强，因为它针对整个有限 relation。
+
+### 30.3 Declared-domain coverage
+
+如果一个 operator 声明：
+
+~~~text
+domain = Numeric × Numeric
+~~~
+
+那么可以验证：
+
+~~~text
+forall input in declared domain,
+exactly one output exists
+~~~
+
+但对于 intentionally partial relation，则不应该强行证明 totality。
+
+这使“没有 Default”从 API 风格变成清晰 semantic boundary。
+
+### 30.4 Generic semantic identity
+
+我们希望表达类似：
+
+~~~text
+same constructor
++
+same semantic arguments
+→
+same semantic generic type
+~~~
+
+以及不同 semantic structure 不应该因为 descriptor pointer、symbol location 或 TU 不同而被误判。
+
+这类模型会直接帮助后面的 ABI / Multi-TU 设计。
+
+### 30.5 Lean 不证明什么
+
+Lean 不应该被用来声称：
+
+- 某个 compiler 一定按照特定 ABI layout；
+- linker 一定导出某个 symbol；
+- dynamic library loader 一定具有某种平台行为；
+- hash-based runtime ID 永远不会碰撞，除非模型真的建立并证明了该性质；
+- 一个 trait 声明的 PURE 就自动意味着函数在数学上纯。
+
+特别是最后一点：
+
+> **Trait / Property 是 claim；Semantic Law 才可能成为 theorem 的前提或结论。**
+
+这一区分会在 Callable 和 Optimizer 章节反复出现。
+
+---
+
+## 31. C Implementation：证明最终必须落回普通 C
+
+形式模型最终必须连接到真正的 C representation。
+
+概念上，一个 type descriptor 可能包含：
+
+~~~c
+typedef struct type_desc {
+    const char *name;
+    size_t size;
+    size_t align;
+    type_kind kind;
+
+    /* semantic identity is not object address */
+    type_identity identity;
+} type_desc;
+~~~
+
+这里重要的不是字段名字，而是 ownership contract：
+
+~~~text
+descriptor object
+    ≠
+semantic type itself
+~~~
+
+Generic 也应该保留结构信息：
+
+~~~text
+constructor
+arguments
+semantic identity
+~~~
+
+而不是只生成一个失去来源信息的别名。
+
+TypeFunction 最终则应 lower 成编译器能够直接消费的事实：
+
+~~~text
+typedef
+enum
+_Generic route
+static assertion
+generated declaration
+~~~
+
+而不是：
+
+~~~text
+runtime type interpreter
+~~~
+
+所以真正路线是：
+
+~~~text
+finite semantic model
+        ↓
+validate / prove
+        ↓
+manifest / generated facts
+        ↓
+ordinary C declarations
+        ↓
+ordinary compiler
+~~~
+
+普通消费者 build 不应该被迫运行 Lean。
+
+Lean 属于可信 control plane，不属于应用 hot path。
+
+---
+
+## 32. Evidence：怎样证明类型系统真的跨出了“单文件宏实验”
+
+这一章至少需要四种不同证据。
+
+### 32.1 Compile-time evidence
+
+测试：
+
+~~~text
+known type
+  → descriptor resolves
+
+supported generic application
+  → compiles
+
+unsupported relation
+  → compile-time failure
+
+ambiguous/conflicting generated relation
+  → generation/proof gate failure
+~~~
+
+### 32.2 Multi-TU evidence
+
+最关键的工程测试之一：
+
+~~~text
+TU A creates/exports type information
+TU B independently references the same semantic type
+        ↓
+semantic equality succeeds
+~~~
+
+同时确认：
+
+~~~text
+descriptor pointer equality
+~~~
+
+不是 contract。
+
+### 32.3 Installed-consumer evidence
+
+真正的 library boundary 需要：
+
+~~~text
+install headers/library
+      ↓
+external consumer
+      ↓
+include public API
+      ↓
+instantiate/reference known generic/type
+      ↓
+link and run
+~~~
+
+只有这样才能证明设计没有依赖 source-tree 偶然状态。
+
+### 32.4 Formal evidence
+
+Lean 或等价 exhaustive checker 应覆盖：
+
+~~~text
+universe well formed
+relation functional
+declared domain covered
+references valid
+semantic identities consistent
+~~~
+
+这和 compile test 是互补关系：
+
+~~~text
+compiler evidence
+    → C representation/toolchain works
+
+formal evidence
+    → semantic relation is well formed
+~~~
+
+两者不能互相替代。
+
+---
+
+## 33. What We Learned
+
+第二章真正完成的是一次比“宏技巧”更大的跨越：
+
+~~~text
+textual facts
+    ↓
+typed facts
+    ↓
+structured identity
+    ↓
+finite relations
+    ↓
+checked inference
+~~~
+
+并且我们第一次看到 Lean 如何参与设计，而不是参与表演。
+
+Lean 帮助我们把一句模糊的话：
+
+> “这个 TypeFunction 应该是正确的。”
+
+拆成更加准确的问题：
+
+~~~text
+Is the universe well formed?
+Is the relation functional?
+What is its admitted domain?
+Is coverage complete on that domain?
+What happens outside that domain?
+Is identity stable across representation boundaries?
+~~~
+
+这反过来让 C API 的边界也变得更清楚。
+
+最重要的是：
+
+> **高级类型知识被放在 control plane 中建立和验证，而执行结果仍然 lower 成普通 C。**
+
+下一章将发生新的跨越：
+
+> **如果数据拥有类型，那么“可执行的东西”本身也应该拥有类型、环境、身份和语义属性。**
 
 下一章将讨论：**如何让 C 中的 callback 从一个裸函数指针，变成真正的类型化可执行对象。**
