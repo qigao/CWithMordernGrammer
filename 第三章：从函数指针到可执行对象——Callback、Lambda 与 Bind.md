@@ -2081,6 +2081,138 @@ predictable ownership
 
 这与后面的 bounded mailbox、bounded executor queue 是同一设计哲学。
 
+
+### 33.4 对照当前 Salts：Callable 已经是明确的 C value representation
+
+为了让这一章不只停留在概念 representation，可以直接对照当前实现：
+
+~~~text
+qigao/salts
+master: ad389928b437c0612c1c60844fe53677f3ed27a6
+~~~
+
+当前核心对象已经收敛为同一个 cmeta_callable。去掉具体 typedef 名称后，其 shape 可以概括为：
+
+~~~c
+struct cmeta_callable {
+    cmeta_fn meta;
+
+    resolve_fn  resolve;
+    invoke_fn   invoke;
+    generate_fn generate;
+
+    dispatch_tag dispatch;
+
+    size_t capture_size;
+    inline_capture_storage capture;
+};
+~~~
+
+其中 meta 继续保存：
+
+~~~text
+finite signature id
+typed raw target
+effects
+properties
+~~~
+
+这说明前文的设计已经真正进入 representation：
+
+~~~text
+Typed Function
++
+Semantic Metadata
++
+Explicit Dispatch
++
+Bounded Capture
+~~~
+
+而不是分别实现 FunctionObject、LambdaObject、BindObject、GeneratorObject 四套互不兼容的 runtime hierarchy。
+
+当前 inline capture 上限明确为：
+
+~~~text
+CMETA_CAPTURE_INLINE = 32 bytes
+~~~
+
+所以“小 closure”可以作为 Callable value 一起复制，而超过这个边界不会被底层偷偷转换成 hidden heap allocation。
+
+这正是：
+
+> **bounded representation makes runtime cost visible**
+
+的具体例子。
+
+### 33.5 Dispatch Authority 必须是数据，而不是猜测
+
+当前 representation 显式保存 dispatch tag。
+
+这是一个很小但非常重要的工程决定。
+
+如果同时存在：
+
+~~~text
+raw typed target
+adapter invoke
+generator entry
+captured state
+~~~
+
+runtime 不能采用：
+
+~~~text
+if this pointer is non-null, maybe call it
+~~~
+
+这样的隐式规则。
+
+更合理的路径是：
+
+~~~text
+construction / admission
+      ↓
+resolve metadata
+validate semantic contract
+select authoritative dispatch
+      ↓
+execution
+      ↓
+follow one known path
+~~~
+
+也就是说，复杂度在进入 hot path 以前被支付。
+
+### 33.6 后面的 Direct Path 已经在消费这些知识
+
+当前 CFlow direct admission 已经会利用 Callable 的结构知识。
+
+例如，一个最简单的 direct candidate 会关心：
+
+~~~text
+signature admitted?
+capture_size == 0?
+effects are pure?
+required properties present?
+dispatch/target supports direct execution?
+~~~
+
+这给本章一个非常重要的现实验证：
+
+> **给 Callable 增加 metadata 不是为了让每次调用做更多工作，而是为了让 Graph/Plan 在执行前有能力删除更多动态工作。**
+
+因此从第三章开始，读者就应该建立一个反直觉但贯穿全书的认识：
+
+~~~text
+richer control-plane object
+        ↓
+stronger admission knowledge
+        ↓
+simpler execution path
+~~~
+
+
 ---
 
 ## 34. Evidence：Callable 必须和 Plain C baseline 比较
@@ -2141,6 +2273,43 @@ capturing callable
 目标是告诉读者：
 
 > **什么时候它等价于普通调用，什么时候确实为表达能力付出了一次 dispatch/capture 成本。**
+
+
+### 34.5 Contract-admission evidence
+
+除了“调用结果正确”，还必须测试 metadata 自己不会形成矛盾状态。
+
+例如：
+
+~~~text
+TOTAL + MAY_FAIL
+invalid signature
+invalid dispatch
+oversized capture
+~~~
+
+应该在 construction / admission 阶段失败，而不是把矛盾带进 Graph execution。
+
+当前 CMeta 已经存在共享 effect/property consistency boundary；这类测试以后应该成为“semantic metadata 不是随便几个 bit”的最直接工程证据。
+
+### 34.6 Runtime invocation evidence
+
+同一个 Callable contract 应至少覆盖：
+
+~~~text
+ordinary typed raw target
+adapter-only path
+capturing path
+generator path
+invalid metadata path
+~~~
+
+关键不是证明它们内部实现一样，而是证明：
+
+> **不同 surface representation 最终遵守同一个 observable invocation contract。**
+
+这也是未来 Graph 能够把它们统一当成 node behavior 的前提。
+
 
 ---
 
