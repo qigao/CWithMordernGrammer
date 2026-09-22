@@ -69,16 +69,25 @@ def outside_fences(lines: list[str]):
 def validate_chapter(path: Path) -> None:
     lines = path.read_text(encoding="utf-8").splitlines()
     h1 = []
-    numbered_h2: list[int] = []
+    main_h2: list[int] = []
+    nested_h2: dict[int, list[int]] = {}
     unnumbered_h2 = []
 
     for number, line in outside_fences(lines):
         if re.match(r"^#\s+", line):
             h1.append((number, line))
         if re.match(r"^##\s+", line):
-            section = re.match(r"^##\s+(\d+)\.\s+", line)
+            section = re.match(
+                r"^##\s+(\d+)(?:\.(\d+))?\.?\s+",
+                line,
+            )
             if section:
-                numbered_h2.append(int(section.group(1)))
+                main = int(section.group(1))
+                child = section.group(2)
+                if child is None:
+                    main_h2.append(main)
+                else:
+                    nested_h2.setdefault(main, []).append(int(child))
             else:
                 unnumbered_h2.append((number, line))
 
@@ -90,13 +99,27 @@ def validate_chapter(path: Path) -> None:
             f"{path.name}: unnumbered/label H2 at line(s) {where}"
         )
 
-    unique_sections = list(dict.fromkeys(numbered_h2))
+    unique_sections = list(dict.fromkeys(main_h2))
     expected = list(range(1, len(unique_sections) + 1))
     if unique_sections != expected:
         raise ValidationError(
             f"{path.name}: numbered H2 sections are not continuous: "
             f"{unique_sections}"
         )
+
+    known_main = set(unique_sections)
+    for main, children in nested_h2.items():
+        if main not in known_main:
+            raise ValidationError(
+                f"{path.name}: subsection {main}.x has no parent section {main}"
+            )
+        unique_children = list(dict.fromkeys(children))
+        child_expected = list(range(1, len(unique_children) + 1))
+        if unique_children != child_expected:
+            raise ValidationError(
+                f"{path.name}: H2 subsections under {main} are not continuous: "
+                f"{unique_children}"
+            )
 
 
 def validate_text_hygiene(path: Path) -> None:
