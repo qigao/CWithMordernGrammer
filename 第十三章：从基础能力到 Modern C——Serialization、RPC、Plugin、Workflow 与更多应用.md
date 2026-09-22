@@ -1448,6 +1448,38 @@ vector growth / hashing / tree balancing / allocation
 
 CSTL 还能直接进入前面的 Graph/Stream 世界，而不需要第二套 collection pipeline。
 
+snapshot README 里的实际组合代码是：
+
+~~~c
+typed(filter, value, bool, keep_even, (int value)) {
+    return value % 2 == 0;
+}
+
+cflow_stream pipeline = {0};
+
+stream(&values, &pipeline)
+    ->filter(&pipeline, keep_even)
+    ->distinct(&pipeline, 64u)
+    ->sorted(&pipeline, 64u)
+    ->skip(&pipeline, 1u)
+    ->take(&pipeline, 10u);
+~~~
+
+这段代码把三个 ownership boundary 放在一起：
+
+~~~text
+CSTL
+    owns container storage / Range / collector
+
+CMeta callable
+    owns predicate signature and declared contract
+
+CFlow
+    owns Graph operator semantics and evaluation state
+~~~
+
+所以新增一个 typed container 并不意味着再实现一遍 Filter/Map；新增一个 Graph operator 也不意味着再实现一遍 Vec/List/Set。
+
 ### 4.3 TinyTest / TinyMock：测试框架也可以复用有限 typed design
 
 测试框架常见的重复同样不是算法，而是类型分派：
@@ -1513,6 +1545,31 @@ compiled test runtime
 这说明真正可复用的不是某个宏名字，而是设计方法。
 
 TinyMock 进一步使用同一 strict-C11 trait map；snapshot 中 runtime state、comparison、formatting、scripting 与 verification 都在 compiled TinyTest library 中，header 只保留必须在调用点生成的 mock wrapper。
+
+实际 test 中，一个 mock 的使用形态非常小：
+
+~~~c
+#include "tinymock.h"
+
+TINYMOCk_MOCK(int, add, int, int)
+
+spec("calculator") {
+    it("uses the expected dependency call") {
+        mock_add_reset();
+
+        mock_add_expect(
+            TINYMOCk_ARG(2),
+            TINYMOCk_ARG(3),
+            TINYMOCk_RETURN(5));
+
+        check_equal(add(2, 3), 5);
+
+        mock_add_verify();
+    }
+}
+~~~
+
+这里没有动态 method table、脚本语言或 runtime code generation。函数 wrapper 在 test translation unit 生成，expectation queue 与 verification state 则由普通 compiled C runtime 管理。
 
 它还明确把资源做成有限上界，例如：
 
