@@ -2260,14 +2260,13 @@ cflow_edge
 
 ### 34.1 Edge 是显式 IR row
 
-当前 edge 形态已经明确到端口：
+本版 snapshot 中 `cflow_edge` 的 public definition 已经明确到端口：
 
 ~~~c
 typedef struct cflow_edge {
-    node_id  from;
+    cflow_node_id from;
     uint16_t from_port;
-
-    node_id  to;
+    cflow_node_id to;
     uint16_t to_port;
 } cflow_edge;
 ~~~
@@ -2278,7 +2277,7 @@ Branch、Relation、Subgraph 可以在同一 IR 中拥有显式拓扑。
 
 ### 34.2 Node 保存的是 operator semantics + callable + type knowledge
 
-当前 node 包含的核心信息可以概括成：
+同一 snapshot 中，node 的职责可以概括成：
 
 ~~~text
 operator
