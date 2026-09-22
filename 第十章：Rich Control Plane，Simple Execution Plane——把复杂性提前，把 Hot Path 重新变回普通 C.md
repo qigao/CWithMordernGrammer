@@ -1,5 +1,38 @@
 # 第十章：Rich Control Plane，Simple Execution Plane——把复杂性提前，把 Hot Path 重新变回普通 C
 
+
+> **本章路线**
+>
+> 前九章不断增加“知道的东西”：Type、Callable、Graph、Demand、Executor、Machine、Actor。第十章反过来问：
+>
+> **这些知识最终是不是都要留在每一个 Value 的 hot path？**
+>
+> 本章把全书前半部分收束成一条真正的 compilation/refinement pipeline：
+>
+> ~~~text
+> High-level API
+>      ↓
+> Surface Graph
+>      ↓
+> Normalize
+>      ↓
+> Verify / Optimize
+>      ↓
+> Primitive IR
+>      ↓
+> Plan / Direct-AOT eligibility
+>      ↓
+> Certificate / Equivalence Witness
+>      ↓
+> Simple Execution
+> ~~~
+>
+> 核心原则不再只是口号：
+>
+> > **Know More Before Execution, Do Less During Execution.**
+>
+> 本章会严格区分当前实现能力：完整 Filter → Map → Reduce canonical pipeline 可以进入 compiled Plan；当前 closed Direct/AOT macro path 主要覆盖 Filter/Map stage，因此不会把 Reduce 误写成已经拥有同样的 direct lowering。
+
 做到上一章以后，整个系统已经拥有了相当多的高级能力：
 
 ```text
@@ -2574,3 +2607,1093 @@ CFlow 利用这些知识：
 > **当我们开始根据 Type、Effect、Property 和 Graph Structure 自动改变程序以后，怎样证明这些改变是可信的？**
 
 下一章将进入 **Lean、Semantic Law、Verified Rewrite、Manifest 与 Certificate——如何为有限的 C Meta / Flow 系统建立一个实际可用的形式化可信边界。**
+
+---
+
+
+# 45. End-to-End Case：canonical pipeline 从 Surface API 走到 Plan
+
+回到 Part II 一直使用的 pipeline：
+
+~~~text
+Source<int>
+    ↓
+Filter(is_even)
+    ↓
+Map(square)
+    ↓
+Reduce(sum)
+~~~
+
+用户看到的 surface 可能是：
+
+~~~c
+stream.filter(&stream, is_even)
+      ->map(&stream, square)
+      ->reduce(&stream, sum);
+~~~
+
+这段 API 本身不是执行策略。
+
+它首先产生：
+
+~~~text
+Surface Graph
+~~~
+
+其中保留：
+
+~~~text
+operator identity
+callable
+input/output type
+effects/properties
+topology
+cardinality
+parameters
+~~~
+
+真正的执行链从这里开始。
+
+## 45.1 Step 1 — Surface Graph
+
+Surface Graph 的职责是：
+
+~~~text
+faithfully record user meaning
+~~~
+
+它可以保留较高层 operator 或结构。
+
+这里最重要的 property 是：
+
+~~~text
+easy to construct
+easy to inspect
+easy to diagnose
+~~~
+
+而不是：
+
+~~~text
+fastest per-value execution representation
+~~~
+
+## 45.2 Step 2 — Normalize
+
+当前 CFlow：
+
+~~~text
+cflow_graph_normalize(dst, src)
+~~~
+
+要求：
+
+~~~text
+src
+    borrowed immutable Surface Graph
+
+dst
+    separate empty destination
+~~~
+
+Normalize：
+
+~~~text
+validates input
+performs only static IR rewriting
+validates output
+publishes independent primitive snapshot
+~~~
+
+它不拥有：
+
+~~~text
+Subscription scheduling
+live demand
+runtime buffers
+Executor state
+~~~
+
+所以：
+
+> **Normalization 是纯 control-plane IR transformation，而不是半执行。**
+
+这是非常重要的边界。
+
+## 45.3 Step 3 — Optimize
+
+Optimizer 继续使用：
+
+~~~text
+normalized immutable source
+      ↓
+new optimized Graph
+~~~
+
+当前 pass 包括：
+
+~~~text
+canonicalize
+dead subgraphs
+map fusion
+relation simplify
+property rewrites
+~~~
+
+并记录：
+
+~~~text
+nodes before/after
+map fusion count
+blocked transformations
+idempotent map eliminations
+~~~
+
+特别值得注意的是：
+
+~~~text
+effect_blocked_*
+property_blocked_*
+~~~
+
+这些统计本身就体现一个正确 optimizer 的态度：
+
+> **不能证明/满足 admission 的 rewrite，应该明确“不做”，而不是 silent best effort。**
+
+## 45.4 Step 4 — Compile Plan
+
+完整 canonical pipeline 含 terminal Reduce。
+
+当前 compiled Plan 是它最自然的 execution artifact。
+
+Plan compile 会提前：
+
+~~~text
+decode topology
+resolve execution handlers
+bind type/callable metadata
+record terminal reduce
+resolve instruction sequence
+~~~
+
+执行阶段明确承诺：
+
+> **不再查询 Graph / Node / Edge / Subgraph topology。**
+
+也就是说：
+
+~~~text
+Graph
+    is source program description
+
+Plan
+    is pre-decoded execution representation
+~~~
+
+Plan 不是另一个 Graph。
+
+它的存在意义就是：
+
+~~~text
+remove repeated topology decisions from execution
+~~~
+
+## 45.5 Step 5 — Execute
+
+Sequential Plan evaluation拿到：
+
+~~~text
+borrowed input
+compiled instructions
+pre-resolved callables/types
+owned output result
+~~~
+
+然后执行。
+
+理想状态下，per-value path 不再做：
+
+~~~text
+walk arbitrary Graph topology
+lookup operator schema
+infer types
+choose backend
+validate signature
+decide rewrite
+~~~
+
+这些都已经在前面支付。
+
+这就是：
+
+> **Pay Before Execution.**
+
+---
+
+# 46. 一个真实 Rewrite：为什么 Metadata Bit 还不够
+
+canonical pipeline 本身只有一个 Map，不适合为了展示 rewrite 硬造第二个 stage。
+
+所以我们单独使用一个局部变体：
+
+~~~text
+Source<int>
+    ↓
+Map(clamp)
+    ↓
+Map(clamp)
+    ↓
+...
+~~~
+
+假设：
+
+~~~text
+clamp : int -> int
+~~~
+
+并且真正满足：
+
+~~~text
+forall x,
+clamp (clamp x) = clamp x
+~~~
+
+那么第二次 Map 可以被消掉：
+
+~~~text
+Map(clamp)
+Map(clamp)
+    ↓
+Map(clamp)
+~~~
+
+当前 CFlow optimizer 已经有稳定 semantic rewrite id：
+
+~~~text
+IDEMPOTENT_MAP_ELIMINATION
+~~~
+
+并可以在 traced optimization 中记录：
+
+~~~text
+input subgraph
+retained node/callable index
+removed node/callable index
+~~~
+
+这就是：
+
+~~~text
+Proof of Rule
++
+Trace of Instance
+~~~
+
+的分工。
+
+## 46.1 Property claim 只负责 admission
+
+C callable 可以声明：
+
+~~~text
+IDEMPOTENT
+~~~
+
+但这本身只是：
+
+~~~text
+claim / admission metadata
+~~~
+
+真正的 rewrite correctness 来自 semantic law。
+
+如果某个 C function 谎报：
+
+~~~text
+IDEMPOTENT
+~~~
+
+Lean 并不会神奇地证明那个任意机器码真的满足 law。
+
+因此可信链必须明确：
+
+~~~text
+implementation identity
++
+metadata claim
++
+trusted/verified semantic meaning
++
+rewrite theorem
++
+rewrite trace
+~~~
+
+第十一章会把这条链完整展开。
+
+## 46.2 Lean 已经有对应 theorem
+
+当前 formal calculus 的 Rewrite proof 中已经包含：
+
+~~~text
+map_idempotent_elimination
+certified_rewrite_preserves_observations
+~~~
+
+这使书不必再停留在：
+
+~~~text
+“理论上我们以后可以证明 optimizer”
+~~~
+
+而可以直接讨论：
+
+> **现有 rewrite theorem 怎样授权现有 optimizer rule。**
+
+这正是 Modern C + Lean 的专业闭环。
+
+---
+
+# 47. Direct / AOT：最简单的路径应该连 Plan 都不需要
+
+Plan 已经比 Graph Interpreter 简单很多。
+
+但对于非常简单、封闭、同步的：
+
+~~~text
+Filter / Map pipeline
+~~~
+
+Plan 仍然可能是多余层次。
+
+当前 CFlow Direct/AOT path 明确支持一个 bounded Stage IR：
+
+~~~text
+Filter
+Map
+~~~
+
+stage 数量也有显式上限。
+
+它要求每个 stage 满足严格 eligibility。
+
+## 47.1 Direct eligibility 是删除 runtime abstraction 的资格
+
+当前 direct stage eligibility 会检查：
+
+~~~text
+type is direct-eligible
+callable can bind
+capture_size = 0
+effects = PURE
+required properties:
+    DETERMINISTIC
+    TOTAL
+    NO_ALIAS
+signature protocol/type chain matches
+~~~
+
+Filter 还要求：
+
+~~~text
+return bool
+output type = input type
+~~~
+
+Map 要求：
+
+~~~text
+return type itself direct-eligible
+~~~
+
+这不是“为了检查而检查”。
+
+它是在回答：
+
+> **我们什么时候有资格完全跳过通用 invoke/runtime layer？**
+
+## 47.2 AOT dispatch 也分多种 authority
+
+当前 Stage IR 可表示：
+
+~~~text
+STATIC_TARGET
+CANONICAL_RAW_BATCH
+ADAPTER
+~~~
+
+也就是说：
+
+~~~text
+surface callable
+~~~
+
+并不自动意味着所有路径都能生成：
+
+~~~text
+direct static C call
+~~~
+
+eligibility 必须与真实 dispatch authority 一致。
+
+## 47.3 Direct macro 的重要 promise
+
+当前 generated Direct array path 明确承诺：
+
+~~~text
+no indirect stage callback
+no allocation
+no scheduler operation
+~~~
+
+同时检查：
+
+~~~text
+input/output storage
+capacity
+overflow
+aliasing/range overlap
+type chain
+~~~
+
+而失败会返回明确 status：
+
+~~~text
+INVALID_ARGUMENT
+INELIGIBLE
+CAPACITY_EXCEEDED
+~~~
+
+不会：
+
+~~~text
+silently fall back to Plan
+silently fall back to Kernel
+~~~
+
+这正是第十四章 No Silent Fallback 的提前实践。
+
+## 47.4 但当前 Direct 不等于完整 Reduce pipeline
+
+这是书里必须诚实写清楚的一点。
+
+当前 closed direct pipeline 重点是：
+
+~~~text
+Filter / Map
+~~~
+
+canonical：
+
+~~~text
+Filter → Map → Reduce
+~~~
+
+中的 Reduce 当前应走：
+
+~~~text
+compiled Plan
+~~~
+
+而不是把 Direct/AOT 的能力夸大成：
+
+~~~text
+任意 Graph 全部直接生成普通 loop
+~~~
+
+专业书最重要的不是把系统描述得无所不能。
+
+而是：
+
+> **把支持边界写得比 marketing 更清楚。**
+
+---
+
+# 48. Parallel Reduce：并行是 Execution Refinement，不是 Graph Rewrite
+
+Reduce 是一个特别好的例子。
+
+Graph semantic program可以保持：
+
+~~~text
+Reduce(sum)
+~~~
+
+execution 可以选择：
+
+~~~text
+sequential reduce
+~~~
+
+或者在严格前提下：
+
+~~~text
+ordered parallel reduce
+~~~
+
+这不是同一类 transformation。
+
+## 48.1 Semantic rewrite 与 physical execution refinement 要分开
+
+例如：
+
+~~~text
+Map(identity)
+    → remove
+~~~
+
+改变 semantic IR shape，但 theorem 证明 observations 不变。
+
+而：
+
+~~~text
+Reduce sequential
+    → Parallel Reduce
+~~~
+
+可以保持相同 semantic operator，只改变 physical execution form。
+
+formal calculus 已经明确区分：
+
+~~~text
+rewrite rule
+vs
+execution refinement rule
+~~~
+
+这是非常成熟的边界。
+
+## 48.2 并行 Reduce 需要完整 admission contract
+
+至少需要：
+
+~~~text
+homogeneous reducer
+PURE
+TOTAL
+ASSOCIATIVE semantic law
+required order model
+CONCURRENT Executor capability
+supported value storage
+valid task/chunk bounds
+~~~
+
+不能因为：
+
+~~~text
+worker pool exists
+~~~
+
+就自动 parallelize Reduce。
+
+## 48.3 Unsupported parallel mode 不能 silent sequential retry
+
+当前 Plan contract 明确：
+
+~~~text
+unsupported plan
+insufficient nonempty chunks
+invalid options
+rejected tasks
+    ↓
+false / explicit failure
+~~~
+
+而不是：
+
+~~~text
+parallel failed
+    ↓
+quietly rerun sequentially
+~~~
+
+为什么？
+
+因为 silent fallback 会：
+
+~~~text
+改变 latency/resource behavior
+掩盖 admission bug
+破坏 caller policy
+让 benchmark 失真
+~~~
+
+所以 fallback 本身必须是上层显式 policy。
+
+---
+
+# 49. Certificate：Execution artifact 为什么仍然需要被绑定到 Graph
+
+Plan 预解码以后，Graph topology 不再进入 execution。
+
+那怎样确认：
+
+~~~text
+Plan
+~~~
+
+仍然对应：
+
+~~~text
+那个被批准的 normalized Graph
+~~~
+
+当前 certificate 记录：
+
+~~~text
+version
+certified path
+order
+required capabilities
+graph version
+graph fingerprint
+semantic rows
+~~~
+
+每个 row 包含：
+
+~~~text
+opcode
+instruction index
+callable index
+effects
+properties
+input/output type
+callable
+typed parameter
+~~~
+
+所以 certificate 不是：
+
+~~~text
+“trust me, this plan was compiled”
+~~~
+
+而是一个可检查 execution witness。
+
+## 49.1 Certificate 不是 wire format
+
+当前实现明确：
+
+~~~text
+pointer-bearing rows
+process-local Graph identity
+execution-only witness
+~~~
+
+因此不能：
+
+~~~text
+serialize certificate to disk
+ship to another process
+treat raw pointer/address as stable identity
+~~~
+
+这与前面 semantic identity 的原则一致。
+
+## 49.2 Version + fingerprint 防止 stale artifact
+
+Graph 被 mutation 后：
+
+~~~text
+version changes
+~~~
+
+certificate 绑定失败。
+
+如果还需要更强结构绑定：
+
+~~~text
+fingerprint
+~~~
+
+进一步确保 rows/topology/callables 对应。
+
+目的不是密码学签名。
+
+目的是：
+
+> **让一个 execution artifact 无法在 source program 已变化后继续被误当成可信。**
+
+## 49.3 Lean 已经证明 certificate/refinement observation preservation
+
+当前 formal proof 中已有：
+
+~~~text
+certificate_preserves_observation
+parallel_certificate_preserves_observation
+execution_refinement_preserves_semantics
+~~~
+
+特别是 parallel certificate theorem 明确表达：
+
+~~~text
+Graph-to-Plan observation equality
++
+Reduce → ParallelReduce physical refinement
+    ↓
+same semantic result
+~~~
+
+这使 Certificate 不只是 runtime validation feature。
+
+它是：
+
+~~~text
+formal theorem
+    ↕
+C runtime witness
+~~~
+
+之间的 bridge。
+
+---
+
+# 50. Proof Trace：为什么还需要记录“发生了哪一次 Rewrite”
+
+Certificate 主要回答：
+
+~~~text
+这个 Plan / execution path
+是否绑定到这个 Graph？
+~~~
+
+Proof Trace 回答另一个问题：
+
+~~~text
+这个 optimized Graph
+为什么可以从 source Graph 得到？
+~~~
+
+当前 traced optimizer 会 transactionally 生成：
+
+~~~text
+optimized Graph
++
+owned rewrite trace
+~~~
+
+trace 还绑定：
+
+~~~text
+exact source Graph object/version
+exact optimized Graph object/version
+~~~
+
+所以我们可以把 trusted chain拆成：
+
+~~~text
+Lean:
+    proves rewrite rule
+
+Optimizer:
+    emits rewrite instance trace
+
+Checker/AOT matcher:
+    verifies this trace matches concrete Graphs
+
+Plan Certificate:
+    binds execution artifact to approved optimized Graph
+~~~
+
+这比单纯：
+
+~~~text
+optimizer says success
+~~~
+
+强得多。
+
+---
+
+# 51. Cost Model：Lean 也不应该“证明 benchmark 数字”
+
+形式化可以讨论：
+
+~~~text
+representation/refinement cost dimensions
+~~~
+
+例如：
+
+~~~text
+graph queries
+scheduler hops
+buffering
+dispatch layers
+~~~
+
+当前 formal Cost proof 已经有：
+
+~~~text
+direct_excludes_kernel_trigger
+plan_excludes_kernel_trigger
+direct_cost_dominates_plan
+plan_cost_dominates_kernel
+costed_refinement_preserves_semantics
+~~~
+
+但必须准确理解这种 theorem。
+
+它证明的是：
+
+> 在给定抽象 cost model 和 premises 下，某 representation 消除了某些 cost dimensions / 保持 semantics。
+
+它不证明：
+
+~~~text
+这个 CPU 上快 17.3%
+Clang 19 一定 inline
+L1 cache miss 一定减少多少
+Windows 比 Linux 快
+~~~
+
+真实 wall-clock/perf 数据必须来自 benchmark。
+
+这又是一次：
+
+~~~text
+formal evidence
+≠
+empirical evidence
+~~~
+
+---
+
+# 52. Performance Evidence：第十章必须建立 measurement discipline
+
+当前 CFlow 已经有专门 benchmark targets：
+
+~~~text
+cflow_direct_benchmark
+cflow_parallel_reduce_benchmark
+cflow_graph_path_benchmark
+cflow_branching_csr_benchmark
+cflow_reactive_benchmark
+cflow_machine_hierarchy_benchmark
+~~~
+
+书里后续如果要给出具体性能结论，必须记录：
+
+~~~text
+commit
+compiler
+compiler version
+optimization flags
+platform / CPU
+input size
+operator count
+warmup
+repetition count
+statistic
+baseline
+~~~
+
+## 52.1 canonical data-flow benchmark 应至少比较
+
+~~~text
+hand-written C loop
+Graph/kernel execution
+compiled Plan
+eligible Direct Filter/Map prefix
+~~~
+
+对于含 Reduce 的完整 pipeline：
+
+~~~text
+hand-written sequential loop
+sequential compiled Plan
+ordered parallel reduce Plan
+~~~
+
+Direct 不支持的路径必须标成：
+
+~~~text
+not eligible
+~~~
+
+而不是强行给出一个 fallback 数字。
+
+## 52.2 Control-plane cost 也要测
+
+Build Once, Execute Many 不是说 build cost 等于零。
+
+应该分别测：
+
+~~~text
+Graph build
+normalize
+optimize
+plan compile
+certificate build/check
+execution
+~~~
+
+然后根据 workload amortization 回答：
+
+> 重复执行多少次以后，提前付出的 control-plane cost 才值得？
+
+这比单独展示一个 hot-loop ns/op 更有工程意义。
+
+## 52.3 不在没有 fresh measurement 时写“X 倍更快”
+
+书可以解释：
+
+~~~text
+为什么 Direct 理论上少了哪些动态步骤
+为什么 Plan 不再做 topology query
+为什么 Graph interpretation 多哪些工作
+~~~
+
+但具体数字必须等 canonical benchmark 在固定 commit 上执行以后再写入。
+
+这条编辑纪律会防止本书从 engineering book 退化成性能宣传材料。
+
+---
+
+# 53. Machine / Actor 也遵循同一条 Control/Execution Plane 原则
+
+第八、九章看起来与 Graph optimizer 不同，其实原则完全一致。
+
+## 53.1 Machine build 时做复杂工作
+
+Build 阶段已经可以完成：
+
+~~~text
+ID normalization
+type validation
+guard/action contract validation
+transition reference validation
+priority/ambiguity check
+reachability
+unused declaration detection
+terminal transition validation
+~~~
+
+于是 runtime SmallStep 不需要每次重新扫描/证明整个 schema。
+
+## 53.2 Actor init/start 时做 capability admission
+
+Actor control plane可以确认：
+
+~~~text
+Machine/Statechart accepted
+Serial Executor valid
+concurrent Scheduler valid
+mailbox capacity fixed
+callbacks/bindings valid
+lifecycle starts consistently
+~~~
+
+然后 message hot path只需要：
+
+~~~text
+lifecycle gate
+typed bounded enqueue
+serialized dequeue
+Machine step
+commit
+~~~
+
+这也是：
+
+~~~text
+Know More
+    ↓
+Do Less
+~~~
+
+而不是 Graph 独有技巧。
+
+---
+
+# 54. What We Learned
+
+第十章终于把前面看起来很多的组件压缩成一条统一原则。
+
+~~~text
+CMeta
+    gives knowledge
+
+CFlow Graph/Machine
+    makes program structure explicit
+
+Lean
+    proves selected semantic laws/refinements
+
+Control Plane
+    validates, normalizes, optimizes, compiles, certifies
+
+Execution Plane
+    consumes pre-decided artifacts
+~~~
+
+canonical data-flow pipeline现在可以完整走完：
+
+~~~text
+Stream API
+    ↓
+Surface Graph
+    ↓
+Normalize
+    ↓
+Optimize
+    ↓
+Compiled Plan
+    ↓
+Certificate
+    ↓
+Sequential / admitted parallel execution
+~~~
+
+简单 Filter/Map pipeline 还可以进一步：
+
+~~~text
+typed AOT Stage IR
+    ↓
+strict eligibility
+    ↓
+equivalence witness
+    ↓
+generated direct C path
+~~~
+
+而 rewrite correctness由：
+
+~~~text
+Semantic Law
++
+Lean theorem
++
+Concrete proof trace
+~~~
+
+共同建立。
+
+这就让：
+
+~~~text
+Rich Control Plane
+→
+Simple Execution Plane
+~~~
+
+从一个架构口号变成真实工程链。
+
+Part III 到这里完成。
+
+下一章要回答的已经不是：
+
+~~~text
+“还能优化什么？”
+~~~
+
+而是更严格的问题：
+
+> **Trusted base 到底有哪些？一个 Lean theorem、一个 metadata claim、一个 optimizer trace、一个 certificate、一个 C differential test，各自能证明什么、不能证明什么？**
+
+这就是第十一章。
+
+
