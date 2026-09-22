@@ -1151,7 +1151,7 @@ same typed Graph
 
 ## 21. Semantic Contract：Stream façade 不能偷偷改变什么
 
-### 32.1 Operator semantics 必须与 Graph 一致
+### 21.1 Operator semantics 必须与 Graph 一致
 
 如果 Graph 中：
 
@@ -1183,7 +1183,7 @@ typed Graph builder wrapper
 second semantic authority
 ~~~
 
-### 32.2 Stream owns the description, not the source data
+### 21.2 Stream owns the description, not the source data
 
 Stream 可以拥有：
 
@@ -1206,7 +1206,7 @@ container lifetime
 
 如果绑定的是 borrowed Range，那么 evaluation 期间原 owner 必须继续存活并满足 Range contract。
 
-### 32.3 Evaluation state 必须与 reusable Graph 分离
+### 21.3 Evaluation state 必须与 reusable Graph 分离
 
 一个很关键的 contract 是：
 
@@ -1231,7 +1231,7 @@ Build Once, Execute Many
 
 会立刻失效。
 
-### 32.4 “可链式”不等于“延迟执行对象无限增长”
+### 21.4 “可链式”不等于“延迟执行对象无限增长”
 
 Stream 只负责 construction。
 
@@ -1258,7 +1258,7 @@ Stream façade 本身不需要拥有一套新的复杂 formal semantics。
 
 更自然的证明目标是：
 
-### 33.1 Surface-to-Graph construction correctness
+### 22.1 Surface-to-Graph construction correctness
 
 如果一串 Stream method：
 
@@ -1294,7 +1294,7 @@ GraphSemantics(g, input)
 
 > **Façade 越薄，需要独立证明的语义就越少。**
 
-### 33.2 Type-chain preservation
+### 22.2 Type-chain preservation
 
 对于：
 
@@ -1317,7 +1317,7 @@ U != V
 
 应该在 Graph construction/admission 阶段失败。
 
-### 33.3 Reusable description / fresh execution separation
+### 22.3 Reusable description / fresh execution separation
 
 形式模型中最好明确区分：
 
@@ -1365,7 +1365,7 @@ struct cflow_stream {
 
 这段 representation 本身就回答了很多问题。
 
-### 34.1 Graph 是 Stream 的核心 owned description
+### 23.1 Graph 是 Stream 的核心 owned description
 
 Stream 不是指向一个隐藏 Stream runtime。
 
@@ -1387,7 +1387,7 @@ Graph
 
 不是架构图上的理想关系，而是实际 data layout。
 
-### 34.2 Range 是输入协议，不是 Graph 的一部分
+### 23.2 Range 是输入协议，不是 Graph 的一部分
 
 input_range 与 has_input_range 表示：
 
@@ -1408,7 +1408,7 @@ other source
 
 可以逐步共享后面的计算描述。
 
-### 34.3 Method fields 是显式 self 的 ISO C11 façade
+### 23.3 Method fields 是显式 self 的 ISO C11 façade
 
 当前 Stream methods 不是 C++ member function。
 
@@ -1424,7 +1424,7 @@ stream.map(&stream, ...)
 1. 保持 ISO C11；
 2. surface syntax 更接近 fluent API，但没有引入 object runtime。
 
-### 34.4 Public Graph view 是 read-only introspection
+### 23.4 Public Graph view 是 read-only introspection
 
 当前 API 已经明确：
 
@@ -1481,7 +1481,7 @@ Check Certificate
 
 它已经是实际 trusted execution path 的测试对象。
 
-### 35.1 Surface/API evidence
+### 24.1 Surface/API evidence
 
 需要验证：
 
@@ -1491,7 +1491,7 @@ filter/map/reduce method
 Graph rows appear with expected operators/types
 ~~~
 
-### 35.2 Reuse evidence
+### 24.2 Reuse evidence
 
 同一 Stream description 在合法 Range contract 下多次 evaluation，应拥有独立 execution state。
 
@@ -1505,7 +1505,7 @@ temporary value storage
 
 不能泄漏回 Graph description。
 
-### 35.3 Ownership evidence
+### 24.3 Ownership evidence
 
 测试要区分：
 
@@ -1517,7 +1517,7 @@ but
 Stream does not destroy borrowed container/Range owner
 ~~~
 
-### 35.4 Certificate / verification evidence
+### 24.4 Certificate / verification evidence
 
 当 Stream 构造完成以后，所有 trusted transformation 都应该针对：
 
