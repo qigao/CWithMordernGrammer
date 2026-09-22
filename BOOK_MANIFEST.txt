@@ -1,5 +1,5 @@
 第一章：CMeta 的起点——从写 C 宏的痛苦开始.md
-第二章：从宏到类型——Traits、Generic 与有限推导.md
+ch-02：从宏到类型——Traits、Generic 与有限推导.md
 第三章：从函数指针到可执行对象——Callback、Lambda 与 Bind.md
 第四章：从 Callable 到 Graph——把计算本身变成数据.md
 第五章：从 Graph 到 Stream——用高级接口解决数据转换问题.md
