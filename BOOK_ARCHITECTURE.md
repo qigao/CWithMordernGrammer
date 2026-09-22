@@ -1,525 +1,756 @@
-# Book Architecture — 从 Plain C 到 Typed and Verified Computation
+# Book Architecture — 有限 CMeta 如何让 C 获得高级设计能力
 
-本文件定义全书下一阶段的结构与编辑约束。
+本文件定义下一阶段的全书重构方向。
 
-这本书不是 CMeta/CFlow 的 API 手册，也不是一本单独讲 Lean 的形式化教材。它的主题是：
+这本书不是 CMeta API reference，也不是 Lean 教材，更不是“如何用宏模拟 C++”。
 
-> **如何从最基础的 C 语言出发，逐步构造类型化、可组合、可验证的高级程序，同时让最终执行仍然保持普通 C 的 ABI、性能和可预测性。**
+它要回答的是：
 
-全书的方法可以浓缩成：
+> **当普通 C 因为重复定义、重复契约、计算结构不可见而越来越难维护时，怎样用很小、有限、可解释的 Meta 设计，把复杂问题重新变成简单 C；又怎样在这个基础上构造 C 原本很难表达的高级计算与应用模型。**
+
+目标读者是已经有一定工程经验的 C 程序员。
+
+## 1. 全书唯一主线
+
+全书默认沿着一条因果链推进：
 
 ~~~text
-Understand
+真实 C 问题
     ↓
-Model
+embedded C baseline
     ↓
-Formalize
+发现重复 fact / contract / state relation
     ↓
-Verify
+最小有限设计
     ↓
-Implement
+CMeta / CFlow surface
     ↓
-Lower
+更高级的能力变得容易
     ↓
-Measure
+如果出现 semantic rewrite / optimization / state law
+    才引入 Lean
+    ↓
+ordinary C implementation / lowering
+    ↓
+toolchain / tests / ABI / measurement
+~~~
+
+有三条编辑纪律。
+
+第一，**Code first**。
+
+不要先写：
+
+~~~text
+“C 缺少反射”
+“我们需要 Graph”
+“Lean 可以证明……”
+~~~
+
+先给一段真实 C，让读者看到为什么原来的写法在规模扩大以后开始痛苦。
+
+第二，**Lean after semantics**。
+
+没有明确 observable semantics 时，不引入 theorem。
+
+Generic、Struct、Traits、typed container 这类问题首先是 C 的重复契约问题，与 Lean 无关。
+
+Lean 真正有价值的地方是：
+
+~~~text
+rewrite
+normalization
+optimizer legality
+state transition
+refinement
+certificate
+~~~
+
+第三，**show the ordinary C endpoint**。
+
+每一个高级 abstraction 都要回答：
+
+~~~text
+最终是什么 C type？
+调用哪个 C function？
+ownership 在哪里？
+hot path 还查不查 Graph？
+是否可以预解析成 index / handler？
+是否可以完全 lower 掉？
+~~~
+
+---
+
+# Part I — 用有限 CMeta 消除重复定义与重复契约
+
+Part I 不需要 Lean 来成立。
+
+它只回答：
+
+> **C 工程中为什么同一个事实会被写很多次，以及有限 Generic/Meta 怎样把它收成一次定义。**
+
+## Chapter 1 — 从重复代码到重复知识
+
+从最普通的 C 宏开始。
+
+主要使用 embedded C 展示：
+
+~~~c
+typedef struct IntVec { ... } IntVec;
+typedef struct DoubleVec { ... } DoubleVec;
 ~~~
 
 以及：
 
-~~~text
-Modern C
-=
-Plain C Execution
-+
-Typed Control Plane
-+
-Verified Semantics
+~~~c
+#define DECLARE_VEC(Name, T) ...
 ~~~
 
-## 1. 全书的三条主线
-
-### Design
-
-回答“为什么这样设计”。
-
-重点是从普通 C 的真实问题出发，识别最小必要抽象，并明确 ownership、lifetime、admission、failure、fallback、boundedness 以及模块责任边界。
-
-### Semantics / Lean
-
-回答“哪些性质是真的”。
-
-Lean 的职责不是替代 C，而是：
-
-- 把隐含假设变成明确语义；
-- 区分 metadata claim 与 semantic law；
-- 暴露设计缺失的前置条件；
-- 证明合法 rewrite / normalization；
-- 建立 small-step semantics、refinement 或 certificate；
-- 为优化和状态转换建立可信边界。
-
-不是每章都必须包含大量 Lean 代码，但每章都要明确 observable semantics、值得证明的 invariant/law，以及哪些问题本来就不属于形式化证明。
-
-### Real C Implementation / Evidence
-
-回答“最终怎样落回真实 C”。
-
-逐步补齐：
-
-- public C API；
-- struct / descriptor / vtable / generated symbol；
-- ownership / lifetime；
-- status / error model；
-- ABI / Multi-TU；
-- runtime layout；
-- hot path；
-- tests / sanitizer / installed consumer；
-- benchmark 与手写 Plain C baseline。
-
-## 2. 每章统一结构
-
-默认骨架：
+让读者看到问题如何从：
 
 ~~~text
-Problem
-   ↓
-Plain C Baseline
-   ↓
-Design
-   ↓
-Semantic Contract
-   ↓
-Lean / Proof Obligation
-   ↓
-C Implementation
-   ↓
-Evidence
+code duplication
 ~~~
 
-详细要求见 [CHAPTER_TEMPLATE.md](./CHAPTER_TEMPLATE.md)。
+升级成：
 
-核心不是形式整齐，而是让读者始终知道：
+~~~text
+macro-family duplication
+contract duplication
+~~~
 
-> **问题是什么 → 为什么需要抽象 → 抽象承诺什么 → 为什么可信 → 在 C 里怎样实现 → 成本是多少。**
+结论不是“宏不好”。
 
-# Part I — 从普通 C 到类型化计算
+结论是：
 
-## Chapter 1 — Macro Reuse
+> **宏应该生成稳定事实，但不能让每个模块创造自己的小语言。**
 
-核心问题：普通 C 的重复什么时候从“代码重复”变成“知识重复”？
+## Chapter 2 — Generic：统一有限类型契约
 
-重点：
+Chapter 2 是 Part I 的核心。
 
-- Plain C baseline；
-- 最小宏复用；
-- preprocessor 边界；
-- 为什么宏没有类型；
-- _Generic 为什么改变问题性质。
+必须围绕真实 C before/after 展开：
 
-Lean 在本章不是主角。Evidence 侧重 preprocessing、compile diagnostics、cross-compiler behavior 与 generated code。
+~~~c
+DECLARE_LIST(IntList, int);
+DECLARE_VEC(IntVec, int);
+DECLARE_OPTION(MaybeInt, int);
+~~~
 
-## Chapter 2 — Type / Traits / Generic / Finite Inference
+变成：
 
-核心跨越：从生成代码进入描述类型、描述能力、有限推导。
+~~~c
+typed(List, IntList, int);
+typed(Vec, IntVec, int);
+typed(Option, MaybeInt, int);
+~~~
 
-需要加强：
+然后继续解决：
 
-- descriptor 的真实表示；
-- semantic identity；
-- finite type universe；
-- TypeFunction / Predicate；
-- Multi-TU implications；
-- 可验证性为何来自 finite / explicit。
+~~~text
+struct fields repeated in metadata
+trait flags repeated with function slots
+compile-time relation repeated with runtime relation
+descriptor address confused with semantic identity
+~~~
 
-Lean 目标：
+关键 CMeta vocabulary：
 
-- 有限映射的 totality / uniqueness；
-- admissible inference；
-- identity 与 representation 的区分。
+~~~text
+Struct
+Enum
+Traits
+typed
+CMETA_TYPEOF
+TypeFunction
+ValueFunction
+Predicate
+semantic type identity
+~~~
 
-## Chapter 3 — Callable / Lambda / Bind
+本章不出现“因为 finite，所以需要 Lean”的叙事。
 
-核心问题：如何把函数地址提升为带类型、环境和语义属性的可执行对象？
+Finite 的工程价值首先是：
 
-需要闭环：
+~~~text
+bounded vocabulary
+fail-fast unsupported cases
+stable generated surface
+predictable ABI
+no hidden fallback
+~~~
 
-- function pointer baseline；
-- signature normalization；
-- capture representation；
-- adapter / lambda / bind / generator；
-- effects vs properties；
-- callable identity；
-- inline storage 与 ABI。
+## Chapter 3 — Callable：把行为契约也收成一次定义
 
-Lean 目标：
+普通 callback 的问题要通过代码展示：
 
-- signature compatibility；
-- composition laws；
-- property admission 与 semantic law 的边界。
+~~~c
+void (*fn)(void *);
+void *ctx;
+enum signature;
+unsigned effects;
+unsigned properties;
+~~~
 
-# Part II — 从 Callable 到可组合执行
+同一个行为 fact 再次散落。
 
-## Chapter 4 — Graph as Typed IR
+然后引入：
 
-核心跨越：让 computation itself become data。
+~~~text
+signature
+capture
+dispatch authority
+effects
+properties
+typed callable
+~~~
 
-从这一章开始建立贯穿后续章节的 canonical example：
+这里仍然主要是 CMeta engineering。
+
+这一章的结束点是：
+
+> **数据和行为都已经成为 typed value；下一步可以保存它们之间的计算关系。**
+
+---
+
+# Part II — 用 CMeta / CFlow 构造、证明和优化 LINQ-like Graph
+
+这是全书最重要的技术 Part。
+
+它回答：
+
+> **C 已经可以写任何 for-loop，为什么还需要 Graph？**
+
+答案不是语法糖。
+
+答案是：
+
+> **普通 C/C++ 的 for-loop 执行完就消失了；Graph 把整个计算关系保存成一个 typed program object，因此它可以被检查、推导、证明、重写、优化和编译。**
+
+## Canonical example
+
+Part II 只使用少量持续演化的 C example。
+
+Plain C：
+
+~~~c
+long sum_even_squares(const int *xs, size_t n)
+{
+    long total = 0;
+
+    for (size_t i = 0; i < n; ++i) {
+        int x = xs[i];
+
+        if ((x & 1) != 0)
+            continue;
+
+        total += (long)x * x;
+    }
+
+    return total;
+}
+~~~
+
+逐步变成：
 
 ~~~text
 Source<int>
     ↓
-Filter<int>
+Filter(is_even)
     ↓
-Map<int,int>
+Map(square)
     ↓
-Reduce<int,int>
+Reduce(sum)
 ~~~
 
-本章建立 typed node / edge、validate、type propagation、immutable graph snapshot、surface graph vs normalized graph，并解释为什么 Graph 不直接等于 Runtime。
-
-Lean / semantics：graph well-formedness 与 observable semantics 的最小定义。
-
-Implementation：实际 node/edge representation、builder、failure point 与 ownership。
-
-## Chapter 5 — Stream as a Graph Front-end
-
-核心观点：Stream 是构造 Graph 的高级 façade，而不是另一套 Runtime。
-
-使用 canonical example 从 surface API 一路展开到 typed graph。
-
-Lean / semantics：
-
-- map/filter/reduce operator laws；
-- 哪些 fusion 可以证明；
-- 哪些仅凭 property bit 不允许做。
-
-Evidence：
-
-- usability；
-- generated graph；
-- hand-written loop baseline。
-
-## Chapter 6 — Reactive: Time, WAIT, Demand
-
-核心跨越：数据关系保持不变，但执行模型开始拥有时间。
-
-明确：
-
-- WAIT != blocking；
-- wake protocol；
-- demand；
-- subscription；
-- bounded resource；
-- terminal / cancel；
-- lost wakeup。
-
-Lean 目标：
-
-- wake/demand invariant；
-- terminal safety；
-- selected liveness/safety properties。
-
-Implementation：state representation、atomic/concurrency boundary、manual clock 与 deterministic tests。
-
-## Chapter 7 — Executor
-
-核心原则：Executor 决定怎样执行，不决定执行什么。
-
-加强：
-
-- Manual / Serial / Concurrent；
-- bounded queue；
-- FULL；
-- shutdown；
-- Scheduler orthogonality；
-- thread/coro/readiness/native async I/O 的位置。
-
-Evidence：deterministic tests、queue saturation、throughput/latency、thread ownership。
-
-# Part III — 有状态、并发与 Lowering
-
-## Chapter 8 — State Machine
-
-核心问题：如何把控制状态也变成 typed, analyzable data？
-
-完整模型：
+每个阶段都必须同时展示：
 
 ~~~text
-Event Admission
-      ↓
-Transition Selection
-      ↓
-Guard
-      ↓
-Action
-      ↓
-State Commit
-      ↓
-Observation
+surface C
+internal Graph
+semantic contract
+lowered/compiled C shape
 ~~~
 
-Lean 是本章的重要设计工具：
+## Graph — computation becomes data
 
-- determinism；
-- ambiguity；
-- terminal properties；
-- transition preservation；
-- small-step semantics。
+Graph 章节重点不再是解释“Node/Edge 是什么”。
 
-Implementation：immutable machine、mutable instance、event representation、serial execution boundary。
+应该用 C 对比说明：
 
-## Chapter 9 — Actor
+~~~text
+hand-written loop
+    看不到完整 program structure
 
-核心观点：Actor 不是一个线程，而是 identity + bounded mailbox + serialized ownership + lifecycle。
+typed Graph
+    可以 inspect / validate / normalize / rewrite / compile
+~~~
 
-Lean / semantics：
+Graph 必须至少拥有：
 
-- single mutable owner；
-- lifecycle admission；
-- stale identity；
-- ordering assumptions。
+~~~text
+typed node
+typed edge
+operator semantics
+callable
+snapshot/version
+observable semantics
+~~~
 
-Evidence：
+## Stream / LINQ-like surface
 
-- multi-producer；
-- bounded mailbox；
-- lifecycle race；
-- no silent drop。
+Stream 是 Graph 的 surface，不是另一套 runtime。
 
-## Chapter 10 — Rich Control Plane, Simple Execution Plane
+读者应该能看到类似：
 
-这是全书架构核心之一。
+~~~c
+/* illustrative surface */
+stream_from(int, input, n)
+    .filter(is_even)
+    .map(square)
+    .reduce(sum);
+~~~
+
+如何形成 canonical Graph。
+
+重点不是语法像 LINQ。
+
+重点是：
+
+> **C 第一次拥有“高级查询/数据流语法 + 完整可分析 IR”这一组合。**
+
+## Lean 在这里第一次成为核心工具
+
+当 optimizer 想做：
+
+~~~text
+Map(f)
+Map(f)
+    ↓
+Map(f)
+~~~
+
+metadata 中的 IDEMPOTENT 只是一条 claim。
+
+真正允许 rewrite 的是：
+
+~~~text
+f(f(x)) = f(x)
+~~~
+
+Lean 应该出现在这里，而不是 Chapter 2。
+
+Part II 至少完整展示：
+
+~~~text
+Graph pattern
++
+metadata admission
++
+semantic law
++
+Lean preservation theorem
++
+concrete C rewrite
+~~~
+
+## Optimization / lowering
+
+这是 Part II 的第二个核心。
+
+Graph 不能成为每个 value 都查询的 runtime object。
+
+需要展示：
 
 ~~~text
 Surface Graph
     ↓
 Normalize
     ↓
-Verify / Optimize
+Optimize
     ↓
 Compile Plan
     ↓
-Direct / Planned Execution
+pre-resolved step index / handler / callable
     ↓
-Plain C Hot Path
+execute values
 ~~~
 
-必须给出完整 end-to-end case：
+读者必须看到“前后 C 代码”的差异。
 
-1. surface API；
-2. graph；
-3. semantic metadata；
-4. normalized IR；
-5. Lean-backed rewrite；
-6. optimized plan；
-7. lowered C execution；
-8. benchmark。
+解释器式 hot path：
 
-这是全书从“设计书”走向“Modern C engineering book”的关键章。
+~~~c
+node = graph_node(graph, node_id);
 
-# Part IV — 可信边界与工程边界
-
-## Chapter 11 — Lean and the Trusted Boundary
-
-本章成为全书 proof methodology。
-
-核心链：
-
-~~~text
-Graph Pattern
-      +
-Metadata Admission
-      +
-Semantic Law
-      ↓
-Preservation Theorem
-      ↓
-Manifest / Certificate
-      ↓
-C Implementation
+switch (node->op) {
+case CFLOW_MAP:
+    ...
+}
 ~~~
 
-区分 claim、invariant、semantic law、theorem、generated fact、certificate、runtime validation。
+Plan path 的目标：
 
-至少选择 2–3 个前文真实 rewrite / state law 做完整 Lean derivation。
-
-## Chapter 12 — ABI / Multi-TU / Semantic Identity
-
-回答：一个在单 TU demo 中成立的设计，怎样成为真正可安装、可链接、可演进的 C library？
-
-加强真实 engineering evidence：
-
-- installed consumer；
-- shared/static；
-- symbol ownership；
-- descriptor identity；
-- ABI surface；
-- public struct policy；
-- generated code ownership；
-- cross-TU tests。
-
-Lean 在这里角色有限但明确：不要把 linker/ABI/toolchain 问题误写成形式化问题。
-
-# Part V — 高级应用、克制与方法论
-
-## Chapter 13 — Serialization / RPC / Plugin / Workflow
-
-从“能力枚举”升级为“组合证明”。
-
-每个高级系统都回答：
-
-~~~text
-Which primitives?
-Which semantic contracts?
-Which runtime pieces?
-Which ABI boundary?
-Which evidence?
+~~~c
+for (size_t i = 0; i < plan->step_count; ++i) {
+    const cflow_step *step = &plan->steps[i];
+    step->handler(step, frame);
+}
 ~~~
 
-建议深入两个案例：Serialization / Binding，以及 Workflow / RPC 之一；其他应用作为扩展图谱。
+再进一步，Direct/AOT eligibility 满足时：
 
-## Chapter 14 — Where Meta Should Stop
+~~~c
+for (...) {
+    if (!is_even(x))
+        continue;
 
-这是 anti-overengineering 章节。
-
-用前文案例验证十条纪律：
-
-- finite；
-- explicit；
-- bounded；
-- fail-fast；
-- no silent fallback；
-- static when possible；
-- no hidden runtime；
-- cross-compiler semantics first；
-- naming does not define ownership；
-- module owns meaning。
-
-加入失败设计或 counterexample。
-
-## Chapter 15 — From Macro Reuse to Typed Computation
-
-最终不总结 API，而总结方法论：
-
-~~~text
-Plain C
-  +
-Finite Typed Knowledge
-  +
-Explicit Semantic Laws
-  +
-Verified Transformations
-  +
-Simple Lowered Execution
-=
-Modern C
+    total += square(x);
+}
 ~~~
 
-最后重新走一遍：
+Graph 可以完全退出 hot path。
 
-~~~text
-Understand
- → Model
- → Formalize
- → Verify
- → Implement
- → Lower
- → Measure
-~~~
+这就是：
 
-并说明什么时候最好的选择仍然是普通 C。
+> **Rich Control Plane, Simple Execution Plane。**
 
-## 3. Lean 在全书中的定位
+## Part II 需要的 evidence
 
-正确关系：
-
-~~~text
-C problem
-   ↓
-C design
-   ↓
-semantic question
-   ↘
-     Lean
-   ↙
-stronger C design
-   ↓
-implementation
-~~~
-
-不追求 theorem 数量。更重要的是：
-
-- proof 是否改变设计；
-- proof obligation 是否暴露缺失前置条件；
-- theorem 是否授权真实 optimizer rewrite；
-- formal model 是否对应 C runtime observable semantics；
-- implementation 是否能通过 refinement / certificate / test 与 formal model 连接。
-
-## 4. Evidence 标准
-
-### Compile-time
-
-- expected compile success/failure；
-- static assertion；
-- cross-compiler behavior；
-- generated symbols/types。
-
-### Runtime
-
-- deterministic unit test；
-- state transition test；
-- bounded/failure test；
-- concurrency stress；
-- sanitizer。
-
-### Formal
-
-- Lean theorem；
-- finite exhaustive check；
-- model invariant；
-- preservation proof。
-
-### Performance
-
-只有声明 zero-cost / direct / faster / cheaper 时才必须给 benchmark。
-
-建议至少比较：
+至少比较：
 
 ~~~text
 hand-written C
-direct lowered path
-compiled plan
-graph/interpreted path
+Graph/interpreted path
+compiled Plan
+Direct/AOT path
 ~~~
 
-并记录 workload、compiler、optimization level 和 measurement limitations。
-
-## 5. Editorial rules
-
-1. **Plain C first.** 没有 baseline，就不引入抽象。
-2. **Code first, meta later.** 先看重复是否真的是稳定知识。
-3. **Finite by default.**
-4. **Explicit ownership.**
-5. **No silent semantic change.**
-6. **Lean proves semantics, not marketing claims.**
-7. **Metadata is not proof.**
-8. **High-level syntax must expose its lowering story.**
-9. **Every abstraction must identify its runtime cost center.**
-10. **The best endpoint may be ordinary C again.**
-
-## 6. Completion definition
-
-逐章重构完成时，读者应该能走完：
+并给：
 
 ~~~text
-repetition
-→ reusable fact
-→ type knowledge
-→ semantic model
-→ composable computation
-→ stateful/concurrent application
-→ Lean-assisted verification
-→ optimized/lowered C
-→ tests and measurements
+compiler
+flags
+platform
+workload
+measurement limitations
 ~~~
 
-最终获得的不是一套必须采用的 framework，而是一种设计 Modern C 系统的方法。
+不要把 Lean theorem 当 benchmark。
+
+---
+
+# Part III — 在 CMeta / CFlow 上设计高级应用
+
+Part III 的主题不是继续增加语言 feature。
+
+它回答：
+
+> **当 Type、Generic、Callable、Graph、Plan、Executor、Semantic Law 已经存在以后，原本在 C 中非常难写清楚的系统可以怎样组合出来？**
+
+每一个 application 都必须从 C example 开始。
+
+## Reactive / async I/O
+
+从一个普通 blocking/readiness loop 开始：
+
+~~~c
+ssize_t n = read(fd, buffer, sizeof(buffer));
+
+if (n < 0 && errno == EAGAIN) {
+    ...
+}
+~~~
+
+逐步展示：
+
+~~~text
+WAIT
+arm
+wake
+demand
+subscription
+terminal
+cancel
+~~~
+
+然后连接真实 async file/network driver。
+
+目标是让读者看到：
+
+> **Reactive 不是 framework magic，而是 Graph execution 多了时间和 demand。**
+
+## Executor / Scheduler
+
+用任务队列 C code 展示：
+
+~~~c
+if (queue_full(exec))
+    return FULL;
+~~~
+
+再说明：
+
+~~~text
+Executor = how
+Scheduler = when
+Graph/Machine = what
+~~~
+
+高级层不应该自己重新发明线程系统。
+
+## State Machine
+
+State Machine 必须用一个完整 C case 贯穿：
+
+~~~text
+DISCONNECTED
+CONNECTING
+CONNECTED
+CLOSING
+~~~
+
+Plain C baseline：
+
+~~~c
+switch (state) {
+case CONNECTING:
+    if (event == CONNECT_OK) {
+        ...
+    }
+    break;
+}
+~~~
+
+再变成 typed transition data。
+
+重点是：
+
+~~~text
+Event Admission
+Transition Selection
+Guard
+Action
+Commit
+Observation
+~~~
+
+Lean 在这里证明：
+
+~~~text
+determinism
+terminal law
+state typing
+small-step properties
+~~~
+
+而不是证明线程调度。
+
+## Actor
+
+从：
+
+~~~text
+mutex + shared object + many producers
+~~~
+
+转成：
+
+~~~text
+identity
+bounded mailbox
+single mutable owner
+lifecycle
+stale ref
+~~~
+
+强调：
+
+> **Actor 不是一条线程。**
+
+## CSTL
+
+把 Part I 的 Generic 放到真正容器工程里：
+
+~~~c
+typed(Vec, UserVec, User);
+typed(HashMap, UsersById, int, User);
+~~~
+
+说明 typed wrapper 与共享 ordinary-C algorithm 怎样配合。
+
+## Test / Mock
+
+展示有限 Meta 怎样减少：
+
+~~~text
+test registration
+fixture declaration
+mock function signatures
+expectation boilerplate
+~~~
+
+并与 deterministic executor/manual clock 组合。
+
+## Serialization / Data Binding
+
+从：
+
+~~~c
+if (strcmp(field, "id") == 0)
+    user->id = atoi(value);
+~~~
+
+进入：
+
+~~~text
+format syntax
+→ canonical data events
+→ CMeta semantic shape
+→ CBind
+→ native C value
+~~~
+
+不要让 serializer 发明第二套 type system。
+
+## HTTP / RPC / Network
+
+展示：
+
+~~~text
+CMeta method facts
+CSerde payload
+RPC envelope
+HTTP
+CNet
+NativeIO
+~~~
+
+每层只拥有自己的 meaning。
+
+重点仍然是组合，而不是“做一个更大的 framework”。
+
+## Engineering closure
+
+ABI / Multi-TU / installed consumer 放在 Part III 作为所有高级应用的共同 qualification。
+
+说明：
+
+~~~text
+semantic identity != pointer address
+header-generated metadata may differ across TUs
+public ABI must be intentional
+installed consumer is a real gate
+~~~
+
+## Restraint
+
+最终必须保留“什么时候不需要 Meta”这一章。
+
+好的终点可能仍然只是：
+
+~~~c
+for (...)
+    ...
+
+switch (...)
+    ...
+
+fn(arg);
+~~~
+
+有限设计的目标不是让所有 C 代码 Meta 化。
+
+目标是：
+
+> **只把稳定、重复、值得共享的知识提升出来，让剩下的程序重新简单。**
+
+---
+
+# Editorial Rule — Embedded C is the primary explanation
+
+每个主要概念至少应该包含一个 before/after pair。
+
+推荐结构：
+
+~~~text
+Problem shown in C
+    ↓
+why the code becomes duplicated/opaque
+    ↓
+new design shown in C
+    ↓
+what gets generated/stored
+    ↓
+what advanced task becomes easy
+    ↓
+semantic proof only if needed
+    ↓
+engineering evidence
+~~~
+
+禁止只用：
+
+~~~text
+概念列表
+架构口号
+抽象图
+~~~
+
+代替真实代码。
+
+Diagram 用来总结代码，不用来替代代码。
+
+---
+
+# Migration map
+
+当前仓库文件仍保留历史 15 章编号，避免本次架构重构同时制造大规模 rename/link noise。
+
+新的三 Part 主题映射暂时是：
+
+~~~text
+Part I
+    Ch 1
+    Ch 2
+    Ch 3
+
+Part II core
+    Ch 4
+    Ch 5
+    Ch 10
+    Ch 11
+
+Part III
+    Ch 6
+    Ch 7
+    Ch 8
+    Ch 9
+    Ch 12
+    Ch 13
+    Ch 14
+    Ch 15
+~~~
+
+后续单独 PR 再处理 publication order / chapter renumbering。
+
+这样可以先确保内容因果关系正确，再处理文件名和目录机械变化。
+
+---
+
+# Completion definition
+
+重构完成后，一个有经验的 C 程序员应该能回答：
+
+1. 为什么多个宏 family 最终仍然是重复？
+2. Generic 为什么是统一契约，而不只是语法糖？
+3. 为什么有限 Meta 比 unrestricted template 更适合这里的 C 工程目标？
+4. Graph 比 for-loop 多提供了什么真正的新能力？
+5. 为什么 LINQ-like surface 有价值的部分是 typed IR，而不是链式语法？
+6. Lean 到底证明了什么，为什么 Chapter 2 不需要它而 optimizer/state machine 需要它？
+7. 为什么 compiled Plan 可以避免 per-value graph lookup？
+8. 什么条件下 Graph 可以被 Direct/AOT 完全 lower 回普通 C？
+9. 为什么相同 primitive 可以组合出 Reactive、State Machine、Actor、Serialization、RPC？
+10. 怎样把这些设计作为真实 library 安装、链接、测试和测量？
+
+如果读者只能记住 API 名字，而不能回答这些问题，书就还没有完成。
