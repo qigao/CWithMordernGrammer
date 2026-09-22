@@ -18,7 +18,7 @@
 > 贯穿示例保持不变：
 >
 > ~~~text
-> Source<int>
+> `Source<int>`
 >     ↓
 > Filter(is_even)
 >     ↓

@@ -20,7 +20,7 @@
 > canonical pipeline 仍然是：
 >
 > ~~~text
-> Source<int>
+> `Source<int>`
 >     ↓
 > Filter(is_even)
 >     ↓

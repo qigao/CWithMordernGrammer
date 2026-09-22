@@ -180,6 +180,8 @@ python3 scripts/build_book.py
 
 生成结果位于 `dist/C-with-Modern-Grammar.md`，不会提交到仓库。GitHub Actions 的 `Publication` workflow 会在 Pull Request 与 `master` 上执行同样的校验/构建，并把合并后的书稿上传为 workflow artifact。
 
+HTML / EPUB / PDF 渲染与普通书稿 QA 保持分离。`Release Formats` workflow 可手动触发，也会在 `v*` tag 上运行；它只消费上述 canonical Markdown，先把 Mermaid 统一渲染为 SVG，再从同一份已验证输入生成 standalone HTML、EPUB3 与 PDF。渲染器版本在 workflow 中固定；发布产物同时包含 `SOURCE_SNAPSHOTS.md`、渲染器版本记录和 SHA-256 校验和。tag 运行会把同一组文件发布到 GitHub Release。
+
 PDF / EPUB 排版刻意保持为下一层能力，这样日常写作和 review 不需要安装 Pandoc、LaTeX、Node 或 Lean。
 
 ## 仓库历史
