@@ -1,102 +1,31 @@
 # 第十三章：从基础能力到 Modern C——Serialization、RPC、Plugin、Workflow 与更多应用
 
-
-> **本章路线**
+> **本章不是 Feature List，而是四个真实工程案例。**
 >
-> 这一章不再把 Serialization、RPC、Plugin、Workflow、ECS、Query 当成一串“还能做什么”的 Feature List。
+> 前面的 CMeta / CFlow primitive 是否真的有价值，最终要看它们能不能减少真实 C library 里的重复契约，而不是看抽象名字有多少。
 >
-> 我们选择两个已经有真实实现边界的深案例：
+> 本章选择 edition snapshot 中已经存在的四类实现：
 >
 > ~~~text
-> Case A
-> Concrete Format
->      ↓
-> CSerde Canonical Tokens
->      ↓
-> CBind + CMeta Semantic Shape
->      ↓
-> Native C Value
->      ↓
-> optional CFlow composition
+> CSTL
+>     finite Generic → typed containers
+>     algorithms remain compiled C
 >
-> Case B
-> CMeta Method Semantics + CSerde Params/Result
->      ↓
-> JSON-RPC Envelope
->      ↓
-> CHTTP
->      ↓
-> CNet
->      ↓
-> NativeIO
+> CSerde + CBind
+>     one native semantic shape
+>     multiple serialization formats
+>
+> CRPC + CHTTP + CNet + NativeIO
+>     protocol layers reuse existing ownership/runtime boundaries
+>
+> TinyTest + TinyMock
+>     finite typed assertions/mocks
+>     runtime remains a small static C library
 > ~~~
 >
-> 两个案例都回答同一组问题：
+> 四个案例都用同一把尺子检查：
 >
-> **复用了哪些 primitive？谁拥有 semantic truth？谁拥有 runtime？资源在哪里 bounded？错误在哪里 fail-fast？证据是什么？**
->
-> Plugin、Event Bus、Workflow、ECS、Query、Parser、Protocol 继续保留，但作为 extension map，而不是继续制造新的 core framework。
-
-做到上一章以后，CMeta 和 CFlow 的边界已经比较清楚。
-
-CMeta 提供的是：
-
-```text
-Type
-Traits
-Generic
-Callable
-Interface
-Schema
-Finite Relation
-Semantic Identity
-```
-
-CFlow 则进一步提供：
-
-```text
-Graph
-Operator
-Executor
-Scheduler
-Subscription
-Event
-Machine
-Actor
-```
-
-如果继续按照传统 Framework 的思路，很容易开始问：
-
-```text
-还可以再做什么？
-
-CStream？
-CRx？
-CActor？
-CWorkflow？
-CRPC？
-```
-
-然后不断增加新的大型模块。
-
-但前面几章真正得到的经验恰恰相反。
-
-我们越来越发现：
-
-> **真正有价值的不是不断增加 Framework，而是确认已经形成的 primitive 能否继续组合解决其他问题。**
-
-因此这一章并不是要制定一张：
-
-```text
-未来 Feature List
-```
-
-而是重新观察：
-
-> 当 C 已经拥有一套有限的 Type、Callable、Graph 和 Execution substrate 后，哪些原本需要大量约定和重复代码的问题，可以自然建立在这些基础上？
-
----
-
+> **Plain C 原来哪里重复？Meta 只抽走了什么事实？最终普通 C 还剩什么？资源和 ownership 在哪里？有没有为了“统一”偷偷创造第二套 runtime？**
 ## 1. 很多现代 C Library 面临的是同一类问题
 
 表面上：
@@ -178,21 +107,160 @@ Retry / Error Policy
 
 在早期草稿中，这里曾按 Serialization、RPC、Plugin、Event Bus、Workflow、ECS、Query、Protocol、UI 等方向逐项展开。那种写法能展示广度，但会重复前面已经建立的 Type / Callable / Graph / Machine / ownership 原则，也容易让这一章变成 Feature Catalog。
 
-出版稿改用两个深案例作为主干：
+出版稿改用四个真实案例作为主干：
 
 ~~~text
+CSTL
+    → 检验 Generic 是否真的能统一 typed surface，而不复制容器算法
+
 Serialization / Data Binding
     → 检验 semantic truth、format boundary、native lifecycle
 
 RPC
     → 检验 typed semantics、protocol layering、bounded runtime、cancellation
+
+TinyTest / TinyMock
+    → 检验 finite meta 是否也能服务 testing，而不制造测试 VM
 ~~~
 
 其他方向保留在后面的 Extension Map，只说明复用哪些 primitive 以及哪些 domain semantics 不应进入 Core。
 
 ---
 
-## 2. Deep Case A：Serialization / Data Binding
+## 2. Deep Case A：CSTL——Generic 统一 typed surface，但算法仍然是普通 C
+
+Part I 讲 Generic 时最容易留下一个误解：
+
+> `typed(...)` 是不是意味着每个容器算法都被宏重新生成一份？
+
+CSTL 正好用真实实现回答这个问题。
+
+### Plain C baseline：真正重复的是 type binding，不是 vector growth
+
+如果只支持一种类型，下面的 C 完全合理：
+
+~~~c
+typedef struct IntVec {
+    int *data;
+    size_t size;
+    size_t capacity;
+} IntVec;
+
+int IntVec_init(IntVec *v, size_t capacity);
+int IntVec_push_back(IntVec *v, int value);
+void IntVec_destroy(IntVec *v);
+~~~
+
+问题出现在 `double`、`User`、`Pair`、Map、BTree 等 family 都需要同样的 type binding 时。
+
+edition snapshot 的 CSTL 只把这一层交给 CMeta Generic：
+
+~~~c
+#include <cstl/typed.h>
+
+typed(Vec, IntVec, int);
+typed(List, IntList, int);
+typed(HashMap, IntLongHashMap, int, long);
+
+IntVec values = {0};
+
+IntVec_init(&values, 16u);
+IntVec_push_back(&values, 10);
+IntVec_push_back(&values, 20);
+
+IntVec_destroy(&values);
+~~~
+
+用户得到的是 concrete `IntVec_*` typed ABI，而不是 `void *` + size + 手写 cast。
+
+## 2.1 最重要的边界：typed façade 可以 header-only，container algorithm 不应该 header-only
+
+snapshot 的设计刻意分成两层：
+
+~~~text
+generated typed layer
+    wrapper type
+    Type_method forwarding functions
+    descriptor / Range / collector metadata
+
+compiled CSTL core
+    vector growth
+    list allocation/linking
+    hash probing
+    heap operations
+    B-tree/B+tree balancing
+~~~
+
+也就是说：
+
+> **Meta 生成的是 type contract，不是重新实现算法。**
+
+这正是有限模板设计比“每个类型复制一个 container implementation”更工程化的地方。
+
+## 2.2 同一份 typed container 可以继续进入 CFlow，而不复制 Filter/Map 算法
+
+CSTL 的 optional CFlow bridge 继续复用同一个 Range / Graph contract。
+
+snapshot README 中的实际形态是：
+
+~~~c
+typed(filter, value, bool, keep_even, (int value)) {
+    return value % 2 == 0;
+}
+
+cflow_stream pipeline = {0};
+
+stream(&values, &pipeline)
+    ->filter(&pipeline, keep_even)
+    ->distinct(&pipeline, 64u)
+    ->sorted(&pipeline, 64u)
+    ->skip(&pipeline, 1u)
+    ->take(&pipeline, 10u);
+~~~
+
+关键不是 fluent syntax。
+
+关键是：
+
+~~~text
+Vec / List / Set
+    do not each implement their own filter/map
+
+CSTL
+    owns storage / Range / collector
+
+CFlow
+    owns Graph operator semantics
+
+CMeta callable
+    owns predicate signature/contract
+~~~
+
+一个 `keep_even` predicate 可以进入不同容器的 Range，而无需产生 `VecFilter`、`ListFilter`、`SetFilter` 三套逻辑。
+
+## 2.3 这个案例解决了什么
+
+CSTL 展示的是本书最基本的成功标准：
+
+~~~text
+before:
+    many container macro families
+    repeated type binding
+    repeated adapter declarations
+
+after:
+    one finite Generic entry
+    one typed ABI per instantiated type
+    one compiled algorithm implementation
+    shared Range / Collector / CFlow composition
+~~~
+
+这不是把 C 变成 C++ STL。
+
+它只是让 C 中原本重复而稳定的 type contract 被收成一次定义，同时保留 C 对 ownership、allocation 和 algorithm implementation 的直接控制。
+
+---
+## 3. Deep Case B：Serialization / Data Binding
 
 Serialization 很适合检验一套 Meta System 是否真的拥有清楚的边界。
 
@@ -240,7 +308,7 @@ Knowledge Duplication
 
 ---
 
-## 2.1 Plain C Baseline：手写 parser → struct 并没有错
+## 3.1 Plain C Baseline：手写 parser → struct 并没有错
 
 假设我们有：
 
@@ -289,7 +357,7 @@ parser 与 native layout 被紧耦合
 
 ---
 
-## 2.2 第一层：Concrete Parser 只拥有 Syntax
+## 3.2 第一层：Concrete Parser 只拥有 Syntax
 
 具体 parser 应该回答：
 
@@ -333,7 +401,7 @@ semantic/native binding
 
 ---
 
-## 2.3 第二层：CSerde 只拥有 Format-Neutral Token Truth
+## 3.3 第二层：CSerde 只拥有 Format-Neutral Token Truth
 
 本版 Salts 快照 architecture 将 CSerde 定位为：
 
@@ -392,7 +460,7 @@ JSON/YAML/...
 
 ---
 
-## 2.4 第三层：CMeta 提供 Native Semantic Shape
+## 3.4 第三层：CMeta 提供 Native Semantic Shape
 
 CBind 不应该重新发明第二套 native type system。
 
@@ -432,7 +500,7 @@ native type meaning
 
 ---
 
-## 2.5 第四层：CBind 是 Format-Neutral Decode Kernel
+## 3.5 第四层：CBind 是 Format-Neutral Decode Kernel
 
 当前 CBind 的 public定位非常明确：
 
@@ -523,7 +591,7 @@ Malformed provider不能留下 half-active union。
 
 ---
 
-## 2.6 Failure Atomicity：绑定失败后 Native Graph 回到 Semantic Zero
+## 3.6 Failure Atomicity：绑定失败后 Native Graph 回到 Semantic Zero
 
 这是这个案例最专业的部分之一。
 
@@ -581,7 +649,7 @@ reader is not rewound
 
 ---
 
-## 2.7 Boundedness：Serialization 也不能偷偷无限增长
+## 3.7 Boundedness：Serialization 也不能偷偷无限增长
 
 Context明确携带：
 
@@ -613,7 +681,7 @@ Bounded resource
 
 ---
 
-## 2.8 Binding 后才进入 CFlow
+## 3.8 Binding 后才进入 CFlow
 
 一个非常重要的 anti-pattern 是：
 
@@ -670,7 +738,7 @@ optional CFlow Stream<T> / Graph / Machine
 
 ---
 
-## 2.9 Evidence：这个案例怎样证明自己不是“漂亮架构图”
+## 3.9 Evidence：这个案例怎样证明自己不是“漂亮架构图”
 
 当前 CBind tests 已经覆盖多个关键维度：
 
@@ -720,7 +788,7 @@ type-specific semantic equality
 
 ---
 
-## 3. Deep Case B：RPC 不是“再造一个网络 Runtime”
+## 4. Deep Case C：RPC 不是“再造一个网络 Runtime”
 
 RPC 是第二个非常好的组合案例。
 
@@ -765,7 +833,7 @@ qigao/chttp
 
 ---
 
-## 3.1 RPC Stack 先按 Ownership 分层
+## 4.1 RPC Stack 先按 Ownership 分层
 
 当前 CRPC 文档直接把链写成：
 
@@ -854,7 +922,7 @@ socket runtime
 
 ---
 
-## 3.2 Method Identity 与 Callable Metadata 也必须分开
+## 4.2 Method Identity 与 Callable Metadata 也必须分开
 
 一个 RPC method在 wire 上由：
 
@@ -911,7 +979,7 @@ CMeta metadata
 
 ---
 
-## 3.3 Params/Result 复用 CSerde，而不是专用 JSON AST API
+## 4.3 Params/Result 复用 CSerde，而不是专用 JSON AST API
 
 RPC params encoder写入：
 
@@ -954,7 +1022,7 @@ native binder
 
 ---
 
-## 3.4 Blocking API 与 Async API 共享协议，但 Ownership 不同
+## 4.4 Blocking API 与 Async API 共享协议，但 Ownership 不同
 
 普通业务路径：
 
@@ -1000,7 +1068,7 @@ destroy
 
 ---
 
-## 3.5 JSON-RPC ID 与 Local Request Handle 是两个 Identity
+## 4.5 JSON-RPC ID 与 Local Request Handle 是两个 Identity
 
 这是一个很好的 identity 案例。
 
@@ -1038,7 +1106,7 @@ slot + generation
 
 ---
 
-## 3.6 Deadline 不是“超时就 free”
+## 4.6 Deadline 不是“超时就 free”
 
 RPC deadline 到期后：
 
@@ -1082,7 +1150,7 @@ all underlying work already quiescent
 
 ---
 
-## 3.7 No Automatic Retry：RPC 特别不能偷偷 replay
+## 4.7 No Automatic Retry：RPC 特别不能偷偷 replay
 
 当前 CRPC 明确：
 
@@ -1132,7 +1200,7 @@ retry budget
 
 ---
 
-## 3.8 Server Registry 也必须 Bounded / Pre-start Admission
+## 4.8 Server Registry 也必须 Bounded / Pre-start Admission
 
 当前 server：
 
@@ -1186,7 +1254,7 @@ network resources
 
 ---
 
-## 3.9 Exactly-Once Completion：RPC 的另一条核心 invariant
+## 4.9 Exactly-Once Completion：RPC 的另一条核心 invariant
 
 Async client：
 
@@ -1229,7 +1297,7 @@ but response bytes suppressed
 
 ---
 
-## 3.10 Error Surface 必须区分 Domain Failure 与 Transport Failure
+## 4.10 Error Surface 必须区分 Domain Failure 与 Transport Failure
 
 合法 JSON-RPC error object：
 
@@ -1262,7 +1330,7 @@ stable stage
 
 ---
 
-## 3.11 Evidence：RPC 需要协议、网络、生命周期三层测试
+## 4.11 Evidence：RPC 需要协议、网络、生命周期三层测试
 
 当前 CRPC verification 已覆盖：
 
@@ -1322,7 +1390,104 @@ typed method/schema relation
 
 ---
 
-## 4. 两个 Deep Case 的共同结构
+## 5. Deep Case D：TinyTest / TinyMock——finite meta 也可以改善测试工具，而不制造测试 VM
+
+测试代码同样会积累重复契约。
+
+最简单的 Plain C assertion 往往长这样：
+
+~~~c
+if (actual != expected) {
+    fprintf(stderr, "expected %d, got %d\n", expected, actual);
+    abort();
+}
+~~~
+
+当类型增加以后，很容易继续复制：
+
+~~~text
+assert_int_equal
+assert_u64_equal
+assert_double_equal
+assert_string_equal
+assert_pointer_equal
+...
+~~~
+
+TinyTest 使用 strict C11 generic assertions，把这一组稳定的 type dispatch 收成一个入口：
+
+~~~c
+#include "tinytest.h"
+
+spec("math") {
+    it("keeps type-aware assertions") {
+        int actual = 1 + 2;
+        check_equal(actual, 3);
+        check_greater(actual, 0);
+    }
+}
+~~~
+
+这里的 `check_equal(actual, expected)` 会根据有限 builtin type family 选择正确比较逻辑；未注册的复杂结构在 compile time 被拒绝，而不是运行时猜测。
+
+## 5.1 Mock 也是同一个问题：函数签名、参数比较、返回值脚本不要每次手写
+
+edition snapshot 中 TinyMock 可以直接生成一个有限 C wrapper：
+
+~~~c
+#include "tinymock.h"
+
+TINYMOCk_MOCK(int, add, int, int)
+
+spec("calculator") {
+    it("uses the expected dependency call") {
+        mock_add_reset();
+        mock_add_expect(
+            TINYMOCk_ARG(2),
+            TINYMOCk_ARG(3),
+            TINYMOCk_RETURN(5));
+
+        check_equal(add(2, 3), 5);
+        mock_add_verify();
+    }
+}
+~~~
+
+真实 runtime state 仍然是普通、固定上限的 C struct；snapshot 明确限制：
+
+~~~text
+max args          = 6
+max expectations  = 32
+max calls         = 32
+max scripts       = 32
+~~~
+
+这意味着 mock framework 不需要一个动态对象系统或解释器来表达最常见的 expectation/return script。
+
+## 5.2 更重要的设计：TinyTest 不强迫依赖 CMeta runtime
+
+TinyTest 的 runtime 是只依赖 libc 的 static library。
+
+C11 test translation unit 里只保留必须在调用点展开的 generic assertion / generated mock wrapper；runner、formatting、script state、verification 都在 compiled C library 中。
+
+这和 CSTL 的边界非常相似：
+
+~~~text
+call-site type knowledge
+    stays in a thin header layer
+
+runtime algorithm/state
+    stays in ordinary compiled C
+~~~
+
+因此 TinyTest 是一个很好的反例：
+
+> **“采用有限 Meta 的设计方法”不等于“所有模块都必须依赖 CMeta”。**
+
+真正应该复用的是设计原则：有限 vocabulary、compile-time rejection、bounded runtime state、清楚 ownership，而不是强迫模块共享不需要的 dependency。
+
+---
+## 6. 四个 Deep Case 的共同结构
 
 Serialization/Binding 与 RPC 看起来相差很远。
 
@@ -1347,11 +1512,11 @@ Serialization/Binding 与 RPC 看起来相差很远。
 
 ---
 
-## 5. Extension Map：其他领域应该怎样复用，而不是进入 Core
+## 7. Extension Map：其他领域应该怎样复用，而不是进入 Core
 
 下面的方向仍然值得研究，但默认应先作为上层组合存在。
 
-## 5.1 Plugin
+## 7.1 Plugin
 
 可复用：
 
@@ -1373,7 +1538,7 @@ Plugin core真正需要的新 primitive只有在：
 
 以后才考虑下沉。
 
-## 5.2 Event Bus / Command Bus
+## 7.2 Event Bus / Command Bus
 
 可复用：
 
@@ -1387,7 +1552,7 @@ Actor refs
 
 Bus-specific routing、fanout、retention、delivery guarantee属于 domain policy。
 
-## 5.3 Workflow
+## 7.3 Workflow
 
 可组合：
 
@@ -1409,7 +1574,7 @@ its own hidden thread runtime
 its own type universe
 ~~~
 
-## 5.4 ECS / Query
+## 7.4 ECS / Query
 
 可复用：
 
@@ -1424,7 +1589,7 @@ Plan/Direct lowering
 
 component storage/layout/query planning属于 ECS/domain implementation。
 
-## 5.5 Parser / Protocol
+## 7.5 Parser / Protocol
 
 Parser拥有 syntax/protocol grammar。
 
@@ -1446,7 +1611,7 @@ raw lexer token
 
 成为业务 Stream item。
 
-## 5.6 Device / UI / Service Runtime
+## 7.6 Device / UI / Service Runtime
 
 可复用：
 
@@ -1463,7 +1628,7 @@ Reactive
 
 ---
 
-## 6. Application Admission Checklist
+## 8. Application Admission Checklist
 
 未来增加一个“高级应用”以前，可以先回答十个问题。
 
@@ -1503,7 +1668,7 @@ Core 的稳定来自：
 
 ---
 
-## 7. What We Learned
+## 9. What We Learned
 
 第十三章真正证明的不是：
 
@@ -1541,7 +1706,7 @@ execution
 
 各自只有一个 owner。
 
-Deep Case B 展示：
+Deep Case C（RPC）展示：
 
 ~~~text
 CMeta/CSerde
@@ -1567,6 +1732,18 @@ scheduler
 ~~~
 
 而是在正确 boundary 上组合现有能力。
+
+Deep Case D（TinyTest / TinyMock）则展示：
+
+~~~text
+finite C11 type dispatch
+    ↓
+typed assertion / generated mock wrapper
+    ↓
+bounded compiled C runtime
+~~~
+
+而且它刻意不要求 CMeta runtime dependency，说明“有限 Meta”首先是一种设计纪律，而不是依赖扩张策略。
 
 这就是 Modern C infrastructure 真正成熟的表现：
 
