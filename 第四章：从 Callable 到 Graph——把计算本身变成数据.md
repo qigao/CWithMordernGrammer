@@ -1,5 +1,42 @@
 # 第四章：从 Callable 到 Graph——把计算本身变成数据
 
+
+> **本章路线**
+>
+> 第三章已经把单个行为变成 typed Callable。第四章开始把“多个行为之间的关系”变成显式 IR，并建立后续所有 Stream / Reactive / Plan / Optimizer 共享的 canonical pipeline。
+>
+> ~~~text
+> Plain C Pipeline
+>      ↓
+> Typed Callable Chain
+>      ↓
+> Surface Graph
+>      ↓
+> Validate
+>      ↓
+> Normalize
+>      ↓
+> Observable Semantics
+>      ↓
+> C Verification / Lean Obligation
+>      ↓
+> Execution Backends
+> ~~~
+>
+> 从这一章开始，全书会持续复用同一个数据流例子：
+>
+> ~~~text
+> Source<int>
+>     ↓
+> Filter(is_even)
+>     ↓
+> Map(square)
+>     ↓
+> Reduce(sum)
+> ~~~
+>
+> 后续章节不会重新发明示例，而是不断给同一条 pipeline 增加 Stream façade、WAIT/Demand、Executor、verified rewrite 和 lowering。
+
 上一章完成了一个非常重要的变化。
 
 最开始，我们处理的是：
@@ -1864,6 +1901,645 @@ Scheduler
 ```
 
 等更高层能力。
+
+---
+
+
+## 31. Canonical Example：把第三章的三个 Callable 连成一张 Graph
+
+第三章最后已经准备了：
+
+~~~text
+is_even : int -> bool
+square  : int -> int
+sum     : int × int -> int
+~~~
+
+Plain C 最直接的版本其实仍然很好：
+
+~~~c
+long total = 0;
+bool has_value = false;
+
+for (size_t i = 0; i < n; ++i) {
+    int x = input[i];
+
+    if (!is_even(x))
+        continue;
+
+    int y = square(x);
+
+    if (!has_value) {
+        total = y;
+        has_value = true;
+    } else {
+        total = sum(total, y);
+    }
+}
+~~~
+
+这段代码没有问题。
+
+如果程序只需要这一条固定 pipeline，普通 C 甚至可能就是最好的实现。
+
+Graph 出现的条件不是“for loop 不够现代”，而是系统开始需要在执行之前知道：
+
+~~~text
+有哪些 stage？
+stage 的 input/output type 是什么？
+哪些 stage 会丢弃 value？
+哪些 stage 改变 cardinality？
+哪些 Callable 有 effect/property？
+哪些连接不合法？
+是否允许 normalize / optimize / compile？
+~~~
+
+于是同一个计算可以先被保存成：
+
+~~~text
+Input<int>
+    ↓
+Filter<int>(is_even)
+    ↓
+Map<int,int>(square)
+    ↓
+Reduce<int>(sum)
+~~~
+
+这一步的本质是：
+
+> **把只存在于控制流里的关系，提升成可以检查和变换的数据。**
+
+### 31.1 Graph 不是执行结果，而是执行前的知识
+
+一旦关系被保存下来，我们第一次同时拥有：
+
+~~~text
+topology
+types
+operators
+callables
+effects
+properties
+parameters
+nested subgraphs
+~~~
+
+这使后续阶段能够在任何 input value 到来之前完成大量工作。
+
+也就是说：
+
+~~~text
+Graph construction
+    ↓
+pay semantic/structural cost early
+
+Graph execution
+    ↓
+use already-admitted structure
+~~~
+
+这正是全书后面不断重复的 **Pay Before Execution**。
+
+---
+
+## 32. Semantic Contract：什么才算一张合法 Typed Graph
+
+Graph 不是“装着一些 node 的数组”。
+
+它至少需要满足四类 contract。
+
+### 32.1 Topology well-formedness
+
+每条 Edge 必须引用存在的 node/port。
+
+不能出现：
+
+~~~text
+dangling endpoint
+invalid port
+invalid nested subgraph reference
+impossible entry/tail
+~~~
+
+这属于结构合法性。
+
+### 32.2 Type preservation across edges
+
+如果：
+
+~~~text
+node A output : T
+node B input  : U
+~~~
+
+那么连接：
+
+~~~text
+A -> B
+~~~
+
+必须满足对应的 semantic type compatibility。
+
+不能因为两个 value 都能塞进 void * 就允许连接。
+
+对于 canonical example：
+
+~~~text
+Input<int>
+  -> Filter<int>
+  -> Map<int,int>
+  -> Reduce<int>
+~~~
+
+每一步的类型都是 admission 的一部分，而不是 runtime cast 的猜测。
+
+### 32.3 Operator contract
+
+Node 不只保存 Callable。
+
+Operator 自己还带有语义，例如：
+
+~~~text
+FILTER
+    cardinality: 0..1
+    output type: same as input
+
+MAP
+    cardinality: 1
+    output type: callable return
+
+FLAT_MAP
+    cardinality: 0..N
+
+REDUCE
+    cardinality: N..1
+~~~
+
+所以 Graph 的类型推导需要：
+
+~~~text
+operator schema
++
+callable signature
++
+input type
+~~~
+
+而不是只看 function pointer。
+
+### 32.4 Mutation / snapshot boundary
+
+Graph 构造阶段可以修改 owning IR。
+
+但一旦某个 Graph 被交给：
+
+~~~text
+normalize
+optimize
+compile
+verify
+execute
+~~~
+
+这些阶段必须能够绑定到一个明确版本的结构。
+
+如果结构在背后变化，而 Plan/Certificate 仍然继续使用旧假设，就会破坏可信边界。
+
+因此 Graph version 不是普通 debug counter。
+
+它表达的是：
+
+> **这份 downstream knowledge 到底绑定到哪一个具体 IR snapshot。**
+
+---
+
+## 33. Lean / Proof Obligation：Graph 阶段先证明什么
+
+第四章还不需要把整个 optimizer correctness 一次证明完。
+
+这里最重要的是先建立 Graph semantics 的基础。
+
+### 33.1 Well-formed Graph
+
+可以定义一个 predicate：
+
+~~~text
+WellFormed(g)
+~~~
+
+它至少包含：
+
+~~~text
+all node references valid
+all edges reference valid ports
+all edge types compatible
+operator signatures admitted
+nested graphs well formed
+root/entry/exit valid
+~~~
+
+然后后面的 theorem 才能拥有统一前提：
+
+~~~text
+WellFormed(g) → ...
+~~~
+
+而不是每个 rewrite 都重新证明一遍结构合法性。
+
+### 33.2 Graph observable semantics
+
+必须先回答：
+
+> “两张 Graph 语义相同”到底是什么意思？
+
+最小模型可以先把一张纯同步 Graph 看成：
+
+~~~text
+input sequence
+    ↓
+zero or more output values / terminal result
+~~~
+
+于是可以定义某种：
+
+~~~text
+observe(g, input)
+~~~
+
+后面的 normalize / optimize theorem 才能写成：
+
+~~~text
+observe(surface, input)
+=
+observe(normalized, input)
+~~~
+
+或更一般的 ObsEq。
+
+如果没有 observable semantics，“结构更简单”本身并不能推出“程序等价”。
+
+### 33.3 Normalize preservation
+
+Normalize 最先应该拥有的 theorem 不是“更快”，而是：
+
+~~~text
+WellFormed(surface)
+→
+ObsEq(surface, normalize(surface))
+~~~
+
+这条 law 很关键。
+
+因为从这里开始：
+
+~~~text
+Surface Graph
+~~~
+
+和：
+
+~~~text
+Primitive / Normalized Graph
+~~~
+
+可以是两种不同 physical representation，但仍然属于同一个 semantic program。
+
+### 33.4 Lean 暂时不证明 Graph storage layout
+
+这一章仍然要保持 proof boundary。
+
+Lean 不应该假装证明：
+
+~~~text
+malloc 一定成功
+C struct ABI 在所有 compiler 上相同
+cache layout 一定更快
+pointer lifetime 永远正确
+~~~
+
+这些属于 C implementation / toolchain / runtime evidence。
+
+形式化在这里证明的是：
+
+~~~text
+IR meaning
+type relation
+structural invariant
+semantic preservation
+~~~
+
+---
+
+## 34. Current C Implementation：Graph 已经是一个真正的 owning IR
+
+对照当前 Salts：
+
+~~~text
+qigao/salts
+master: ad389928b437c0612c1c60844fe53677f3ed27a6
+~~~
+
+当前 CFlow Graph 已经不是抽象伪代码。
+
+它有明确的：
+
+~~~text
+cflow_graph
+  owns subgraphs
+
+cflow_subgraph
+  owns nodes + edges
+
+cflow_node
+  stores op/callable/types/params/nested refs
+
+cflow_edge
+  stores typed topology coordinates
+~~~
+
+### 34.1 Edge 是显式 IR row
+
+当前 edge 形态已经明确到端口：
+
+~~~c
+typedef struct cflow_edge {
+    node_id  from;
+    uint16_t from_port;
+
+    node_id  to;
+    uint16_t to_port;
+} cflow_edge;
+~~~
+
+这意味着 Graph 不再被限制为“线性数组里的下一个 operator”。
+
+Branch、Relation、Subgraph 可以在同一 IR 中拥有显式拓扑。
+
+### 34.2 Node 保存的是 operator semantics + callable + type knowledge
+
+当前 node 包含的核心信息可以概括成：
+
+~~~text
+operator
+optional callable
+optional fused callable chain
+input type
+output type
+nested subgraph references
+typed semantic parameters
+relation policy
+~~~
+
+这和前面三章形成真正连接：
+
+~~~text
+CMeta Type
+   +
+CMeta Callable
+   +
+CFlow Operator Schema
+   ↓
+Typed Graph Node
+~~~
+
+因此 Graph 是前面 Meta 能力的 integration point，而不是另起一套 type system。
+
+### 34.3 Graph 是 owning handle，但 rows 是 read-only introspection
+
+当前 API 的边界非常专业：
+
+~~~text
+Graph builder functions
+    → supported mutation API
+
+node/edge/subgraph rows
+    → read-only introspection
+~~~
+
+直接修改 storage/capacity 并不是 public contract。
+
+这解决一个常见 C library 问题：
+
+> “struct 是 public 的”不等于“每个 field 都允许 caller 任意写”。
+
+### 34.4 Version 把 downstream artifacts 绑定到具体 Graph state
+
+当前 owning Graph 持有 process-local nonzero mutation token。
+
+成功 mutation / clone / initialization 会更新版本；
+
+destroy 恢复 zero。
+
+这让：
+
+~~~text
+optimizer trace
+certificate
+compiled plan
+runtime admission
+~~~
+
+都可以明确回答：
+
+> “我是不是还绑定在原来那张未变化的 Graph 上？”
+
+### 34.5 Normalize / Optimize 都输出新的 Graph
+
+当前 optimizer contract 已经明确：
+
+~~~text
+src = immutable normalized Graph
+dst = new owned optimized Graph
+~~~
+
+而不是在原对象上边执行边改写。
+
+这是非常重要的工程边界：
+
+~~~text
+source meaning remains inspectable
++
+transformation result owns new IR
++
+verification can compare both sides
+~~~
+
+它也天然适合 formal preservation story。
+
+---
+
+## 35. Evidence：Graph 这一层已经可以建立完整 C-side verification chain
+
+第四章不能只用“Graph validate 返回 true”作为证据。
+
+当前代码已经提供更完整的 verification pipeline：
+
+~~~text
+validate surface
+    ↓
+normalize + validate
+    ↓
+normalize(normalized)
+    ↓
+check structural idempotence
+    ↓
+optimize + validate
+    ↓
+optimize(optimized)
+    ↓
+check structural idempotence
+    ↓
+execute surface / normalized / optimized
+    ↓
+compare observable output
+    ↓
+when eligible:
+compile direct plan
+    ↓
+compare output again
+~~~
+
+这非常重要，因为它把几类 evidence 分开了。
+
+### 35.1 Structural evidence
+
+检查：
+
+~~~text
+topology
+node descriptors
+relation schema
+fused chains
+~~~
+
+是否满足预期结构。
+
+### 35.2 Differential semantic evidence
+
+同一 input 分别经过：
+
+~~~text
+surface
+normalized
+optimized
+compiled plan
+~~~
+
+如果 observable result 不同，就说明 transformation chain 有真实 regression。
+
+### 35.3 Formal evidence
+
+Lean 负责证明：
+
+~~~text
+某类 transformation
+在明确前提下
+preserves observable semantics
+~~~
+
+### 35.4 Runtime evidence
+
+C differential tests 则负责检查：
+
+~~~text
+真实 implementation
+是否符合 formalized transformation contract
+~~~
+
+两者结合比任何一方单独存在都强。
+
+---
+
+## 36. Performance Evidence：Graph 本身也需要知道自己的成本
+
+Graph 作为 control-plane IR，并不意味着 Graph traversal cost 可以忽略。
+
+当前 CFlow 已经有专门的 graph-path benchmark，覆盖不同 operator 数量：
+
+~~~text
+1
+16
+256
+4096
+~~~
+
+并比较不同 successor representation / traversal strategy。
+
+这给书一个非常好的写作原则：
+
+> **只要某个 abstraction 可能进入 hot path，就必须测量它；如果它不应该进入 hot path，就要展示怎样把它 compile/lower 掉。**
+
+所以第四章不需要声称：
+
+~~~text
+Graph is zero-cost
+~~~
+
+更准确的说法是：
+
+~~~text
+Graph is analyzable control-plane IR
+
+and
+
+later execution paths should avoid repeated Graph interpretation when possible
+~~~
+
+这会自然引到第十章的 Plan / Direct / AOT。
+
+---
+
+## 37. What We Learned
+
+第四章完成的是第三次关键跨越：
+
+~~~text
+Typed Data
+    ↓
+Typed Behavior
+    ↓
+Typed Program Structure
+~~~
+
+Graph 的价值不在于替换 for loop。
+
+它真正带来的是：
+
+1. **Topology becomes data.**
+2. **Types survive across computation boundaries.**
+3. **Operator semantics become explicit.**
+4. **Construction/admission can fail before execution.**
+5. **Normalize / Optimize / Compile can work on immutable snapshots.**
+6. **Lean finally has a program structure on which to state preservation theorems.**
+7. **C verification can compare surface/normalized/optimized/compiled observations.**
+8. **Execution can later remove Graph knowledge instead of repeatedly interpreting it.**
+
+canonical example 也从：
+
+~~~text
+three independent Callable
+~~~
+
+正式变成：
+
+~~~text
+Source<int>
+    ↓
+Filter(is_even)
+    ↓
+Map(square)
+    ↓
+Reduce(sum)
+~~~
+
+第五章不会重新设计一套数据处理 runtime。
+
+它只回答：
+
+> **既然 Graph 已经能够表达这条 pipeline，能不能给普通 C 用户一个更轻、更自然的 façade 来构造它？**
+
+答案就是 Stream。
 
 ---
 
