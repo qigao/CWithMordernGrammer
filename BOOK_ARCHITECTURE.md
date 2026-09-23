@@ -1,135 +1,155 @@
-# Book Architecture — 有限 CMeta 如何让 C 获得高级设计能力
+# Book Architecture — 从普通 C 到三种 IR，再 Lower 回普通 C
 
-本文件定义下一阶段的全书重构方向。
+本文件定义下一阶段的全书结构与写作约束。
 
-这本书不是 CMeta API reference，也不是 Lean 教材，更不是“如何用宏模拟 C++”。
+这本书不是 CMeta API reference，不是 Lean 教材，不是 RPC/Plugin/WASM 框架说明，也不是“如何用宏模拟 C++”。
 
-它要回答的是：
+它回答一个更具体的问题：
 
-> **当普通 C 因为重复定义、重复契约、计算结构不可见而越来越难维护时，怎样用很小、有限、可解释的 Meta 设计，把复杂问题重新变成简单 C；又怎样在这个基础上构造 C 原本很难表达的高级计算与应用模型。**
+> **当一个 C 系统开始重复维护类型事实、函数契约、外部 API 契约和执行关系时，怎样把这些稳定知识提升成有限、显式、可检查的中间表示，并在构建阶段尽量消费掉，最终让运行时重新回到简单 C。**
 
-目标读者是已经有一定工程经验的 C 程序员。
-
-## 1. 全书唯一主线
-
-全书默认沿着一条因果链推进：
+全书最终围绕三种 IR 展开：
 
 ~~~text
-真实 C 问题
-    ↓
-embedded C baseline
-    ↓
-发现重复 fact / contract / state relation
-    ↓
-最小有限设计
-    ↓
-CMeta / CFlow surface
-    ↓
-更高级的能力变得容易
-    ↓
-如果出现 semantic rewrite / optimization / state law
-    才引入 Lean
-    ↓
-ordinary C implementation / lowering
-    ↓
-toolchain / tests / ABI / measurement
+DataBind Contract IR
+    what the program promises
+
+CMeta Native Semantic IR
+    what the C implementation is
+
+CFlow Execution IR
+    how admitted computation is composed
 ~~~
 
-有三条编辑纪律。
+三者不是三套 runtime。
 
-第一，**Code first**。
+它们分别解决三种不同的重复知识。
 
-不要先写：
+---
+
+# 1. 全书唯一主线
+
+全书默认沿着下面的因果链推进：
 
 ~~~text
-“C 缺少反射”
-“我们需要 Graph”
-“Lean 可以证明……”
+ordinary C
+    ↓
+find repeated stable knowledge
+    ↓
+make the knowledge explicit
+    ↓
+DataBind / CMeta / CFlow IR
+    ↓
+validate / prove / compile
+    ↓
+generate or lower
+    ↓
+ordinary C execution
+    ↓
+tests / ABI / sanitizer / benchmark
 ~~~
 
-先给一段真实 C，让读者看到为什么原来的写法在规模扩大以后开始痛苦。
-
-第二，**Lean after semantics**。
-
-没有明确 observable semantics 时，不引入 theorem。
-
-Generic、Struct、Traits、typed container 这类问题首先是 C 的重复契约问题，与 Lean 无关。
-
-Lean 真正有价值的地方是：
+更具体地：
 
 ~~~text
-rewrite
-normalization
-optimizer legality
-state transition
-refinement
-certificate
+logical contract              native implementation
+      │                              │
+      ▼                              ▼
+ DataBind IR                    CMeta IR
+      │                              │
+      └──────── binding/compiler ────┘
+                     │
+                     ▼
+             immutable plans/adapters
+                     │
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
+        HTTP        Plugin      WASM
+          │
+          └──── optional ───────┐
+                                ▼
+                              CFlow
+                         Execution IR
+                                │
+                       verify / optimize
+                                │
+                              lower
+                                ▼
+                           ordinary C
 ~~~
 
-第三，**show the ordinary C endpoint**。
+这张图是全书新的总图。
 
-每一个高级 abstraction 都要回答：
+---
+
+# 2. 写作纪律：减少抽象谈话，增加可检查对象
+
+每一个主要 claim 至少要落到下面五种 artifact 之一：
+
+1. **C code**：真实 baseline、public API、generated shape 或 lowered hot path；
+2. **pseudocode**：算法、状态迁移、compiler pass；
+3. **flow diagram**：owner、数据流、control plane 与 hot path；
+4. **logic / proof obligation**：类型判断、状态不变量、rewrite 前提；
+5. **engineering evidence**：compile-fail、Multi-TU、installed consumer、sanitizer、benchmark。
+
+默认不要连续写超过两段纯概念 prose 而没有新的 artifact。
+
+禁止用下面的句子代替技术内容：
 
 ~~~text
-最终是什么 C type？
-调用哪个 C function？
-ownership 在哪里？
-hot path 还查不查 Graph？
-是否可以预解析成 index / handler？
-是否可以完全 lower 掉？
+“架构更优雅”
+“能力更强”
+“更现代”
+“更加灵活”
+“可以方便扩展”
+~~~
+
+除非紧接着给出：
+
+~~~text
+before code
+after code
+exact invariant
+generated representation
+measured evidence
 ~~~
 
 ---
 
-# Part I — 用有限 CMeta 消除重复定义与重复契约
+# 3. Part I — 从重复代码到 Native Semantic IR
 
-Part I 不需要 Lean 来成立。
+Part I 不需要 Lean 才成立。
 
-它只回答：
+它回答：
 
-> **C 工程中为什么同一个事实会被写很多次，以及有限 Generic/Meta 怎样把它收成一次定义。**
+> **同一个 C 事实为什么会被写很多次，以及怎样把这些事实收成一个有限 native semantic model。**
 
 ## Chapter 1 — 从重复代码到重复知识
 
-从最普通的 C 宏开始。
+先从普通宏展开。
 
-主要使用 embedded C 展示：
+必须保留真实 C：
 
 ~~~c
 typedef struct IntVec { ... } IntVec;
 typedef struct DoubleVec { ... } DoubleVec;
 ~~~
 
-以及：
+再展示宏复用后新的重复：
 
 ~~~c
 #define DECLARE_VEC(Name, T) ...
+#define DECLARE_LIST(Name, T) ...
+#define DECLARE_OPTION(Name, T) ...
 ~~~
 
-让读者看到问题如何从：
+本章结论：
 
-~~~text
-code duplication
-~~~
+> **宏可以生成代码，但真正值得抽象的是稳定事实。**
 
-升级成：
+## Chapter 2 — Generic / Struct / Traits：让类型事实只写一次
 
-~~~text
-macro-family duplication
-contract duplication
-~~~
-
-结论不是“宏不好”。
-
-结论是：
-
-> **宏应该生成稳定事实，但不能让每个模块创造自己的小语言。**
-
-## Chapter 2 — Generic：统一有限类型契约
-
-Chapter 2 是 Part I 的核心。
-
-必须围绕真实 C before/after 展开：
+核心 before/after：
 
 ~~~c
 DECLARE_LIST(IntList, int);
@@ -145,106 +165,104 @@ typed(Vec, IntVec, int);
 typed(Option, MaybeInt, int);
 ~~~
 
-然后继续解决：
+必须落到：
 
 ~~~text
-struct fields repeated in metadata
-trait flags repeated with function slots
-compile-time relation repeated with runtime relation
-descriptor address confused with semantic identity
+type identity
+field facts
+traits
+finite relations
+generated C type
+ordinary C algorithm
 ~~~
 
-关键 CMeta vocabulary：
+本章不把 Lean 当卖点。
 
-~~~text
-Struct
-Enum
-Traits
-typed
-CMETA_TYPEOF
-TypeFunction
-ValueFunction
-Predicate
-semantic type identity
-~~~
+## Chapter 3 — FunctionDesc 与 Callable：描述函数，不等于执行函数
 
-本章不出现“因为 finite，所以需要 Lean”的叙事。
+这是 Part I 需要重点升级的一章。
 
-Finite 的工程价值首先是：
-
-~~~text
-bounded vocabulary
-fail-fast unsupported cases
-stable generated surface
-predictable ABI
-no hidden fallback
-~~~
-
-## Chapter 3 — Callable：把行为契约也收成一次定义
-
-普通 callback 的问题要通过代码展示：
+首先给普通 C：
 
 ~~~c
-void (*fn)(void *);
-void *ctx;
-enum signature;
-unsigned effects;
-unsigned properties;
+int get_user(
+    UserRepository *repo,
+    uint64_t id,
+    User *out_user);
 ~~~
 
-同一个行为 fact 再次散落。
-
-然后引入：
+然后明确拆成两个概念：
 
 ~~~text
-signature
-capture
-dispatch authority
-effects
-properties
-typed callable
+cmeta_function_desc
+    = descriptive native semantic truth
+
+cmeta_callable
+    = one admitted executable representation
 ~~~
 
-这里仍然主要是 CMeta engineering。
+FunctionDesc 至少回答：
 
-这一章的结束点是：
+~~~text
+name
+return type
+parameter types
+IN / OUT / INOUT
+ownership / nullability where known
+effects / properties
+~~~
 
-> **数据和行为都已经成为 typed value；下一步可以保存它们之间的计算关系。**
+Callable 回答：
+
+~~~text
+how this supported shape is invoked/composed
+capture
+dispatch
+finite signature
+execution representation
+~~~
+
+因此：
+
+~~~text
+FunctionDesc
+    ├── DataBind binding
+    ├── TinyMock
+    ├── Plugin publication
+    ├── HTTP/RPC tooling
+    └── diagnostics
+
+FunctionDesc
+    ↓ admission / exact adapter
+Callable
+    ↓
+CFlow
+~~~
+
+这里不要用 Lean 去证明“signature list 没重复”。
+
+这类问题优先用 generator validation / compile-time checks。
+
+Lean 留给真正的 semantic law。
 
 ---
 
-# Part II — 用 CMeta / CFlow 构造、证明和优化 LINQ-like Graph
+# 4. Part II — CFlow：把计算关系保存成 Execution IR
 
-
-Part II 的出版顺序固定为：
+Part II 顺序保持连续：
 
 ~~~text
-Chapter 4  Callable → Typed Graph
-Chapter 5  Graph → LINQ-like Stream surface
-Chapter 6  Observable Semantics → Lean Law → Verified Rewrite / Certificate
-Chapter 7  Normalize / Optimize → Compiled Plan → Direct/AOT → ordinary C hot path
+Chapter 4  Callable -> Typed Graph
+Chapter 5  Graph -> LINQ-like Stream surface
+Chapter 6  Observable Semantics -> Lean -> Verified Rewrite
+Chapter 7  Normalize / Optimize -> Plan / Direct / AOT
 ~~~
 
-这四章必须连续。Reactive、Executor、Machine、Actor 不再插在 Graph 与 optimizer/Lean 之间。
-
-
-这是全书最重要的技术 Part。
-
-它回答：
-
-> **C 已经可以写任何 for-loop，为什么还需要 Graph？**
-
-答案不是语法糖。
-
-答案是：
-
-> **普通 C/C++ 的 for-loop 执行完就消失了；Graph 把整个计算关系保存成一个 typed program object，因此它可以被检查、推导、证明、重写、优化和编译。**
+这仍然是全书的执行语义核心。
 
 ## Canonical example
 
-Part II 只使用少量持续演化的 C example。
-
-Plain C：
+持续使用：
 
 ~~~c
 long sum_even_squares(const int *xs, size_t n)
@@ -264,7 +282,7 @@ long sum_even_squares(const int *xs, size_t n)
 }
 ~~~
 
-逐步变成：
+对应：
 
 ~~~text
 Source<int>
@@ -276,104 +294,41 @@ Map(square)
 Reduce(sum)
 ~~~
 
-每个阶段都必须同时展示：
+每一章都必须展示：
 
 ~~~text
 surface C
-internal Graph
-semantic contract
-lowered/compiled C shape
+internal IR
+semantic rule
+lowered C
 ~~~
 
-## Graph — computation becomes data
+## Graph 的证明义务
 
-Graph 章节重点不再是解释“Node/Edge 是什么”。
-
-应该用 C 对比说明：
+例如 Map fusion 不能只写：
 
 ~~~text
-hand-written loop
-    看不到完整 program structure
-
-typed Graph
-    可以 inspect / validate / normalize / rewrite / compile
+Map(f); Map(g) -> Map(g ∘ f)
 ~~~
 
-Graph 必须至少拥有：
+必须说明 observable semantics：
 
 ~~~text
-typed node
-typed edge
-operator semantics
-callable
-snapshot/version
-observable semantics
+eval(Map(g, Map(f, xs)))
+=
+eval(Map(g ∘ f, xs))
 ~~~
 
-## Stream / LINQ-like surface
-
-Stream 是 Graph 的 surface，不是另一套 runtime。
-
-读者应该能看到类似：
-
-~~~c
-/* illustrative surface */
-stream_from(int, input, n)
-    .filter(is_even)
-    .map(square)
-    .reduce(sum);
-~~~
-
-如何形成 canonical Graph。
-
-重点不是语法像 LINQ。
-
-重点是：
-
-> **C 第一次拥有“高级查询/数据流语法 + 完整可分析 IR”这一组合。**
-
-## Lean 在这里第一次成为核心工具
-
-当 optimizer 想做：
+若 rewrite 依赖 property，需要明确：
 
 ~~~text
-Map(f)
-Map(f)
-    ↓
-Map(f)
+property bit = admission claim
+semantic theorem = rewrite authority
 ~~~
 
-metadata 中的 IDEMPOTENT 只是一条 claim。
+## Lowering
 
-真正允许 rewrite 的是：
-
-~~~text
-f(f(x)) = f(x)
-~~~
-
-Lean 应该出现在这里，而不是 Chapter 2。
-
-Part II 至少完整展示：
-
-~~~text
-Graph pattern
-+
-metadata admission
-+
-semantic law
-+
-Lean preservation theorem
-+
-concrete C rewrite
-~~~
-
-## Optimization / lowering
-
-这是 Part II 的第二个核心。
-
-Graph 不能成为每个 value 都查询的 runtime object。
-
-需要展示：
+Part II 的终点仍是：
 
 ~~~text
 Surface Graph
@@ -382,388 +337,667 @@ Normalize
     ↓
 Optimize
     ↓
-Compile Plan
+Compiled Plan
     ↓
-pre-resolved step index / handler / callable
+Direct / AOT
     ↓
-execute values
+ordinary C hot path
 ~~~
 
-读者必须看到“前后 C 代码”的差异。
-
-解释器式 hot path：
+例如：
 
 ~~~c
-node = graph_node(graph, node_id);
+for (size_t i = 0; i < n; ++i) {
+    int x = xs[i];
 
-switch (node->op) {
-case CFLOW_MAP:
-    ...
-}
-~~~
-
-Plan path 的目标：
-
-~~~c
-for (size_t i = 0; i < plan->step_count; ++i) {
-    const cflow_step *step = &plan->steps[i];
-    step->handler(step, frame);
-}
-~~~
-
-再进一步，Direct/AOT eligibility 满足时：
-
-~~~c
-for (...) {
-    if (!is_even(x))
+    if ((x & 1) != 0)
         continue;
 
-    total += square(x);
+    total += (long)x * x;
 }
 ~~~
 
-Graph 可以完全退出 hot path。
-
-这就是：
-
-> **Rich Control Plane, Simple Execution Plane。**
-
-## Part II 需要的 evidence
-
-至少比较：
-
-~~~text
-hand-written C
-Graph/interpreted path
-compiled Plan
-Direct/AOT path
-~~~
-
-并给：
-
-~~~text
-compiler
-flags
-platform
-workload
-measurement limitations
-~~~
-
-不要把 Lean theorem 当 benchmark。
+如果最终不能解释高级 IR 怎样重新变成这种代码，就还没有完成 lowering 叙事。
 
 ---
 
-# Part III — 在 CMeta / CFlow 上构造高级应用
+# 5. Part III — DataBind：从重复 API 描述到 Contract IR
 
-Part III 的主题不是继续增加语言 feature。
+IDL 不是一个附加 serialization feature。
 
-它回答：
-
-> **当 Type、Generic、Callable、Graph、Plan、Executor、Semantic Law 已经存在以后，原本在 C 中非常难写清楚的系统可以怎样组合出来？**
-
-每一个 application 都必须从 C example 开始。
-
-## Reactive / async I/O
-
-从一个普通 blocking/readiness loop 开始：
-
-~~~c
-ssize_t n = read(fd, buffer, sizeof(buffer));
-
-if (n < 0 && errno == EAGAIN) {
-    ...
-}
-~~~
-
-逐步展示：
+它回答另一类重复知识：
 
 ~~~text
-WAIT
-arm
-wake
-demand
-subscription
-terminal
-cancel
+C prototype
+HTTP route
+RPC method
+Plugin export
+OpenAPI schema
+Mock signature
+WASM boundary
 ~~~
 
-然后连接真实 async file/network driver。
-
-目标是让读者看到：
-
-> **Reactive 不是 framework magic，而是 Graph execution 多了时间和 demand。**
-
-## Executor / Scheduler
-
-用任务队列 C code 展示：
-
-~~~c
-if (queue_full(exec))
-    return FULL;
-~~~
-
-再说明：
-
-~~~text
-Executor = how
-Scheduler = when
-Graph/Machine = what
-~~~
-
-高级层不应该自己重新发明线程系统。
-
-## State Machine
-
-State Machine 必须用一个完整 C case 贯穿：
-
-~~~text
-DISCONNECTED
-CONNECTING
-CONNECTED
-CLOSING
-~~~
+为什么同一个 application contract 要被描述很多次？
 
 Plain C baseline：
 
 ~~~c
-switch (state) {
-case CONNECTING:
-    if (event == CONNECT_OK) {
-        ...
-    }
-    break;
+int get_user(
+    UserRepository *repo,
+    uint64_t id,
+    User *out_user);
+~~~
+
+HTTP 再写一次：
+
+~~~c
+chttp_server_get(server, "/users/:id", get_user_http, ctx);
+~~~
+
+RPC 再写一次：
+
+~~~c
+crpc_server_register(server, "UserService.GetUser", get_user_rpc, ctx);
+~~~
+
+OpenAPI 再写一次参数和响应。
+
+Plugin 再写一次 export metadata。
+
+问题不是函数不能工作。
+
+问题是：
+
+> **同一份逻辑 contract 已经被多个 backend 独立维护。**
+
+## 5.1 Canonical DataBind vocabulary
+
+IDL 只保留语义 primitive：
+
+~~~text
+Data
+    message
+    enum
+    union
+
+Interaction
+    service
+    channel
+
+Composition
+    component
+~~~
+
+例如：
+
+~~~text
+message GetUserRequest {
+    uint64 id;
+}
+
+message GetUserResponse {
+    User user;
+}
+
+service UserService {
+    GetUser: GetUserRequest -> GetUserResponse;
+}
+
+component UserModule {
+    service UserService;
 }
 ~~~
 
-再变成 typed transition data。
-
-重点是：
+注意：
 
 ~~~text
-Event Admission
-Transition Selection
-Guard
-Action
-Commit
-Observation
+HTTP
+RPC
+PLUGIN
+WASM
+OPENAPI
+MOCK
 ~~~
 
-Lean 在这里证明：
+都不是 IDL semantic keyword。
+
+它们是 compiler projection。
+
+## 5.2 Contract IR 与 Native IR 的 join
+
+同一个 logical operation：
+
+~~~text
+UserService.GetUser:
+    GetUserRequest -> GetUserResponse
+~~~
+
+可以绑定普通 C：
+
+~~~c
+int get_user(
+    UserRepository *repo,
+    uint64_t id,
+    User *out_user);
+~~~
+
+CMeta 描述 native function。
+
+DataBind 描述 logical contract。
+
+Compiler 做 join。
+
+可以用一个简化 judgment 表达：
+
+~~~text
+Γ ⊢ op : Req -> Res
+Γ ⊢ f  : (Repo*, uint64, User*) -> int
+Γ ⊢ bind(op, f) : valid
+~~~
+
+其中 valid 至少要求：
+
+~~~text
+request fields can construct all required IN params
+OUT/result can construct the declared response
+ownership/lifetime is admitted
+conversion is explicit
+failure mapping is explicit
+~~~
+
+错误在 build/control plane 失败，而不是 request hot path 猜。
+
+## 5.3 BindingPlan
+
+编译后得到 immutable plan：
+
+~~~text
+Service Operation
+        +
+FunctionDesc
+        ↓
+validate / resolve
+        ↓
+BindingPlan
+        +
+exact adapter
+~~~
+
+热路径不重新解释 IDL：
+
+~~~text
+request
+    ↓
+precompiled ingress
+    ↓
+exact adapter
+    ↓
+precompiled egress
+    ↓
+response
+~~~
+
+---
+
+# 6. Projection：同一个 Contract IR 生成不同 artifact
+
+统一 compiler entry：
+
+~~~cmake
+databind_target(
+    TARGET users
+    IDL users.dbidl
+    SOURCES users.c
+
+    PROJECTIONS
+        NATIVE
+        HTTP
+        RPC
+        PLUGIN
+        WASM
+        OPENAPI
+        MOCK
+)
+~~~
+
+不要设计：
+
+~~~cmake
+databind_http(...)
+databind_rpc(...)
+databind_plugin(...)
+databind_wasm(...)
+~~~
+
+## HTTP
+
+~~~text
+Service IR
+    +
+HTTP projection config/convention
+    ↓
+HTTP MethodPlan
+    ↓
+CHttp::Service
+    ↓
+CHttp::Server
+~~~
+
+CHttp::Server 不解析 IDL，也不做 FunctionDesc lookup。
+
+## RPC
+
+~~~text
+Service IR
+    +
+RPC projection
+    ↓
+RPC MethodPlan
+    ↓
+CRPC runtime
+~~~
+
+## Plugin
+
+业务 Service：
+
+~~~text
+Service
+    ↓
+FunctionDesc + exact adapter
+    ↓
+generated Plugin publication
+~~~
+
+长生命周期 provider：
+
+~~~text
+CMeta Interface
+    ↓
+{ self, vtable }
+    ↓
+Plugin Interface publication
+~~~
+
+两者共享 loader / registry / lease / quiescent unload。
+
+不要 everything = vtable，也不要 everything = FunctionDesc。
+
+## WASM
+
+~~~text
+component
+    + WASM projection
+    ↓
+host/guest ABI lowering
+    ↓
+.wasm
+~~~
+
+native pointer / vtable address 不能成为 portable contract value。
+
+需要 adapter，或者 generation failure。
+
+## OpenAPI
+
+OpenAPI 的 source 是：
+
+~~~text
+Service Contract
+    +
+HTTP Projection
+~~~
+
+不是 Service alone，也不是另一套手写 schema。
+
+---
+
+# 7. Part IV — Live Runtime 与工程边界
+
+Reactive、Executor、Machine、Actor、ABI、Plugin runtime、CHttp runtime 等内容仍然重要。
+
+但它们在新的全书框架中要明确自己消费哪一种 IR。
+
+## Reactive / async I/O
+
+主要消费 CFlow Execution IR。
+
+证明重点：
+
+~~~text
+WAIT
+wake
+demand
+cancel
+terminal
+~~~
+
+## Executor / Scheduler
+
+只回答：
+
+~~~text
+Executor = how
+Scheduler = when
+Graph / Machine / Plan = what
+~~~
+
+## Machine / Actor
+
+继续使用 state transition judgment：
+
+~~~text
+(state, event)
+    -> action
+    -> state'
+~~~
+
+Lean 证明：
 
 ~~~text
 determinism
-terminal law
-state typing
-small-step properties
+terminal absorption
+admission/lifecycle invariant
 ~~~
 
-而不是证明线程调度。
+## ABI / Multi-TU
 
-## Actor
+这部分现在不只是 CMeta qualification。
 
-从：
+还必须连接：
 
 ~~~text
-mutex + shared object + many producers
+DataBind contract identity
+CMeta semantic identity
+generated ABI
+Plugin cross-DSO identity
+installed consumer
 ~~~
 
-转成：
+始终坚持：
 
 ~~~text
-identity
-bounded mailbox
-single mutable owner
-lifecycle
-stale ref
+semantic identity != descriptor pointer
 ~~~
-
-强调：
-
-> **Actor 不是一条线程。**
-
-## CSTL
-
-把 Part I 的 Generic 放到真正容器工程里：
-
-~~~c
-typed(Vec, UserVec, User);
-typed(HashMap, UsersById, int, User);
-~~~
-
-说明 typed wrapper 与共享 ordinary-C algorithm 怎样配合。
-
-## Test / Mock
-
-展示有限 Meta 怎样减少：
-
-~~~text
-test registration
-fixture declaration
-mock function signatures
-expectation boilerplate
-~~~
-
-并与 deterministic executor/manual clock 组合。
-
-## Serialization / Data Binding
-
-从：
-
-~~~c
-if (strcmp(field, "id") == 0)
-    user->id = atoi(value);
-~~~
-
-进入：
-
-~~~text
-format syntax
-→ canonical data events
-→ CMeta semantic shape
-→ CBind
-→ native C value
-~~~
-
-不要让 serializer 发明第二套 type system。
-
-## HTTP / RPC / Network
-
-展示：
-
-~~~text
-CMeta method facts
-CSerde payload
-RPC envelope
-HTTP
-CNet
-NativeIO
-~~~
-
-每层只拥有自己的 meaning。
-
-重点仍然是组合，而不是“做一个更大的 framework”。
-
-## Engineering closure
-
-ABI / Multi-TU / installed consumer 放在 Part III 作为所有高级应用的共同 qualification。
-
-说明：
-
-~~~text
-semantic identity != pointer address
-header-generated metadata may differ across TUs
-public ABI must be intentional
-installed consumer is a real gate
-~~~
-
-## Restraint
-
-最终必须保留“什么时候不需要 Meta”这一章。
-
-好的终点可能仍然只是：
-
-~~~c
-for (...)
-    ...
-
-switch (...)
-    ...
-
-fn(arg);
-~~~
-
-有限设计的目标不是让所有 C 代码 Meta 化。
-
-目标是：
-
-> **只把稳定、重复、值得共享的知识提升出来，让剩下的程序重新简单。**
 
 ---
 
-# Editorial Rule — Embedded C is the primary explanation
+# 8. Formal methods 的位置
 
-每个主要概念至少应该包含一个 before/after pair。
+Lean 只在真正存在 semantic claim 时进入。
 
-推荐结构：
-
-~~~text
-Problem shown in C
-    ↓
-why the code becomes duplicated/opaque
-    ↓
-new design shown in C
-    ↓
-what gets generated/stored
-    ↓
-what advanced task becomes easy
-    ↓
-semantic proof only if needed
-    ↓
-engineering evidence
-~~~
-
-禁止只用：
+## 适合 Lean
 
 ~~~text
-概念列表
-架构口号
-抽象图
+graph rewrite preservation
+normalization
+state transition invariant
+protocol refinement
+certificate relation
+projection semantics when a backend claims preservation
 ~~~
 
-代替真实代码。
+## 不适合 Lean 代替的东西
 
-Diagram 用来总结代码，不用来替代代码。
+~~~text
+generated file exists
+C ABI links
+dlopen works
+malloc succeeds
+sanitizer is clean
+benchmark is faster
+network eventually delivers
+~~~
+
+这些分别使用 generator test、compile/link test、DSO integration、fault injection、sanitizer、benchmark、runtime integration。
+
+## Contract compiler proof obligations
+
+DataBind 章节可以先使用轻量 logic，不必把所有内容都 Lean 化。
+
+字段绑定：
+
+~~~text
+Γ ⊢ field : T
+Γ ⊢ param : U
+convertible(T, U)
+────────────────────
+Γ ⊢ bind(field, param) : valid
+~~~
+
+transactional commit：
+
+~~~text
+bind(request) = error
+──────────────────────
+observable(native_output) = unchanged
+~~~
+
+projection consistency：
+
+~~~text
+HTTPPlan(op) and OpenAPI(op)
+must be generated from the same HTTP projection IR
+~~~
+
+先把 claim 说清楚，再决定是否需要 machine-check。
 
 ---
 
-# Migration map
+# 9. Evidence matrix
 
-当前仓库文件仍保留历史 15 章编号，避免本次架构重构同时制造大规模 rename/link noise。
+| Claim | Required evidence |
+|---|---|
+| generated API matches IDL | generator golden/compile test |
+| FunctionDesc matches implementation | compile/admission test |
+| binding is failure-atomic | unit/integration test + invariant |
+| Graph rewrite preserves result | semantic theorem + differential test |
+| descriptor identity works across TU | Multi-TU test |
+| Plugin survives DSO boundary | installed DSO consumer |
+| unload is safe | lease/quiescence tests + sanitizer/stress |
+| HTTP docs match runtime | same projection IR + contract test |
+| WASM ABI is portable | host/guest integration test |
+| optimization is faster | benchmark with compiler/flags/platform |
 
-新的三 Part 主题映射暂时是：
+不要让一个 evidence 替另一个 evidence。
+
+---
+
+# 10. Canonical examples
+
+全书减少独立 demo，尽量复用三个持续演化的 case。
+
+## Case A — typed data
+
+~~~c
+typedef struct User {
+    uint64_t id;
+    const char *name;
+} User;
+~~~
+
+用于 Generic / Struct / Traits / DataBind / ABI。
+
+## Case B — typed computation
+
+~~~c
+long sum_even_squares(const int *xs, size_t n);
+~~~
+
+用于 Callable / Graph / Stream / Lean / Optimize / Direct。
+
+## Case C — user service
 
 ~~~text
-Part I
+service UserService {
+    GetUser: GetUserRequest -> GetUserResponse;
+}
+~~~
+
+native implementation：
+
+~~~c
+int get_user(
+    UserRepository *repo,
+    uint64_t id,
+    User *out_user);
+~~~
+
+用于 FunctionDesc / DataBind binding / HTTP / RPC / Plugin / WASM / OpenAPI / Mock。
+
+这样读者可以看到同一份 contract 怎样穿过整个系统。
+
+---
+
+# 11. 当前章节迁移策略
+
+暂时不在同一个修改里进行大规模文件 rename。
+
+当前文件继续保持 ch-01.md ... ch-15.md，先修正内容因果关系。
+
+逻辑映射：
+
+~~~text
+Part I — Native Semantic IR
     Ch 1
     Ch 2
     Ch 3
 
-Part II core
+Part II — Execution IR
     Ch 4
     Ch 5
+    Ch 6
+    Ch 7
+
+Live runtime / composition
+    Ch 8
+    Ch 9
     Ch 10
     Ch 11
 
-Part III
-    Ch 6
-    Ch 7
-    Ch 8
-    Ch 9
+Engineering boundary
     Ch 12
+
+Contract IR / compiler / projections
     Ch 13
+
+Restraint
     Ch 14
+
+Synthesis
     Ch 15
 ~~~
 
-后续单独 PR 再处理 publication order / chapter renumbering。
+下一轮 publication-order 重排时，可以再决定是否把 Contract IR 提前到 live-runtime 之前。
 
-这样可以先确保内容因果关系正确，再处理文件名和目录机械变化。
+本轮优先保证：
+
+~~~text
+conceptual dependency correct
+examples correct
+ownership correct
+proof boundary correct
+~~~
+
+而不是机械改编号。
 
 ---
 
-# Completion definition
+# 12. Chapter 13 的新任务
 
-重构完成后，一个有经验的 C 程序员应该能回答：
+Chapter 13 不再是“高级应用大清单”。
 
-1. 为什么多个宏 family 最终仍然是重复？
-2. Generic 为什么是统一契约，而不只是语法糖？
-3. 为什么有限 Meta 比 unrestricted template 更适合这里的 C 工程目标？
-4. Graph 比 for-loop 多提供了什么真正的新能力？
-5. 为什么 LINQ-like surface 有价值的部分是 typed IR，而不是链式语法？
-6. Lean 到底证明了什么，为什么 Chapter 2 不需要它而 optimizer/state machine 需要它？
-7. 为什么 compiled Plan 可以避免 per-value graph lookup？
-8. 什么条件下 Graph 可以被 Direct/AOT 完全 lower 回普通 C？
-9. 为什么相同 primitive 可以组合出 Reactive、State Machine、Actor、Serialization、RPC？
-10. 怎样把这些设计作为真实 library 安装、链接、测试和测量？
+它必须成为一章真正的 compiler chapter：
 
-如果读者只能记住 API 名字，而不能回答这些问题，书就还没有完成。
+~~~text
+repeated API descriptions
+    ↓
+DataBind IDL
+    ↓
+Canonical Contract IR
+    +
+CMeta FunctionDesc
+    ↓
+BindingPlan
+    ↓
+HTTP / RPC / Plugin / WASM / OpenAPI / Mock
+~~~
+
+必须包含：
+
+- 一个 plain C service；
+- 一个 IDL；
+- 一个 native implementation；
+- 一个 binding judgment；
+- 一个 generated BindingPlan；
+- 至少 HTTP + Plugin + WASM 三种 projection；
+- 一个 hot-path diagram；
+- 一个明确的 failure case；
+- 一个 qualification matrix。
+
+---
+
+# 13. Chapter 15 的新总结公式
+
+最终不能只总结 CMeta + CFlow + Lean。
+
+需要升级为：
+
+~~~text
+DataBind
+    = Contract IR
+
+CMeta
+    = Native Semantic IR
+
+CFlow
+    = Execution IR
+
+Lean
+    = proof tool for selected semantic laws
+
+ordinary C
+    = implementation and final execution language
+~~~
+
+全书最终公式：
+
+~~~text
+Ordinary C
++
+Explicit Contract IR
++
+Explicit Native Semantics
++
+Explicit Execution IR
++
+Verified High-Risk Transformations
++
+Aggressive Lowering
+=
+Modern C
+~~~
+
+---
+
+# 14. Completion definition
+
+重构完成后，读者应该能够用代码回答这些问题：
+
+1. 同一个 type fact 为什么会在宏、metadata、container 中重复？
+2. cmeta_function_desc 与 cmeta_callable 为什么不是同一个概念？
+3. Graph 比 for-loop 多保存了什么信息？
+4. 哪一个 theorem 真正授权了哪一个 rewrite？
+5. Plan/Direct 怎样让 Graph 退出 hot path？
+6. 为什么 Service contract 不能等于 HTTP route？
+7. DataBind Contract IR 与 CMeta Native IR 在哪里 join？
+8. 为什么 Plugin export 应该生成，而不是用户维护？
+9. 为什么 Service/function 与 Interface/vtable 都可以进入同一个 Plugin runtime？
+10. 同一个 component 怎样生成 Plugin 与 WASM？
+11. 为什么 CHttp::Server 不应该理解 IDL？
+12. OpenAPI 为什么应该来自 Service + HTTP projection？
+13. 哪些错误必须在 build/control plane fail-fast？
+14. 哪些 claim 需要 Lean，哪些只需要 compile/link/sanitizer/benchmark？
+15. 最后 hot path 是否仍然能够被解释成普通 C？
+
+如果这些问题只能用架构口号回答，而不能用代码、IR、判断规则或测试回答，书还没有完成。
