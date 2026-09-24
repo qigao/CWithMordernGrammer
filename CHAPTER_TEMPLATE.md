@@ -420,7 +420,21 @@ Canonical states：DISCONNECTED → CONNECTING → CONNECTED → CLOSING。
 
 ---
 
-# 16. Final editing check
+# 16. H2 / H3 density rule
+
+H2 应该表示**真正的主论点或阶段**，不是每一个步骤、证据或小机制。
+
+推荐判断：
+
+- H2：一个读者可以在目录里直接导航到的核心概念或阶段；
+- H3：H2 下的算法步骤、证据、case、子机制；
+- bullet/table：普通枚举、对比、field list、evidence list。
+
+如果一章出现 20+ 个 H2，优先检查是否把 implementation steps / evidence / subcases 错当成主节。
+
+目标不是硬性限制 H2 数量，而是让正式目录暴露**章节骨架**，而不是 issue checklist。
+
+## 17. Final editing check
 
 删除或改写一个段落，如果它不能回答至少一个问题：
 
