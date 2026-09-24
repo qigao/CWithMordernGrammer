@@ -66,17 +66,17 @@ def scan(path: Path) -> list[tuple[int, int, list[str]]]:
     body: list[str] = []
 
     for index, line in enumerate(lines, start=1):
-        stripped = line.strip()
+        logical = re.sub(r"^\s*>\s?", "", line).strip()
 
         if not in_text:
-            if stripped in ("~~~text", "```text"):
+            if logical in ("~~~text", "```text"):
                 in_text = True
-                fence = stripped[:3]
+                fence = logical[:3]
                 start = index
                 body = []
             continue
 
-        if stripped == fence:
+        if logical == fence:
             nonempty = [item for item in body if item.strip()]
             char_count = len("\n".join(nonempty))
 
@@ -92,7 +92,7 @@ def scan(path: Path) -> list[tuple[int, int, list[str]]]:
             body = []
             continue
 
-        body.append(line)
+        body.append(re.sub(r"^\s*>\s?", "", line))
 
     return findings
 
