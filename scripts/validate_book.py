@@ -100,26 +100,41 @@ def validate_chapter(path: Path, edition: str, expected_number: int) -> None:
     lines = path.read_text(encoding="utf-8").splitlines()
     h1 = []
     main_h2: list[int] = []
-    nested_h2: dict[int, list[int]] = {}
+    numbered_h3: dict[int, list[int]] = {}
     unnumbered_h2 = []
+    decimal_h2 = []
+    invalid_h3 = []
+    current_main: int | None = None
 
     for number, line in outside_fences(lines):
         if re.match(r"^#\s+", line):
             h1.append((number, line))
+
         if re.match(r"^##\s+", line):
-            section = re.match(
-                r"^##\s+(\d+)(?:\.(\d+))?\.?\s+",
-                line,
-            )
+            nested = re.match(r"^##\s+(\d+)\.(\d+)\b", line)
+            if nested:
+                decimal_h2.append((number, line))
+                current_main = None
+                continue
+
+            section = re.match(r"^##\s+(\d+)\.\s+", line)
             if section:
-                main = int(section.group(1))
-                child = section.group(2)
-                if child is None:
-                    main_h2.append(main)
-                else:
-                    nested_h2.setdefault(main, []).append(int(child))
+                current_main = int(section.group(1))
+                main_h2.append(current_main)
             else:
                 unnumbered_h2.append((number, line))
+                current_main = None
+            continue
+
+        if re.match(r"^###\s+", line):
+            subsection = re.match(r"^###\s+(\d+)\.(\d+)\s+", line)
+            if subsection:
+                main = int(subsection.group(1))
+                child = int(subsection.group(2))
+                if current_main is None or main != current_main:
+                    invalid_h3.append((number, line, current_main))
+                else:
+                    numbered_h3.setdefault(main, []).append(child)
 
     if len(h1) != 1:
         raise ValidationError(f"{path.name}: expected exactly one H1, got {len(h1)}")
@@ -132,6 +147,13 @@ def validate_chapter(path: Path, edition: str, expected_number: int) -> None:
         raise ValidationError(
             f"{path.name}: H1 says chapter {visible_number}, "
             f"publication position is {expected_number}"
+        )
+
+    if decimal_h2:
+        where = ", ".join(str(number) for number, _ in decimal_h2[:5])
+        raise ValidationError(
+            f"{path.name}: numbered subsections must use H3 (### N.M), "
+            f"not H2, at line(s) {where}"
         )
 
     if unnumbered_h2:
@@ -148,18 +170,20 @@ def validate_chapter(path: Path, edition: str, expected_number: int) -> None:
             f"{unique_sections}"
         )
 
-    known_main = set(unique_sections)
-    for main, children in nested_h2.items():
-        if main not in known_main:
-            raise ValidationError(
-                f"{path.name}: subsection {main}.x has no parent section {main}"
-            )
+    if invalid_h3:
+        number, line, parent = invalid_h3[0]
+        raise ValidationError(
+            f"{path.name}: H3 numbering does not match parent H2 at line "
+            f"{number}: {line!r}; current parent={parent}"
+        )
+
+    for main, children in numbered_h3.items():
         unique_children = list(dict.fromkeys(children))
         child_expected = list(range(1, len(unique_children) + 1))
         if unique_children != child_expected:
             raise ValidationError(
-                f"{path.name}: H2 subsections under {main} are not continuous: "
-                f"{unique_children}"
+                f"{path.name}: numbered H3 subsections under {main} are not "
+                f"continuous: {unique_children}"
             )
 
 
