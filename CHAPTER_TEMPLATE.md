@@ -70,13 +70,7 @@ int get_user_http(
 }
 ~~~
 
-不要先写：
-
-~~~text
-“HTTP binding 存在重复契约问题。”
-~~~
-
-先让读者看到重复在哪里。
+不要先写一句“HTTP binding 存在重复契约问题。”，先让读者看到重复在哪里。
 
 这一节必须回答：
 
@@ -254,16 +248,7 @@ theorem map_fusion_preserves_eval
 optimizer may replace two admitted Map nodes with one fused Map
 ~~~
 
-不适合用 Lean 替代：
-
-~~~text
-ABI link test
-DSO loading
-sanitizer
-malloc failure test
-benchmark
-OS/network liveness
-~~~
+不适合用 Lean 替代 ABI link test、DSO loading、sanitizer、malloc failure test、benchmark 或 OS/network liveness。
 
 ---
 
@@ -381,7 +366,6 @@ Fail-fast 行为比“happy path architecture”更能说明边界。
 
 推荐：
 
-~~~text
 1. Plain C baseline
 2. Concrete duplicated/implicit knowledge
 3. Minimal semantic object
@@ -394,7 +378,6 @@ Fail-fast 行为比“happy path architecture”更能说明边界。
 10. Failure case
 11. Evidence
 12. What changed / what did not change
-~~~
 
 ---
 
@@ -440,12 +423,7 @@ int get_user(
 
 ## Connection runtime
 
-~~~text
-DISCONNECTED
-CONNECTING
-CONNECTED
-CLOSING
-~~~
+Canonical states：DISCONNECTED → CONNECTING → CONNECTED → CLOSING。
 
 用于 Reactive / Executor / Machine / Actor / lifecycle proof。
 
@@ -455,17 +433,15 @@ CLOSING
 
 删除或改写一个段落，如果它不能回答至少一个问题：
 
-~~~text
-What is the C representation?
-What fact became single-source?
-Who owns it?
-When can it fail?
-What exact algorithm consumes it?
-What is observable?
-What theorem/invariant applies?
-What leaves the hot path?
-What evidence supports the claim?
-~~~
+- What is the C representation?
+- What fact became single-source?
+- Who owns it?
+- When can it fail?
+- What exact algorithm consumes it?
+- What is observable?
+- What theorem/invariant applies?
+- What leaves the hot path?
+- What evidence supports the claim?
 
 如果一个 abstraction 只能用形容词解释，而不能用代码、IR、logic 或 evidence 表示，它还没有写清楚。
 
