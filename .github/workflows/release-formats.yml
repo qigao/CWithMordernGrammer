@@ -107,7 +107,10 @@ jobs:
           shopt -s nullglob
           for edition in cn en; do
             diagrams=(dist/release/"$edition"/diagrams/*.mmd)
-            test "${#diagrams[@]}" -gt 0
+            if [ "${#diagrams[@]}" -eq 0 ]; then
+              echo "$edition: no Mermaid diagrams; skipping render"
+              continue
+            fi
             for source in "${diagrams[@]}"; do
               svg="${source%.mmd}.svg"
               png="${source%.mmd}.png"
