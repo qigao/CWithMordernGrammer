@@ -9,7 +9,13 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-ROOT = Path(__file__).resolve().parents[1]
+from book_structure import (
+    PUBLICATION_ORDER,
+    ROOT,
+    chapter_number_from_h1,
+    read_manifest,
+    render_toc_block,
+)
 
 SHARED_MARKDOWN = [
     ROOT / "README.md",
@@ -46,17 +52,11 @@ def parse_args() -> argparse.Namespace:
 
 def manifest_entries(edition: str) -> list[str]:
     edition_dir = ROOT / edition
-    manifest = edition_dir / "BOOK_MANIFEST.txt"
-    entries = [
-        line.strip()
-        for line in manifest.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
-    expected = [f"ch-{number:02d}.md" for number in range(1, 16)]
-    if entries != expected:
+    entries = read_manifest(edition)
+    if entries != PUBLICATION_ORDER:
         raise ValidationError(
-            f"{edition}/BOOK_MANIFEST.txt must be exactly ch-01.md..ch-15.md; "
-            f"got {entries}"
+            f"{edition}/BOOK_MANIFEST.txt does not match canonical publication "
+            f"order: {entries}"
         )
     for entry in entries:
         if not (edition_dir / entry).is_file():
@@ -73,11 +73,11 @@ def validate_legacy_chinese_manifest() -> None:
         for line in manifest.read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     ]
-    expected = [f"cn/ch-{number:02d}.md" for number in range(1, 16)]
+    expected = [f"cn/{entry}" for entry in PUBLICATION_ORDER]
     if entries != expected:
         raise ValidationError(
-            "root BOOK_MANIFEST.txt must remain the Chinese compatibility "
-            "manifest cn/ch-01.md..cn/ch-15.md"
+            "root BOOK_MANIFEST.txt must mirror the canonical Chinese "
+            "publication order"
         )
 
 
@@ -96,7 +96,7 @@ def outside_fences(lines: list[str]):
             yield number, line
 
 
-def validate_chapter(path: Path) -> None:
+def validate_chapter(path: Path, edition: str, expected_number: int) -> None:
     lines = path.read_text(encoding="utf-8").splitlines()
     h1 = []
     main_h2: list[int] = []
@@ -123,6 +123,17 @@ def validate_chapter(path: Path) -> None:
 
     if len(h1) != 1:
         raise ValidationError(f"{path.name}: expected exactly one H1, got {len(h1)}")
+
+    visible_number = chapter_number_from_h1(
+        edition,
+        h1[0][1][2:].strip(),
+    )
+    if visible_number != expected_number:
+        raise ValidationError(
+            f"{path.name}: H1 says chapter {visible_number}, "
+            f"publication position is {expected_number}"
+        )
+
     if unnumbered_h2:
         where = ", ".join(str(number) for number, _ in unnumbered_h2[:5])
         raise ValidationError(
@@ -231,6 +242,27 @@ def validate_part_structure() -> None:
             raise ValidationError(f"{label}: unexpected Part order: {roman}")
 
 
+def validate_generated_tocs() -> None:
+    targets = [
+        (ROOT / "README_CN.md", "cn", "./cn/"),
+        (ROOT / "README.md", "en", "./en/"),
+        (ROOT / "cn" / "README.md", "cn", "./"),
+        (ROOT / "en" / "README.md", "en", "./"),
+    ]
+
+    for path, edition, prefix in targets:
+        expected = render_toc_block(
+            edition,
+            link_prefix=prefix,
+        )
+        text = path.read_text(encoding="utf-8")
+        if expected not in text:
+            raise ValidationError(
+                f"{path.relative_to(ROOT)} generated TOC is stale; "
+                "run python scripts/update_toc.py"
+            )
+
+
 def main() -> int:
     args = parse_args()
     edition = args.edition
@@ -240,8 +272,8 @@ def main() -> int:
         chapters = [edition_dir / entry for entry in entries]
         markdown = chapters + SHARED_MARKDOWN + [edition_dir / "README.md"]
 
-        for chapter in chapters:
-            validate_chapter(chapter)
+        for number, chapter in enumerate(chapters, start=1):
+            validate_chapter(chapter, edition, number)
 
         for path in markdown:
             validate_text_hygiene(path)
@@ -249,6 +281,7 @@ def main() -> int:
 
         validate_legacy_chinese_manifest()
         validate_part_structure()
+        validate_generated_tocs()
     except ValidationError as exc:
         print(f"publication QA failed ({edition}): {exc}", file=sys.stderr)
         return 1
