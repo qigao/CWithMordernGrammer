@@ -31,6 +31,7 @@ CODE_LIKE_RE = re.compile(
 
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_./:-]*$")
 ALL_CAPS_RE = re.compile(r"^[A-Z][A-Z0-9_./:-]*$")
+FORMAL_RELATION_RE = re.compile(r"(?:^|\s)(?:=|~)(?:\s|$)")
 
 
 def audit_paths(edition: str) -> list[Path]:
@@ -77,6 +78,12 @@ def looks_layout_sensitive(lines: list[str]) -> bool:
         return True
 
     if any(re.search(r"\w+\s*\([^)]*\)", line) for line in stripped):
+        return True
+
+    if any(FORMAL_RELATION_RE.search(line) for line in stripped):
+        return True
+
+    if any(line in {"+", "=", "~"} for line in stripped):
         return True
 
     # Code/IDL/formal artifact rather than explanatory prose.
