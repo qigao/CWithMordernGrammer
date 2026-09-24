@@ -116,7 +116,7 @@ measured evidence
 
 ---
 
-# 3. Part I — 从重复代码到 Native Semantic IR
+# Part I — Native Semantic IR
 
 Part I 不需要 Lean 才成立。
 
@@ -247,7 +247,7 @@ Lean 留给真正的 semantic law。
 
 ---
 
-# 4. Part II — CFlow：把计算关系保存成 Execution IR
+# Part II — Execution IR
 
 Part II 顺序保持连续：
 
@@ -361,7 +361,7 @@ for (size_t i = 0; i < n; ++i) {
 
 ---
 
-# 5. Part III — DataBind：从重复 API 描述到 Contract IR
+# Part III — Contract IR 与 Compiler
 
 IDL 不是一个附加 serialization feature。
 
@@ -652,7 +652,7 @@ HTTP Projection
 
 ---
 
-# 7. Part IV — Live Runtime 与工程边界
+# Part IV — Live Runtime 与工程边界
 
 Reactive、Executor、Machine、Actor、ABI、Plugin runtime、CHttp runtime 等内容仍然重要。
 
