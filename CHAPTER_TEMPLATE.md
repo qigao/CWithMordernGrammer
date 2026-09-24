@@ -187,6 +187,46 @@ ordinary C call
 
 图不能代替 baseline code。
 
+## Arrow semantics rule
+
+箭头不是通用“然后”符号。每张箭头图都必须让读者知道箭头具体表示什么：
+
+- dataflow：value 从哪一个 node 流向哪一个 node；
+- compiler lowering：一个 IR/artifact 被编译成另一个；
+- lifecycle：状态转换；
+- ownership transfer：owner/lease 怎样移动；
+- dependency：谁依赖谁；
+- function composition：哪个函数先执行、哪个后执行。
+
+不要写一个裸的：
+
+~~~text
+A
+↓
+B
+~~~
+
+然后让读者猜它表示嵌套、递归、调用、lowering 还是 ownership。
+
+函数复合尤其要同时给出单元素展开。例如：
+
+~~~text
+Graph:
+x -> Map(f) -> f(x) -> Map(g) -> g(f(x))
+
+Function composition:
+g ∘ f
+
+Recursion:
+none, unless f/g calls itself internally
+~~~
+
+因此：
+
+> **arrow diagram must name or make obvious its relation.**
+
+如果箭头语义不能用一句话说明，这张图还没有画清楚。
+
 ---
 
 # 8. Write semantic judgments when there is a rule
