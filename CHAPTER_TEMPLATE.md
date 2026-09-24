@@ -24,26 +24,32 @@
 
 默认不要连续写超过两段纯解释 prose。
 
-如果一段文字出现：
+如果一段文字只是说“更优雅 / 更现代 / 更灵活 / 更容易扩展 / 能力更强”，下一段必须回答至少一个具体问题：删掉了哪段重复代码？新增了哪一个数据结构？哪个错误提前了？哪个 runtime branch 消失了？哪个 theorem 授权了哪个 transformation？哪个 benchmark 测到了什么？
 
-~~~text
-更优雅
-更现代
-更灵活
-更容易扩展
-能力更强
-~~~
+## Text fence rule
 
-下一段必须回答：
+`~~~text` 不是强调框，也不是“看起来更技术”的排版手段。
 
-~~~text
-具体删掉了哪段重复代码？
-新增了哪一个数据结构？
-哪个错误提前了？
-哪个 runtime branch 消失了？
-哪个 theorem 授权了哪个 transformation？
-哪个 benchmark 测到了什么？
-~~~
+只有当**等宽布局本身承载语义**时才使用 fenced text，例如：
+
+- pipeline / dataflow；
+- state machine；
+- race/interleaving timeline；
+- inference rule / proof judgment；
+- pseudocode；
+- 需要对齐的 IR / memory layout。
+
+简单说明不要放进 fenced text。以下内容优先使用普通 Markdown：
+
+- 一个术语或一句结论 → 正文或行内代码；
+- 两三个定义对比 → 表格；
+- 一组无顺序的项目 → bullet list；
+- 简单等式 → 行内公式/单独一行普通文本；
+- “A 不是 B” → 直接写成一句话。
+
+判断规则：
+
+> **如果去掉等宽字体和对齐后，信息完全不变，就不应该使用 `~~~text`。**
 
 ---
 
@@ -89,21 +95,9 @@ int get_user_http(
 int get_user(UserRepository *, uint64_t, User *);
 ~~~
 
-同时还有：
+同时还有 HTTP route、RPC method、Plugin export、OpenAPI parameter 和 Mock signature。
 
-~~~text
-GET /users/{id}
-RPC UserService.GetUser
-Plugin export GetUser
-OpenAPI parameter id
-Mock signature
-~~~
-
-真正重复的是：
-
-~~~text
-logical operation contract
-~~~
+真正重复的是 **logical operation contract**。
 
 不是几行相似代码。
 
@@ -115,29 +109,9 @@ logical operation contract
 
 新增设计必须能写成一个具体对象。
 
-例如：
+例如：CMeta TypeDesc、CMeta FunctionDesc、DataBind Service Operation、CFlow Graph Node、BindingPlan、Machine Transition 或 Plugin lease。
 
-~~~text
-CMeta TypeDesc
-CMeta FunctionDesc
-DataBind Service Operation
-CFlow Graph Node
-BindingPlan
-Machine Transition
-Plugin lease
-~~~
-
-必须明确：
-
-~~~text
-identity
-owner
-lifetime
-capacity
-failure
-mutable/immutable
-semantic truth vs representation
-~~~
+必须明确 identity、owner、lifetime、capacity、failure、mutable/immutable，以及 semantic truth 与 representation 的区别。
 
 不要只画一个“Layer A -> Layer B”的图。
 
@@ -297,14 +271,14 @@ OS/network liveness
 
 特别是下面几组必须明确区分：
 
-~~~text
-FunctionDesc != Callable
-Service Contract != HTTP MethodPlan
-Component != Plugin DLL
-InterfaceDesc != live {self,vtable}
-Graph != Compiled Plan
-metadata property != semantic proof
-~~~
+| 描述/语义对象 | 不能混同为 |
+|---|---|
+| FunctionDesc | Callable |
+| Service Contract | HTTP MethodPlan |
+| Component | Plugin DLL |
+| InterfaceDesc | live `{self,vtable}` |
+| Graph | Compiled Plan |
+| metadata property | semantic proof |
 
 如果章节把“描述”与“执行”混成一个对象，需要重写。
 
@@ -399,13 +373,7 @@ Fail-fast 行为比“happy path architecture”更能说明边界。
 | docs match HTTP runtime | shared projection IR + contract test |
 | faster | benchmark |
 
-不要用：
-
-~~~text
-unit test -> prove semantics
-Lean theorem -> prove ABI
-benchmark -> prove correctness
-~~~
+不要用 unit test 代替 universal semantic proof，不要用 Lean theorem 代替 ABI/link qualification，也不要用 benchmark 代替 correctness evidence。
 
 ---
 
