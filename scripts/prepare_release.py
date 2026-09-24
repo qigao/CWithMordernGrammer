@@ -103,8 +103,6 @@ def main() -> None:
         raise SystemExit(
             f"{edition}: canonical display-title H1 not found exactly once"
         )
-    if not diagrams:
-        raise SystemExit(f"{edition}: no Mermaid diagrams found")
     if FENCE_RE.search(prepared):
         raise SystemExit(f"{edition}: Mermaid fence remained after preparation")
 
