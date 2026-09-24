@@ -18,16 +18,11 @@
 
 全书现在围绕三个不同问题展开：
 
-~~~text
-DataBind Contract IR
-    程序对外承诺什么
-
-CMeta Native Semantic IR
-    C 实现实际上是什么
-
-CFlow Execution IR
-    被接受的计算怎样组合、证明和优化
-~~~
+| IR | 回答的问题 |
+|---|---|
+| DataBind Contract IR | 程序对外承诺什么 |
+| CMeta Native Semantic IR | C 实现实际上是什么 |
+| CFlow Execution IR | 被接受的计算怎样组合、证明和优化 |
 
 它们不是三套 runtime。
 
@@ -77,26 +72,14 @@ DECLARE_VEC(IntVec, int);
 DECLARE_LIST(IntList, int);
 ~~~
 
-逐步进入：
-
-~~~text
-Generic
-Struct / Enum
-Traits
-semantic type identity
-FunctionDesc
-Callable
-~~~
+逐步进入 Generic、Struct/Enum、Traits、semantic type identity、FunctionDesc 和 Callable。
 
 重点是区分：
 
-~~~text
-cmeta_function_desc
-    = 描述函数是什么
-
-cmeta_callable
-    = 一种可执行表示
-~~~
+| 对象 | 角色 |
+|---|---|
+| `cmeta_function_desc` | 描述函数是什么 |
+| `cmeta_callable` | 一种 admitted executable representation |
 
 Part I 不靠 Lean 才成立。
 
@@ -126,16 +109,7 @@ Reduce(sum)
 
 重点不是链式语法，而是让整个 computation 成为可检查的 program object。
 
-这里才真正需要：
-
-~~~text
-observable semantics
-Lean law
-verified rewrite
-normalize / optimize
-Plan
-Direct / AOT
-~~~
+这里才真正需要 observable semantics、Lean law、verified rewrite、normalize/optimize、Plan 和 Direct/AOT。
 
 最终必须再次展示 lowering 后的普通 C hot path。
 
@@ -149,25 +123,9 @@ Plain C：
 int get_user(UserRepository *, uint64_t, User *);
 ~~~
 
-然后工程里又出现：
+然后工程里又出现 HTTP route、RPC method、Plugin export、OpenAPI schema、Mock signature 和 WASM ABI。
 
-~~~text
-HTTP route
-RPC method
-Plugin export
-OpenAPI schema
-Mock signature
-WASM ABI
-~~~
-
-DataBind IDL 把 logical contract 收成一次：
-
-~~~text
-message / enum / union
-service
-channel
-component
-~~~
+DataBind IDL 把 logical contract 收成一次：message / enum / union、service、channel、component。
 
 再与 CMeta native semantics 编译连接：
 
@@ -185,17 +143,7 @@ HTTP / RPC / PLUGIN / WASM / OPENAPI / MOCK 都是 projection，而不是新的 
 
 ### Part IV — Live Runtime 与工程边界
 
-这里讨论真正活着的 runtime：
-
-~~~text
-Reactive / async I/O
-Executor / Scheduler
-State Machine
-Actor
-Plugin loader / lease / quiescent unload
-CHttp::Server
-ABI / Multi-TU / installed consumer
-~~~
+这里讨论真正活着的 runtime：Reactive/async I/O、Executor/Scheduler、State Machine、Actor、Plugin loader/lease/quiescent unload、CHttp::Server，以及 ABI/Multi-TU/installed consumer。
 
 每个 runtime 都必须说明它消费的是哪一种 IR，以及哪些 metadata 已经在进入 hot path 前被消掉。
 
@@ -260,15 +208,7 @@ evidence
 
 ## 形式证明的位置
 
-Lean 只用于真正的 semantic obligation，例如：
-
-~~~text
-graph rewrite preservation
-normalization
-state determinism
-lifecycle invariant
-protocol refinement
-~~~
+Lean 只用于真正的 semantic obligation，例如 graph rewrite preservation、normalization、state determinism、lifecycle invariant 和 protocol refinement。
 
 轻量 contract/binding 规则先直接写成逻辑判断：
 
