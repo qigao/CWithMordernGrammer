@@ -266,6 +266,44 @@ def validate_part_structure() -> None:
             raise ValidationError(f"{label}: unexpected Part order: {roman}")
 
 
+
+def chapter_numbering_shape(path: Path) -> tuple[tuple[int, tuple[int, ...]], ...]:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    shape: list[tuple[int, list[int]]] = []
+    current_index: int | None = None
+
+    for _, line in outside_fences(lines):
+        h2 = re.match(r"^##\s+(\d+)\.\s+", line)
+        if h2:
+            shape.append((int(h2.group(1)), []))
+            current_index = len(shape) - 1
+            continue
+
+        h3 = re.match(r"^###\s+(\d+)\.(\d+)\s+", line)
+        if h3 and current_index is not None:
+            shape[current_index][1].append(int(h3.group(2)))
+
+    return tuple(
+        (main, tuple(children))
+        for main, children in shape
+    )
+
+
+def validate_edition_structure_parity() -> None:
+    for source_id in PUBLICATION_ORDER:
+        cn_path = ROOT / "cn" / source_id
+        en_path = ROOT / "en" / source_id
+
+        cn_shape = chapter_numbering_shape(cn_path)
+        en_shape = chapter_numbering_shape(en_path)
+
+        if cn_shape != en_shape:
+            raise ValidationError(
+                f"{source_id}: Chinese/English section-numbering trees differ; "
+                f"cn={cn_shape}, en={en_shape}"
+            )
+
+
 def validate_generated_tocs() -> None:
     targets = [
         (ROOT / "README_CN.md", "cn", "./cn/"),
@@ -305,6 +343,7 @@ def main() -> int:
 
         validate_legacy_chinese_manifest()
         validate_part_structure()
+        validate_edition_structure_parity()
         validate_generated_tocs()
     except ValidationError as exc:
         print(f"publication QA failed ({edition}): {exc}", file=sys.stderr)
