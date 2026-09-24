@@ -209,17 +209,17 @@ def validate_part_structure() -> None:
     chinese = extract_parts(ROOT / "README_CN.md")
     architecture = extract_parts(ROOT / "BOOK_ARCHITECTURE.md")
 
-    if len(english) != 3 or len(chinese) != 3 or len(architecture) != 3:
+    if len(english) != 4 or len(chinese) != 4 or len(architecture) != 4:
         raise ValidationError(
             "README, README_CN and BOOK_ARCHITECTURE must each contain "
-            "exactly three Parts"
+            "exactly four Parts"
         )
     if chinese != architecture:
         raise ValidationError(
-            "README_CN and BOOK_ARCHITECTURE three-Part titles/order do not match"
+            "README_CN and BOOK_ARCHITECTURE four-Part titles/order do not match"
         )
 
-    expected_roman = ["I", "II", "III"]
+    expected_roman = ["I", "II", "III", "IV"]
     for label, parts in (("README", english), ("README_CN", chinese)):
         roman = []
         for part in parts:
