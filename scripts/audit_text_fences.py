@@ -25,6 +25,13 @@ PSEUDOCODE_WORDS = (
     "match ", "case ", "state =", "on ",
 )
 
+CODE_LIKE_RE = re.compile(
+    r"[{}()[\];]|::|\.lean\b|\.[ch]\b|->|:=|==|!=|<=|>=|\+\+|--"
+)
+
+IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_./:-]*$")
+ALL_CAPS_RE = re.compile(r"^[A-Z][A-Z0-9_./:-]*$")
+
 
 def chapter_paths() -> list[Path]:
     paths: list[Path] = []
@@ -51,6 +58,21 @@ def looks_layout_sensitive(lines: list[str]) -> bool:
         return True
 
     if any(re.search(r"\w+\s*\([^)]*\)", line) for line in stripped):
+        return True
+
+    # Code/IDL/formal artifact rather than explanatory prose.
+    if any(CODE_LIKE_RE.search(line) for line in stripped):
+        return True
+
+    # Stable identifiers, theorem names, file paths, enum/status tokens.
+    if stripped and all(
+        IDENTIFIER_RE.fullmatch(line) or ALL_CAPS_RE.fullmatch(line)
+        for line in stripped
+    ):
+        return True
+
+    # Indentation inside a fenced block usually carries tree/layout meaning.
+    if any(line.startswith((" ", "\t")) for line in lines if line.strip()):
         return True
 
     return False
