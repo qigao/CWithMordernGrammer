@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Report likely explanatory ~~~text fences that should be prose/list/table.
+"""Report likely explanatory fenced text that should be prose/list/table.
 
 This is an editorial aid, not a publication gate. Layout-sensitive blocks such
 as pipelines, state machines, pseudocode, timelines, and inference rules are
@@ -61,6 +61,7 @@ def scan(path: Path) -> list[tuple[int, int, list[str]]]:
     findings: list[tuple[int, int, list[str]]] = []
 
     in_text = False
+    fence = ""
     start = 0
     body: list[str] = []
 
@@ -68,13 +69,14 @@ def scan(path: Path) -> list[tuple[int, int, list[str]]]:
         stripped = line.strip()
 
         if not in_text:
-            if stripped == "~~~text":
+            if stripped in ("~~~text", "```text"):
                 in_text = True
+                fence = stripped[:3]
                 start = index
                 body = []
             continue
 
-        if stripped == "~~~":
+        if stripped == fence:
             nonempty = [item for item in body if item.strip()]
             char_count = len("\n".join(nonempty))
 
@@ -86,6 +88,7 @@ def scan(path: Path) -> list[tuple[int, int, list[str]]]:
                 findings.append((start, index, nonempty))
 
             in_text = False
+            fence = ""
             body = []
             continue
 
