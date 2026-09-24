@@ -225,16 +225,7 @@ observable(output) = unchanged
 
 # 9. Lean only for a real semantic obligation
 
-适合：
-
-~~~text
-rewrite preservation
-normalization
-state determinism
-terminal/lifecycle invariants
-protocol refinement
-certificate relation
-~~~
+适合 Lean 的内容包括 rewrite preservation、normalization、state determinism、terminal/lifecycle invariants、protocol refinement 和 certificate relation。
 
 每个 theorem 后必须紧跟：
 
