@@ -183,7 +183,7 @@ projection backends
 
 HTTP / RPC / PLUGIN / WASM / OPENAPI / MOCK 都是 projection，而不是新的 IDL 语言。
 
-### Part IV — Live Runtime 与工程资格
+### Part IV — Live Runtime 与工程边界
 
 这里讨论真正活着的 runtime：
 
