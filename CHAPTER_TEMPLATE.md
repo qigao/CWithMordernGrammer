@@ -468,3 +468,12 @@ What evidence supports the claim?
 ~~~
 
 如果一个 abstraction 只能用形容词解释，而不能用代码、IR、logic 或 evidence 表示，它还没有写清楚。
+
+提交前可以运行：
+
+~~~bash
+python scripts/audit_text_fences.py --edition cn
+python scripts/audit_text_fences.py --edition en
+~~~
+
+这个脚本只报告疑似“说明性 text fence”，作为编辑提示，不作为硬性 publication gate。
