@@ -199,6 +199,35 @@ ABI / Multi-TU / installed consumer
 
 每个 runtime 都必须说明它消费的是哪一种 IR，以及哪些 metadata 已经在进入 hot path 前被消掉。
 
+## 目录
+
+<!-- book-toc:start -->
+**Part I — Native Semantic IR**
+- [第一章：CMeta 的起点——从写 C 宏的痛苦开始](./cn/ch-01.md)
+- [第二章：从宏到 Generic——把重复的类型契约收成一次定义](./cn/ch-02.md)
+- [第三章：从函数指针到函数语义——FunctionDesc、Callable、Lambda 与 Bind](./cn/ch-03.md)
+
+**Part II — Execution IR**
+- [第四章：从 Callable 到 Graph——把计算本身变成数据](./cn/ch-04.md)
+- [第五章：从 Graph 到 Stream——用高级接口构造同一张 Typed Graph](./cn/ch-05.md)
+- [第六章：Graph 的可信语义——从 Observable Semantics 到 Verified Rewrite](./cn/ch-06.md)
+- [第七章：从 Graph 到 Plan 与 Direct——把复杂性提前，把 Hot Path 变回普通 C](./cn/ch-07.md)
+
+**Part III — Contract IR 与 Compiler**
+- [第八章：从重复 API 契约到 Contract Compiler——DataBind IDL、FunctionDesc 与多后端生成](./cn/ch-13.md)
+
+**Part IV — Live Runtime 与工程边界**
+- [第九章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure](./cn/ch-08.md)
+- [第十章：Executor——把执行策略从计算语义中拆出来](./cn/ch-09.md)
+- [第十一章：从 Event 到 State Machine——把状态变化变成可验证的执行模型](./cn/ch-10.md)
+- [第十二章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象](./cn/ch-11.md)
+- [第十三章：工程化边界——ABI、Multi-TU、Semantic Identity 与可安装的 C Library](./cn/ch-12.md)
+
+**收束 — Restraint 与 Synthesis**
+- [第十四章：有限、显式、按需——什么时候应该停止 Meta 化](./cn/ch-14.md)
+- [第十五章：从重复知识到三种 IR——Modern C 的 Contract、Native 与 Execution 语义](./cn/ch-15.md)
+<!-- book-toc:end -->
+
 ## 写法：少讲形容词，多给可检查对象
 
 本书后续重写默认遵守：
@@ -261,7 +290,7 @@ ABI、DSO、sanitizer 和性能分别用 compile/link、integration、sanitizer�
 - [CHAPTER_TEMPLATE.md](./CHAPTER_TEMPLATE.md)
 - [SOURCE_SNAPSHOTS.md](./SOURCE_SNAPSHOTS.md)
 
-当前章节文件仍保持 ch-01.md 到 ch-15.md；先修正内容因果关系，再单独处理 publication order / renumbering。
+章节文件名是稳定 source ID；真正的出版顺序与章号由各 edition 的 `BOOK_MANIFEST.txt` 和章节 H1 共同决定。
 
 ## 出版构建
 
