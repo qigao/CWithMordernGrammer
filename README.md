@@ -18,16 +18,11 @@ Its central question is:
 
 The book now revolves around three distinct semantic layers:
 
-~~~text
-DataBind Contract IR
-    what the program promises
-
-CMeta Native Semantic IR
-    what the C implementation is
-
-CFlow Execution IR
-    how admitted computation is composed, checked, and optimized
-~~~
+| IR | Question answered |
+|---|---|
+| DataBind Contract IR | what the program promises |
+| CMeta Native Semantic IR | what the C implementation is |
+| CFlow Execution IR | how admitted computation is composed, checked, and optimized |
 
 They are not three runtimes.
 
@@ -74,13 +69,10 @@ Start with repeated ordinary C facts and move through Generic, Struct/Enum, Trai
 
 A key distinction is:
 
-~~~text
-cmeta_function_desc
-    = what the function is
-
-cmeta_callable
-    = one admitted executable representation
-~~~
+| Object | Role |
+|---|---|
+| `cmeta_function_desc` | what the function is |
+| `cmeta_callable` | one admitted executable representation |
 
 Lean is not required to justify this layer.
 
@@ -106,14 +98,7 @@ Every abstraction must eventually show how the hot path returns to ordinary C.
 
 Start with one C operation that is redundantly described again as an HTTP route, RPC method, plugin export, OpenAPI schema, mock signature, and WASM boundary.
 
-DataBind makes the logical contract explicit with:
-
-~~~text
-message / enum / union
-service
-channel
-component
-~~~
+DataBind makes the logical contract explicit with message / enum / union, service, channel, and component.
 
 Then the compiler joins Contract IR with CMeta native semantics:
 
