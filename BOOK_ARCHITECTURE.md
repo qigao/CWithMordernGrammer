@@ -10,16 +10,11 @@
 
 全书最终围绕三种 IR 展开：
 
-~~~text
-DataBind Contract IR
-    what the program promises
-
-CMeta Native Semantic IR
-    what the C implementation is
-
-CFlow Execution IR
-    how admitted computation is composed
-~~~
+| IR | 回答的问题 |
+|---|---|
+| DataBind Contract IR | what the program promises |
+| CMeta Native Semantic IR | what the C implementation is |
+| CFlow Execution IR | how admitted computation is composed |
 
 三者不是三套 runtime。
 
@@ -94,25 +89,9 @@ logical contract              native implementation
 
 默认不要连续写超过两段纯概念 prose 而没有新的 artifact。
 
-禁止用下面的句子代替技术内容：
+禁止用“架构更优雅”“能力更强”“更现代”“更加灵活”“可以方便扩展”代替技术内容。
 
-~~~text
-“架构更优雅”
-“能力更强”
-“更现代”
-“更加灵活”
-“可以方便扩展”
-~~~
-
-除非紧接着给出：
-
-~~~text
-before code
-after code
-exact invariant
-generated representation
-measured evidence
-~~~
+这类句子后面必须紧接至少一个可检查对象：before code、after code、exact invariant、generated representation 或 measured evidence。
 
 ---
 
@@ -165,16 +144,7 @@ typed(Vec, IntVec, int);
 typed(Option, MaybeInt, int);
 ~~~
 
-必须落到：
-
-~~~text
-type identity
-field facts
-traits
-finite relations
-generated C type
-ordinary C algorithm
-~~~
+必须落到 type identity、field facts、traits、finite relations、generated C type 和 ordinary C algorithm。
 
 本章不把 Lean 当卖点。
 
@@ -193,34 +163,14 @@ int get_user(
 
 然后明确拆成两个概念：
 
-~~~text
-cmeta_function_desc
-    = descriptive native semantic truth
+| 对象 | 角色 |
+|---|---|
+| `cmeta_function_desc` | descriptive native semantic truth |
+| `cmeta_callable` | one admitted executable representation |
 
-cmeta_callable
-    = one admitted executable representation
-~~~
+FunctionDesc 至少回答 name、return type、parameter types、IN/OUT/INOUT、ownership/nullability，以及 effects/properties。
 
-FunctionDesc 至少回答：
-
-~~~text
-name
-return type
-parameter types
-IN / OUT / INOUT
-ownership / nullability where known
-effects / properties
-~~~
-
-Callable 回答：
-
-~~~text
-how this supported shape is invoked/composed
-capture
-dispatch
-finite signature
-execution representation
-~~~
+Callable 回答 how this supported shape is invoked/composed、capture、dispatch、finite signature 和 execution representation。
 
 因此：
 
@@ -251,12 +201,12 @@ Lean 留给真正的 semantic law。
 
 Part II 顺序保持连续：
 
-~~~text
-Chapter 4  Callable -> Typed Graph
-Chapter 5  Graph -> LINQ-like Stream surface
-Chapter 6  Observable Semantics -> Lean -> Verified Rewrite
-Chapter 7  Normalize / Optimize -> Plan / Direct / AOT
-~~~
+| Chapter | 主线 |
+|---|---|
+| 4 | Callable → Typed Graph |
+| 5 | Graph → LINQ-like Stream surface |
+| 6 | Observable Semantics → Lean → Verified Rewrite |
+| 7 | Normalize / Optimize → Plan / Direct / AOT |
 
 这仍然是全书的执行语义核心。
 
@@ -294,14 +244,7 @@ Map(square)
 Reduce(sum)
 ~~~
 
-每一章都必须展示：
-
-~~~text
-surface C
-internal IR
-semantic rule
-lowered C
-~~~
+每一章都必须展示 surface C、internal IR、semantic rule 和 lowered C。
 
 ## Graph 的证明义务
 
@@ -321,10 +264,10 @@ eval(Map(g ∘ f, xs))
 
 若 rewrite 依赖 property，需要明确：
 
-~~~text
-property bit = admission claim
-semantic theorem = rewrite authority
-~~~
+| 对象 | 作用 |
+|---|---|
+| property bit | admission claim |
+| semantic theorem | rewrite authority |
 
 ## Lowering
 
@@ -365,17 +308,7 @@ for (size_t i = 0; i < n; ++i) {
 
 IDL 不是一个附加 serialization feature。
 
-它回答另一类重复知识：
-
-~~~text
-C prototype
-HTTP route
-RPC method
-Plugin export
-OpenAPI schema
-Mock signature
-WASM boundary
-~~~
+它回答另一类重复知识：C prototype、HTTP route、RPC method、Plugin export、OpenAPI schema、Mock signature 和 WASM boundary。
 
 为什么同一个 application contract 要被描述很多次？
 
@@ -448,18 +381,7 @@ component UserModule {
 }
 ~~~
 
-注意：
-
-~~~text
-HTTP
-RPC
-PLUGIN
-WASM
-OPENAPI
-MOCK
-~~~
-
-都不是 IDL semantic keyword。
+注意：HTTP、RPC、PLUGIN、WASM、OPENAPI、MOCK 都不是 IDL semantic keyword。
 
 它们是 compiler projection。
 
@@ -497,13 +419,11 @@ Compiler 做 join。
 
 其中 valid 至少要求：
 
-~~~text
-request fields can construct all required IN params
-OUT/result can construct the declared response
-ownership/lifetime is admitted
-conversion is explicit
-failure mapping is explicit
-~~~
+- request fields can construct all required IN params；
+- OUT/result can construct the declared response；
+- ownership/lifetime is admitted；
+- conversion is explicit；
+- failure mapping is explicit。
 
 错误在 build/control plane 失败，而不是 request hot path 猜。
 
@@ -662,25 +582,17 @@ Reactive、Executor、Machine、Actor、ABI、Plugin runtime、CHttp runtime 等
 
 主要消费 CFlow Execution IR。
 
-证明重点：
-
-~~~text
-WAIT
-wake
-demand
-cancel
-terminal
-~~~
+证明重点是 WAIT、wake、demand、cancel 和 terminal。
 
 ## Executor / Scheduler
 
 只回答：
 
-~~~text
-Executor = how
-Scheduler = when
-Graph / Machine / Plan = what
-~~~
+| 对象 | 问题 |
+|---|---|
+| Executor | how |
+| Scheduler | when |
+| Graph / Machine / Plan | what |
 
 ## Machine / Actor
 
@@ -692,33 +604,15 @@ Graph / Machine / Plan = what
     -> state'
 ~~~
 
-Lean 证明：
-
-~~~text
-determinism
-terminal absorption
-admission/lifecycle invariant
-~~~
+Lean 证明 determinism、terminal absorption 和 admission/lifecycle invariant。
 
 ## ABI / Multi-TU
 
 这部分现在不只是 CMeta qualification。
 
-还必须连接：
+还必须连接 DataBind contract identity、CMeta semantic identity、generated ABI、Plugin cross-DSO identity 和 installed consumer。
 
-~~~text
-DataBind contract identity
-CMeta semantic identity
-generated ABI
-Plugin cross-DSO identity
-installed consumer
-~~~
-
-始终坚持：
-
-~~~text
-semantic identity != descriptor pointer
-~~~
+始终坚持 **semantic identity != descriptor pointer**。
 
 ---
 
@@ -728,26 +622,11 @@ Lean 只在真正存在 semantic claim 时进入。
 
 ## 适合 Lean
 
-~~~text
-graph rewrite preservation
-normalization
-state transition invariant
-protocol refinement
-certificate relation
-projection semantics when a backend claims preservation
-~~~
+适合 Lean 的内容包括 graph rewrite preservation、normalization、state transition invariant、protocol refinement、certificate relation，以及 backend 声称 preservation 时的 projection semantics。
 
 ## 不适合 Lean 代替的东西
 
-~~~text
-generated file exists
-C ABI links
-dlopen works
-malloc succeeds
-sanitizer is clean
-benchmark is faster
-network eventually delivers
-~~~
+generated file exists、C ABI links、dlopen works、malloc succeeds、sanitizer clean、benchmark faster、network eventually delivers 等 claim 都应使用对应工程证据。
 
 这些分别使用 generator test、compile/link test、DSO integration、fault injection、sanitizer、benchmark、runtime integration。
 
@@ -853,14 +732,7 @@ int get_user(
 
 章节文件名现在明确是稳定 source ID，不再等同于可见章号。
 
-出版顺序由：
-
-~~~text
-cn/BOOK_MANIFEST.txt
-en/BOOK_MANIFEST.txt
-~~~
-
-统一定义。
+出版顺序由 `cn/BOOK_MANIFEST.txt` 与 `en/BOOK_MANIFEST.txt` 统一定义。
 
 当前正式顺序：
 
@@ -893,14 +765,7 @@ Closing
 
 这样可以在不反复 rename source file 的情况下调整出版结构。
 
-QA 必须同时检查：
-
-~~~text
-manifest order
-chapter H1 visible number
-generated README TOC
-canonical manuscript TOC
-~~~
+QA 必须同时检查 manifest order、chapter H1 visible number、generated README TOC 和 canonical manuscript TOC。
 
 任何一个漂移都让 Publication gate 失败。
 
