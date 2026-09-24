@@ -33,11 +33,30 @@ IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_./:-]*$")
 ALL_CAPS_RE = re.compile(r"^[A-Z][A-Z0-9_./:-]*$")
 
 
-def chapter_paths() -> list[Path]:
+def audit_paths(edition: str) -> list[Path]:
     paths: list[Path] = []
-    for edition in ("cn", "en"):
-        paths.extend(sorted((ROOT / edition).glob("ch-*.md")))
-    return paths
+
+    if edition in ("cn", "all"):
+        paths.extend(
+            [
+                ROOT / "README_CN.md",
+                ROOT / "BOOK_ARCHITECTURE.md",
+                ROOT / "CHAPTER_TEMPLATE.md",
+                ROOT / "cn" / "README.md",
+            ]
+        )
+        paths.extend(sorted((ROOT / "cn").glob("ch-*.md")))
+
+    if edition in ("en", "all"):
+        paths.extend(
+            [
+                ROOT / "README.md",
+                ROOT / "en" / "README.md",
+            ]
+        )
+        paths.extend(sorted((ROOT / "en").glob("ch-*.md")))
+
+    return list(dict.fromkeys(paths))
 
 
 def looks_layout_sensitive(lines: list[str]) -> bool:
@@ -130,10 +149,7 @@ def main() -> int:
 
     total = 0
 
-    for path in chapter_paths():
-        if args.edition != "all" and path.parent.name != args.edition:
-            continue
-
+    for path in audit_paths(args.edition):
         findings = scan(path)
         if not findings:
             continue
