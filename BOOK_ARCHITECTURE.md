@@ -849,63 +849,66 @@ int get_user(
 
 ---
 
-# 11. 当前章节迁移策略
+# 11. 稳定 Source ID 与出版顺序
 
-暂时不在同一个修改里进行大规模文件 rename。
+章节文件名现在明确是稳定 source ID，不再等同于可见章号。
 
-当前文件继续保持 ch-01.md ... ch-15.md，先修正内容因果关系。
+出版顺序由：
 
-逻辑映射：
+~~~text
+cn/BOOK_MANIFEST.txt
+en/BOOK_MANIFEST.txt
+~~~
+
+统一定义。
+
+当前正式顺序：
 
 ~~~text
 Part I — Native Semantic IR
-    Ch 1
-    Ch 2
-    Ch 3
+    Chapter 1  <- ch-01.md
+    Chapter 2  <- ch-02.md
+    Chapter 3  <- ch-03.md
 
 Part II — Execution IR
-    Ch 4
-    Ch 5
-    Ch 6
-    Ch 7
+    Chapter 4  <- ch-04.md
+    Chapter 5  <- ch-05.md
+    Chapter 6  <- ch-06.md
+    Chapter 7  <- ch-07.md
 
-Live runtime / composition
-    Ch 8
-    Ch 9
-    Ch 10
-    Ch 11
+Part III — Contract IR 与 Compiler
+    Chapter 8  <- ch-13.md
 
-Engineering boundary
-    Ch 12
+Part IV — Live Runtime 与工程边界
+    Chapter 9  <- ch-08.md
+    Chapter 10 <- ch-09.md
+    Chapter 11 <- ch-10.md
+    Chapter 12 <- ch-11.md
+    Chapter 13 <- ch-12.md
 
-Contract IR / compiler / projections
-    Ch 13
-
-Restraint
-    Ch 14
-
-Synthesis
-    Ch 15
+Closing
+    Chapter 14 <- ch-14.md
+    Chapter 15 <- ch-15.md
 ~~~
 
-下一轮 publication-order 重排时，可以再决定是否把 Contract IR 提前到 live-runtime 之前。
+这样可以在不反复 rename source file 的情况下调整出版结构。
 
-本轮优先保证：
+QA 必须同时检查：
 
 ~~~text
-conceptual dependency correct
-examples correct
-ownership correct
-proof boundary correct
+manifest order
+chapter H1 visible number
+generated README TOC
+canonical manuscript TOC
 ~~~
 
-而不是机械改编号。
+任何一个漂移都让 Publication gate 失败。
 
 ---
 
-# 12. Chapter 13 的新任务
+# 12. Chapter 8 的任务：Contract Compiler
 
-Chapter 13 不再是“高级应用大清单”。
+Chapter 8 不再是“高级应用大清单”。
 
 它必须成为一章真正的 compiler chapter：
 
