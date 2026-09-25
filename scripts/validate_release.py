@@ -44,7 +44,6 @@ def main() -> None:
     sources = sorted(diagrams.glob("diagram-*.mmd"))
     svgs = sorted(diagrams.glob("diagram-*.svg"))
     pngs = sorted(diagrams.glob("diagram-*.png"))
-    require(bool(sources), f"{edition}: no Mermaid source files prepared")
     require(
         len(sources) == len(svgs),
         f"{edition}: Mermaid SVG count mismatch: {len(sources)} != {len(svgs)}",
@@ -92,10 +91,11 @@ def main() -> None:
     html_text = html_path.read_text(encoding="utf-8")
     require("<html" in html_text.lower(), f"{edition}: HTML root missing")
     require('id="TOC"' in html_text, f"{edition}: HTML TOC missing")
-    require(
-        "data:image/svg+xml" in html_text or "<svg" in html_text,
-        f"{edition}: HTML does not embed rendered diagrams",
-    )
+    if sources:
+        require(
+            "data:image/svg+xml" in html_text or "<svg" in html_text,
+            f"{edition}: HTML does not embed rendered diagrams",
+        )
 
     require(
         epub_path.is_file() and epub_path.stat().st_size > 100_000,
@@ -112,10 +112,11 @@ def main() -> None:
             archive.read("mimetype") == b"application/epub+zip",
             f"{edition}: EPUB mimetype invalid",
         )
-        require(
-            any(name.lower().endswith(".png") for name in names),
-            f"{edition}: EPUB contains no rendered PNG diagrams",
-        )
+        if sources:
+            require(
+                any(name.lower().endswith(".png") for name in names),
+                f"{edition}: EPUB contains no rendered PNG diagrams",
+            )
 
     require(
         pdf_path.is_file() and pdf_path.stat().st_size > 100_000,

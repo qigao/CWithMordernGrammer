@@ -1,6 +1,6 @@
 # 用现代语法写 C
 
-**有限 CMeta，复杂能力，最终仍然是 C**
+**更多知识在构建期，更少工作在运行时**
 
 **中文** | [English](./README.md)
 
@@ -8,79 +8,84 @@
 
 这本书面向已经有一定工程经验的 C 程序员。
 
-它不从“如何设计一门更强的语言”开始，也不把宏、Generic 或 Lean 当成目的。全书真正关心的是：
+它不试图把 C 变成另一门语言，也不把宏、IDL、Graph 或 Lean 当成目的。
 
-> **怎样用很小、有限、可解释的 CMeta 设计，解决 C 里反复出现的重复定义、重复契约和难以组合的高级程序结构。**
+全书真正关心的是：
 
-书里的基本方法是：
+> **当同一个稳定知识开始被多个 C 模块、metadata、HTTP/RPC、Plugin、Mock 或 optimizer 重复维护时，怎样把它提升成有限、显式、可检查的 IR，并在构建阶段尽量消费掉，最终仍然执行普通 C。**
+
+## 三种 IR
+
+全书现在围绕三个不同问题展开：
+
+| IR | 回答的问题 |
+|---|---|
+| DataBind Contract IR | 程序对外承诺什么 |
+| CMeta Native Semantic IR | C 实现实际上是什么 |
+| CFlow Execution IR | 被接受的计算怎样组合、证明和优化 |
+
+它们不是三套 runtime。
+
+典型路径是：
 
 ~~~text
-先写真实 C
-    ↓
-看到重复事实 / 重复契约
-    ↓
-用有限 CMeta 收成一个定义
-    ↓
-得到更简单的 typed C API
-    ↓
-当计算关系变复杂时，引入 Graph / CFlow
-    ↓
-当 rewrite / optimization / state semantics 需要可信边界时，再引入 Lean
-    ↓
-最终仍然落回普通 C implementation、toolchain、tests 和 measurements
+DataBind Service
+        +
+CMeta FunctionDesc
+        ↓
+BindingPlan / exact adapter
+        ↓
+HTTP / RPC / Plugin / WASM
+        ↓
+optional CFlow execution
+        ↓
+ordinary C
 ~~~
 
-“宏最后生成 C”只是基本操作，不是本书的中心。
+一个核心例子会贯穿后半本：
 
-真正重要的是：
+~~~text
+service UserService {
+    GetUser: GetUserRequest -> GetUserResponse;
+}
+~~~
 
-- 一个简单设计为什么可以替代大量重复 C；
-- Generic 怎样把不同宏 family 收成统一契约；
-- CMeta 怎样让类型、traits、callable、identity 成为高级设计的共同基础；
-- Graph 怎样让类似 LINQ 的计算在 C 中第一次成为可分析、可优化的程序数据；
-- Lean 怎样证明 graph rewrite、normalization、state transition 等关键语义；
-- Plan / Direct lowering 怎样把控制面的复杂度提前，把执行时的 graph lookup 变成预解析的 index / handler / 普通 C 调用；
-- 在这个基础上，Reactive、异步 I/O、Executor、State Machine、Actor、CSTL、测试框架、Serialization、RPC 等高级应用为什么会明显变得容易。
+对应普通 C 实现：
 
-## 目标读者
+~~~c
+int get_user(
+    UserRepository *repo,
+    uint64_t id,
+    User *out_user);
+~~~
 
-读者默认已经熟悉：
+书中会具体展示它怎样被检查、绑定并生成 HTTP、RPC、Plugin、WASM、OpenAPI 和 Mock，而不是分别维护六份 API 描述。
 
-- C struct / enum / pointer / function pointer；
-- 宏与预处理器；
-- 基本容器与内存管理；
-- callback、线程、I/O；
-- CMake / library / ABI 的基本工程概念。
+## 四段因果链
 
-本书不是 C 入门书。
+### Part I — Native Semantic IR
 
-目标是让已经会写 C 的读者看到：
+从真实 C 重复开始：
 
-> **C 并不是只能停留在“手写 switch + callback + void *”的层次。**
+~~~c
+DECLARE_VEC(IntVec, int);
+DECLARE_LIST(IntList, int);
+~~~
 
-如果有限的类型知识、计算结构和语义契约被正确建模，C 同样可以承载现代、高级而且可工程化的软件设计。
+逐步进入 Generic、Struct/Enum、Traits、semantic type identity、FunctionDesc 和 Callable。
 
-## 三部分
+重点是区分：
 
-### Part I — 用有限 CMeta 消除重复定义与重复契约
+| 对象 | 角色 |
+|---|---|
+| `cmeta_function_desc` | 描述函数是什么 |
+| `cmeta_callable` | 一种 admitted executable representation |
 
-从最普通的 C 重复开始。
+Part I 不靠 Lean 才成立。
 
-重点不是 Lean，而是 C 本身：
+### Part II — Execution IR
 
-- 宏为什么会从“减少代码重复”演化成“宏 family 自己也重复”；
-- Generic 怎样把 List / Vec / Option / Pair / Result 等声明收成统一 typed(...) protocol；
-- Struct / Traits 怎样让 field/capability 事实只维护一次；
-- finite type universe / type identity / callable 怎样形成共享契约；
-- 生成层只负责 typed surface / metadata，真实算法继续是 ordinary compiled C。
-
-核心章节目前对应 Chapter 1–3。ABI / Multi-TU 的工程收口在后面统一讨论。
-
-### Part II — 用 CMeta / CFlow 构造、证明和优化 LINQ-like Graph
-
-这里是全书技术核心。
-
-从：
+从普通循环：
 
 ~~~c
 for (...) {
@@ -90,7 +95,7 @@ for (...) {
 }
 ~~~
 
-逐步进入：
+进入：
 
 ~~~text
 Source<int>
@@ -102,103 +107,141 @@ Map(square)
 Reduce(sum)
 ~~~
 
-重点不是“模仿 Java/C# 语法”，而是 C/C++ 本身缺少这样一种能力：
+重点不是链式语法，而是让整个 computation 成为可检查的 program object。
 
-> **把完整计算关系变成一个 typed、可检查、可转换、可证明、可编译的 program object。**
+这里才真正需要 observable semantics、Lean law、verified rewrite、normalize/optimize、Plan 和 Direct/AOT。
 
-本 Part 依次回答：
+最终必须再次展示 lowering 后的普通 C hot path。
 
-- Callable 怎样成为 Graph node；
-- Stream 怎样成为 LINQ-like surface；
-- Graph 怎样拥有 observable semantics；
-- Lean 怎样证明 rewrite / normalize preservation；
-- optimizer 怎样安全做 fusion / elimination；
-- Plan 怎样把 graph topology 预解析成 index / handler；
-- Direct/AOT 怎样在满足条件时把 Graph 从 hot path 中完全删除；
-- hand-written C / Graph / Plan / Direct 怎样做真实对比。
+### Part III — Contract IR 与 Compiler
 
-Part II 现在按 Chapter 4–7 连续展开：Graph → Stream → 可信语义 → Optimize / Plan / Direct。
+这一部分从“同一个 API 为什么被描述很多次”开始。
 
-### Part III — 在 CMeta / CFlow 上构造高级应用
+Plain C：
 
-前两部分得到的是少量 primitive：
-
-~~~text
-Type / Traits / Generic
-Callable
-Graph / Plan
-Executor / Scheduler
-Typed Event
-Semantic Identity
-Lean-backed laws
+~~~c
+int get_user(UserRepository *, uint64_t, User *);
 ~~~
 
-第三部分不再发明新的“语言”。
+然后工程里又出现 HTTP route、RPC method、Plugin export、OpenAPI schema、Mock signature 和 WASM ABI。
 
-它展示这些 primitive 怎样组合成传统 C 中很难写得清楚的高级系统：
+DataBind IDL 把 logical contract 收成一次：message / enum / union、service、channel、component。
 
-- Reactive / WAIT / Wake / Demand；
-- 异步文件与网络 I/O；
-- Executor / Scheduler；
-- State Machine / Statechart；
-- Actor；
-- CSTL typed containers；
-- test / mock / deterministic test infrastructure；
-- Serialization / Data Binding；
-- HTTP / RPC；
-- Plugin / Workflow / Event Bus 等工程模式；
-- ABI / Multi-TU / installed consumer qualification。
-
-这里的重点始终是：
-
-> **复杂能力增加，但 core primitive 不按相同比例增加。**
-
-## 章节写法：代码先于解释
-
-后续章节默认按这个顺序推进：
+再与 CMeta native semantics 编译连接：
 
 ~~~text
-1. 先给出真实 Plain C
-2. 用代码暴露重复 / ownership / state / composition 问题
-3. 给出最小 CMeta/CFlow 设计
-4. 给出设计后的 C API / generated shape / lowering
-5. 明确它让什么高级任务变得简单
-6. 只有出现真正 semantic question 时才引入 Lean
-7. 最后用 tests / ABI / sanitizer / benchmark 说明工程边界
+Contract IR
+    +
+FunctionDesc
+    ↓
+BindingPlan
+    ↓
+projection backends
 ~~~
 
-优先使用完整的小 C 示例，而不是用大段 prose 解释“可能有什么问题”。
+HTTP / RPC / PLUGIN / WASM / OPENAPI / MOCK 都是 projection，而不是新的 IDL 语言。
 
-具体实现与定理引用仍固定到 [SOURCE_SNAPSHOTS.md](./SOURCE_SNAPSHOTS.md) 的 edition snapshots。详细重构约束见 [BOOK_ARCHITECTURE.md](./BOOK_ARCHITECTURE.md) 与 [CHAPTER_TEMPLATE.md](./CHAPTER_TEMPLATE.md)。
+### Part IV — Live Runtime 与工程边界
+
+这里讨论真正活着的 runtime：Reactive/async I/O、Executor/Scheduler、State Machine、Actor、Plugin loader/lease/quiescent unload、CHttp::Server，以及 ABI/Multi-TU/installed consumer。
+
+每个 runtime 都必须说明它消费的是哪一种 IR，以及哪些 metadata 已经在进入 hot path 前被消掉。
+
+## 目录
+
+<!-- book-toc:start -->
+**Part I — Native Semantic IR**
+- [第一章：CMeta 的起点——从写 C 宏的痛苦开始](./cn/ch-01.md)
+- [第二章：从宏到 Generic——把重复的类型契约收成一次定义](./cn/ch-02.md)
+- [第三章：从函数指针到函数语义——FunctionDesc、Callable、Lambda 与 Bind](./cn/ch-03.md)
+
+**Part II — Execution IR**
+- [第四章：从 Callable 到 Graph——把计算本身变成数据](./cn/ch-04.md)
+- [第五章：从 Graph 到 Stream——用高级接口构造同一张 Typed Graph](./cn/ch-05.md)
+- [第六章：Graph 的可信语义——从 Observable Semantics 到 Verified Rewrite](./cn/ch-06.md)
+- [第七章：从 Graph 到 Plan 与 Direct——把复杂性提前，把 Hot Path 变回普通 C](./cn/ch-07.md)
+
+**Part III — Contract IR 与 Compiler**
+- [第八章：从重复 API 契约到 Contract Compiler——DataBind IDL、FunctionDesc 与多后端生成](./cn/ch-13.md)
+
+**Part IV — Live Runtime 与工程边界**
+- [第九章：从 Stream 到 Reactive——WAIT、Wake、Demand 与 Backpressure](./cn/ch-08.md)
+- [第十章：Executor——把执行策略从计算语义中拆出来](./cn/ch-09.md)
+- [第十一章：从 Event 到 State Machine——把状态变化变成可验证的执行模型](./cn/ch-10.md)
+- [第十二章：从 State Machine 到 Actor——用 Mailbox、串行执行与生命周期组合并发对象](./cn/ch-11.md)
+- [第十三章：工程化边界——ABI、Multi-TU、Semantic Identity 与可安装的 C Library](./cn/ch-12.md)
+
+**收束 — Restraint 与 Synthesis**
+- [第十四章：有限、显式、按需——什么时候应该停止 Meta 化](./cn/ch-14.md)
+- [第十五章：从重复知识到三种 IR——Modern C 的 Contract、Native 与 Execution 语义](./cn/ch-15.md)
+<!-- book-toc:end -->
+
+## 写法：少讲形容词，多给可检查对象
+
+本书后续重写默认遵守：
+
+~~~text
+Plain C baseline
+    ↓
+具体重复或歧义
+    ↓
+最小 semantic object
+    ↓
+C representation
+    ↓
+compiler/runtime pseudocode
+    ↓
+flow
+    ↓
+logic / invariant
+    ↓
+Lean only if needed
+    ↓
+lowered ordinary C
+    ↓
+failure case
+    ↓
+evidence
+~~~
+
+如果一个 abstraction 只能用“更优雅、更灵活、更现代”解释，而不能给出代码、IR、判断规则、失败条件或证据，它还没有写清楚。
+
+## 形式证明的位置
+
+Lean 只用于真正的 semantic obligation，例如 graph rewrite preservation、normalization、state determinism、lifecycle invariant 和 protocol refinement。
+
+轻量 contract/binding 规则先直接写成逻辑判断：
+
+~~~text
+Γ ⊢ field : T
+Γ ⊢ param : U
+convertible(T, U)
+────────────────────
+Γ ⊢ bind(field, param) : valid
+~~~
+
+ABI、DSO、sanitizer 和性能分别用 compile/link、integration、sanitizer、benchmark 验证，不让一种证据代替另一种。
+
+## 章节写作约束
+
+详细结构见：
+
+- [BOOK_ARCHITECTURE.md](./BOOK_ARCHITECTURE.md)
+- [CHAPTER_TEMPLATE.md](./CHAPTER_TEMPLATE.md)
+- [SOURCE_SNAPSHOTS.md](./SOURCE_SNAPSHOTS.md)
+
+章节文件名是稳定 source ID；真正的出版顺序与章号由各 edition 的 `BOOK_MANIFEST.txt` 和章节 H1 共同决定。
 
 ## 出版构建
 
-各章 Markdown 仍然是唯一可编辑正文；出版顺序由 [BOOK_MANIFEST.txt](./BOOK_MANIFEST.txt) 统一定义。
+各章 Markdown 是唯一可编辑正文；出版顺序由 [BOOK_MANIFEST.txt](./BOOK_MANIFEST.txt) 定义。
 
-本地可以只用 Python 标准库完成整书 QA，并生成确定性的单文件 Markdown 书稿：
-
-```bash
+~~~bash
 python3 scripts/validate_book.py
 python3 scripts/build_book.py
-```
+~~~
 
-生成结果位于 `dist/C-with-Modern-Grammar.md`，不会提交到仓库。GitHub Actions 的 `Publication` workflow 会在 Pull Request 与 `master` 上执行同样的校验/构建，并把合并后的书稿上传为 workflow artifact。
-
-HTML / EPUB / PDF 渲染与普通书稿 QA 保持分离。`Release Formats` workflow 可手动触发，也会在 `v*` tag 上运行；它只消费上述 canonical Markdown，先把 Mermaid 统一渲染为 SVG，再从同一份已验证输入生成 standalone HTML、EPUB3 与 PDF。渲染器版本在 workflow 中固定；发布产物同时包含 `SOURCE_SNAPSHOTS.md`、渲染器版本记录和 SHA-256 校验和。tag 运行会把同一组文件发布到 GitHub Release。
-
-PDF / EPUB 排版刻意保持为下一层能力，这样日常写作和 review 不需要安装 Pandoc、LaTeX、Node 或 Lean。
-
-## 仓库历史
-
-这套书稿最初位于 `qigao/salts` 仓库中，之后独立迁移为当前书稿仓库。
-
-- 原仓库：`qigao/salts`
-- 原分支：`master`
-- 迁移源快照：`a90053416f1af748f8a356baf2e3f957be6105a4`
-- 本仓库初始迁移提交：`5133429d2c7cc24f5b9b633b1fd1d1a059b40987`
-- 初始书稿：15 个 Markdown 章节
-
-首次迁移时，15 个章节内容保持了与原始文件完全一致的 Git blob。
+Release workflow 从同一份 canonical Markdown 生成 HTML、EPUB3 与 PDF。
 
 ## License
 

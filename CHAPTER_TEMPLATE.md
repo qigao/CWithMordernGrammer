@@ -1,370 +1,500 @@
 # Chapter Template
 
-本模板定义下一轮重写的默认约束。
+本模板用于约束下一轮章节重写。
 
-核心原则：
+核心规则：
 
-> **Embedded C example first. Prose explains code; prose does not replace code.**
+> **Code / pseudocode / flow / logic first. Prose only connects artifacts.**
 
-不是每章都必须机械拥有同样标题，但叙事顺序应尽量稳定。
-
-## 1. Show the Plain C problem
-
-先给真实 C。
-
-例如不要先写：
-
-~~~text
-“callback ownership 很复杂”
-~~~
-
-而是先给：
-
-~~~c
-struct request {
-    void (*done)(void *);
-    void *ctx;
-    int state;
-    bool cancelled;
-};
-~~~
-
-让读者直接看到重复、ownership、state 或 composition 问题。
-
-这一节必须回答：
-
-- 当前代码能工作吗？
-- 它为什么在小规模时完全合理？
-- 当需求增加以后，哪一份 fact 开始重复？
-- 哪个 contract 开始由多个地方共同维护？
-
-## 2. Show the duplication / ambiguity in code
-
-最好给一个具体 failure mode：
-
-~~~c
-typedef struct User {
-    long id;
-} User;
-
-static const Field fields[] = {
-    {"id", offsetof(User, id), sizeof(int)} /* stale */
-};
-~~~
-
-或者：
-
-~~~c
-if (state == CONNECTING && event == OK) ...
-if (state == CONNECTING && event == TIMEOUT) ...
-~~~
-
-不要只写“维护困难”。
-
-## 3. Introduce the smallest design
-
-然后才引入 CMeta/CFlow vocabulary。
-
-例如：
-
-~~~c
-Struct(User,
-    (long, id)
-);
-~~~
-
-或者：
-
-~~~c
-typed(Vec, UserVec, User);
-~~~
-
-或者：
-
-~~~text
-typed Event
-+
-transition table
-~~~
-
-设计必须说明：
-
-- single source of truth 在哪里；
-- ownership 在哪里；
-- unsupported case 怎样失败；
-- boundedness 在哪里；
-- 哪些算法仍然属于 ordinary C。
-
-## 4. Show the after-code
-
-新设计必须落到 C 调用侧：
-
-~~~c
-UserVec users = {0};
-
-UserVec_init(&users, 64u);
-UserVec_push_back(&users, user);
-UserVec_destroy(&users);
-~~~
-
-如果有生成层，再给概念性或 exact generated shape。
-
-复杂宏不用逐 token 教学。
-
-只需要回答：
-
-> **最后得到什么 C type/function/data structure？**
-
-## 5. Say what new problem becomes easy
-
-每个 abstraction 必须明确多解决了什么。
-
-例如：
-
-~~~text
-Generic
-    → 多个 library generic kinds 共享同一个 declaration protocol
-
-Graph
-    → 整个 computation 可以被 inspect / rewrite / compile
-
-Plan
-    → execution 不再 per-value 查 node/edge
-
-Machine
-    → state relation 变成 typed analyzable data
-
-Actor
-    → multi-producer admission + single mutable owner
-~~~
-
-没有新增能力，就不值得引入 abstraction。
-
-## 6. Semantic Contract — only when semantics matter
-
-当 abstraction 开始：
-
-~~~text
-rewrite
-optimize
-schedule
-transition
-cancel
-commit
-~~~
-
-才需要把 observable semantics 单独写清楚。
-
-至少说明：
-
-- 什么结果可观察；
-- 什么顺序可观察；
-- illegal state 是什么；
-- metadata 是 claim 还是 truth；
-- fallback 是否允许。
-
-Part I 的 Generic/Struct/Traits 通常不需要先构造复杂 formal model。
-
-## 7. Lean — only after a real proof question appears
-
-Lean 不是每章固定栏目。
-
-只在以下问题出现时进入：
-
-### Rewrite correctness
-
-~~~text
-Map(f) ; Map(f)
-    ↓
-Map(f)
-~~~
-
-需要 semantic law。
-
-### Graph normalization
-
-需要 preservation theorem。
-
-### State Machine / Actor
-
-需要 determinism、small-step invariant、lifecycle law。
-
-### Certificate / refinement
-
-需要连接 approved IR 与 execution artifact。
-
-每一个 theorem 都要回答：
-
-> **它授权了 C implementation 做哪一个以前不能安全做的 transformation？**
-
-不要让 Lean 证明：
-
-~~~text
-ABI
-malloc 一定成功
-OS fairness
-network liveness
-benchmark 更快
-~~~
-
-## 8. Show lowering / ordinary-C execution
-
-对于 Graph/CFlow 章节，这是必须项。
-
-至少区分：
-
-~~~text
-Graph interpretation
-Compiled Plan
-Direct/AOT
-~~~
-
-最好直接给 C：
-
-~~~c
-/* graph-ish */
-switch (node->op) { ... }
-
-/* plan */
-step->handler(step, frame);
-
-/* direct */
-if (is_even(x))
-    total += square(x);
-~~~
-
-本书的一个核心承诺是：
-
-> **控制面可以复杂，但 hot path 可以重新简单。**
-
-## 9. Evidence
-
-根据主张选择证据。
-
-### C / compiler
-
-- compile-pass；
-- compile-fail；
-- generated surface；
-- Multi-TU；
-- installed consumer。
-
-### Runtime
-
-- unit/integration；
-- deterministic scheduler；
-- bounded failure；
-- sanitizer；
-- race/stress。
-
-### Formal
-
-- theorem；
-- invariant；
-- preservation；
-- refinement。
-
-### Performance
-
-只有声明 cost/performance 时才给 benchmark。
-
-至少记录：
-
-~~~text
-commit
-compiler
-flags
-platform
-workload
-limitations
-~~~
-
-## 10. What We Learned
-
-最后只回答三件事：
-
-1. 哪个原始 C problem 被消掉了？
-2. 这个设计让哪个以前困难的任务变简单了？
-3. 下一章为什么自然出现？
+不是每章都必须机械使用相同标题，但重要 claim 必须有可检查对象。
 
 ---
 
-# Canonical examples
+# 1. Artifact rule
 
-## Part I — duplicated contract
+每个主要小节至少包含下面一种 artifact：
 
-持续使用：
+- C code；
+- generated/lowered C；
+- pseudocode；
+- state/flow diagram；
+- type/logic judgment；
+- Lean theorem/proof sketch；
+- test/ABI/benchmark evidence。
+
+默认不要连续写超过两段纯解释 prose。
+
+如果一段文字只是说“更优雅 / 更现代 / 更灵活 / 更容易扩展 / 能力更强”，下一段必须回答至少一个具体问题：删掉了哪段重复代码？新增了哪一个数据结构？哪个错误提前了？哪个 runtime branch 消失了？哪个 theorem 授权了哪个 transformation？哪个 benchmark 测到了什么？
+
+## Text fence rule
+
+fenced text（`~~~text` 或 ` ```text `）不是强调框，也不是“看起来更技术”的排版手段。
+
+只有当**等宽布局本身承载语义**时才使用 fenced text，例如：
+
+- pipeline / dataflow；
+- state machine；
+- race/interleaving timeline；
+- inference rule / proof judgment；
+- pseudocode；
+- 需要对齐的 IR / memory layout。
+
+简单说明不要放进 fenced text。以下内容优先使用普通 Markdown：
+
+- 一个术语或一句结论 → 正文或行内代码；
+- 两三个定义对比 → 表格；
+- 一组无顺序的项目 → bullet list；
+- 简单等式 → 行内公式/单独一行普通文本；
+- “A 不是 B” → 直接写成一句话。
+
+判断规则：
+
+> **如果去掉等宽字体和对齐后，信息完全不变，就不应该使用 fenced text。**
+
+---
+
+# 2. Start with executable Plain C
+
+先给能工作的普通 C。
+
+例如：
 
 ~~~c
-User
-IntVec / UserVec
-Option<User>
-Pair<int,double>
-Traits(User, ...)
+int get_user_http(
+    void *ctx,
+    const chttp_server_request_view *req,
+    chttp_server_response *res)
+{
+    const char *id = chttp_server_request_param(req, "id");
+    ...
+}
 ~~~
 
-让读者看到同一个 type fact 怎样逐步被复用。
+不要先写一句“HTTP binding 存在重复契约问题。”，先让读者看到重复在哪里。
 
-## Part II — LINQ-like computation
+这一节必须回答：
 
-持续使用：
+- baseline 是否正确？
+- 为什么小系统这样写完全合理？
+- 哪个事实开始重复？
+- 哪个 ownership/lifetime 已经隐含在约定里？
+
+---
+
+# 3. Show the duplicate fact, not just duplicate code
+
+例如：
+
+~~~c
+int get_user(UserRepository *, uint64_t, User *);
+~~~
+
+同时还有 HTTP route、RPC method、Plugin export、OpenAPI parameter 和 Mock signature。
+
+真正重复的是 **logical operation contract**。
+
+不是几行相似代码。
+
+必须把“重复代码”和“重复知识”区分开。
+
+---
+
+# 4. Introduce the smallest semantic object
+
+新增设计必须能写成一个具体对象。
+
+例如：CMeta TypeDesc、CMeta FunctionDesc、DataBind Service Operation、CFlow Graph Node、BindingPlan、Machine Transition 或 Plugin lease。
+
+必须明确 identity、owner、lifetime、capacity、failure、mutable/immutable，以及 semantic truth 与 representation 的区别。
+
+不要只画一个“Layer A -> Layer B”的图。
+
+---
+
+# 5. Show the representation
+
+每个 abstraction 都要回答：
+
+> **它最后是什么 C data/function？**
+
+例如 FunctionDesc：
+
+~~~c
+typedef struct cmeta_param_desc {
+    const char *name;
+    const cmeta_type_desc *type;
+    uint32_t flags;
+} cmeta_param_desc;
+~~~
+
+例如 plan：
+
+~~~c
+typedef struct http_method_plan {
+    chttp_method method;
+    const char *route;
+    const databind_ingress_plan *ingress;
+    const service_exact_adapter *invoke;
+    const databind_egress_plan *egress;
+} http_method_plan;
+~~~
+
+概念性 layout 可以不是最终 ABI，但必须足够具体，让读者知道 runtime 拿到什么。
+
+---
+
+# 6. Show the compiler/control-plane algorithm
+
+如果章节存在 build/admission phase，就给 pseudocode。
+
+例如：
+
+~~~text
+compile_service(op, function):
+    require compatible(op.request, function.inputs)
+    require compatible(function.outputs, op.response)
+
+    ingress = compile_ingress(op, function)
+    invoke  = generate_exact_adapter(function)
+    egress  = compile_egress(function, op)
+
+    return BindingPlan(ingress, invoke, egress)
+~~~
+
+不要用“系统自动完成绑定”代替算法。
+
+---
+
+# 7. Use a flow diagram only after code/pseudocode
+
+流程图总结 ownership 或阶段。
+
+例如：
+
+~~~text
+Service IR
+    +
+FunctionDesc
+    ↓
+validate
+    ↓
+BindingPlan
+    ↓
+exact adapter
+    ↓
+ordinary C call
+~~~
+
+图不能代替 baseline code。
+
+## Arrow semantics rule
+
+箭头不是通用“然后”符号。每张箭头图都必须让读者知道箭头具体表示什么：
+
+- dataflow：value 从哪一个 node 流向哪一个 node；
+- compiler lowering：一个 IR/artifact 被编译成另一个；
+- lifecycle：状态转换；
+- ownership transfer：owner/lease 怎样移动；
+- dependency：谁依赖谁；
+- function composition：哪个函数先执行、哪个后执行。
+
+不要写一个裸的：
+
+~~~text
+A
+↓
+B
+~~~
+
+然后让读者猜它表示嵌套、递归、调用、lowering 还是 ownership。
+
+函数复合尤其要同时给出单元素展开。例如：
+
+~~~text
+Graph:
+x -> Map(f) -> f(x) -> Map(g) -> g(f(x))
+
+Function composition:
+g ∘ f
+
+Recursion:
+none, unless f/g calls itself internally
+~~~
+
+因此：
+
+> **arrow diagram must name or make obvious its relation.**
+
+如果箭头语义不能用一句话说明，这张图还没有画清楚。
+
+---
+
+# 8. Write semantic judgments when there is a rule
+
+不一定每次都用 Lean。
+
+可以先用简单 logic。
+
+例如字段绑定：
+
+~~~text
+Γ ⊢ field : T
+Γ ⊢ param : U
+convertible(T, U)
+────────────────────
+Γ ⊢ bind(field, param) : valid
+~~~
+
+例如 transactional commit：
+
+~~~text
+bind(input) = error
+──────────────────────
+observable(output) = unchanged
+~~~
+
+例如 state transition：
+
+~~~text
+(state, event) -> (state', effects)
+~~~
+
+写清 judgment 后再决定需不需要 machine-check。
+
+---
+
+# 9. Lean only for a real semantic obligation
+
+适合 Lean 的内容包括 rewrite preservation、normalization、state determinism、terminal/lifecycle invariants、protocol refinement 和 certificate relation。
+
+每个 theorem 后必须紧跟：
+
+> **这个 theorem 授权 C implementation 做什么？**
+
+例如：
+
+~~~text
+theorem map_fusion_preserves_eval
+    ↓
+optimizer may replace two admitted Map nodes with one fused Map
+~~~
+
+不适合用 Lean 替代 ABI link test、DSO loading、sanitizer、malloc failure test、benchmark 或 OS/network liveness。
+
+---
+
+# 10. Always separate descriptive and executable objects
+
+特别是下面几组必须明确区分：
+
+| 描述/语义对象 | 不能混同为 |
+|---|---|
+| FunctionDesc | Callable |
+| Service Contract | HTTP MethodPlan |
+| Component | Plugin DLL |
+| InterfaceDesc | live `{self,vtable}` |
+| Graph | Compiled Plan |
+| metadata property | semantic proof |
+
+如果章节把“描述”与“执行”混成一个对象，需要重写。
+
+---
+
+# 11. Show lowering / hot path
+
+高级 abstraction 必须说明 runtime 是否仍然查询它。
+
+例如：
+
+~~~text
+build:
+IDL + FunctionDesc -> HTTP MethodPlan
+
+runtime:
+request -> MethodPlan -> exact adapter -> response
+~~~
+
+然后给普通 C endpoint：
+
+~~~c
+return plan->invoke(plan->ctx, request, response);
+~~~
+
+如果 Graph eligible for Direct/AOT：
+
+~~~c
+for (...) {
+    if (!is_even(x))
+        continue;
+    total += square(x);
+}
+~~~
+
+全书的目标是：
+
+> **Know more before execution; do less during execution.**
+
+---
+
+# 12. Include one explicit failure case
+
+每章至少给一个失败例。
+
+例如：
+
+~~~text
+IDL says:
+    GetUserRequest.id : uint64
+
+native function says:
+    const char *id
+
+no explicit conversion
+        ↓
+generation fails
+~~~
+
+或者：
+
+~~~text
+Plugin unload
+    while interface lease > 0
+        ↓
+BUSY
+~~~
+
+或者：
+
+~~~text
+Graph rewrite
+    lacks required semantic law
+        ↓
+optimizer does not rewrite
+~~~
+
+Fail-fast 行为比“happy path architecture”更能说明边界。
+
+---
+
+# 13. Evidence must match the claim
+
+| Claim | Evidence |
+|---|---|
+| generated type/function compiles | compile-pass/fail |
+| same identity across TU | Multi-TU |
+| installed ABI works | independent installed consumer |
+| DSO lifecycle safe | integration + sanitizer/stress |
+| semantic rewrite valid | theorem + differential test |
+| request binding atomic | failure-path integration test |
+| docs match HTTP runtime | shared projection IR + contract test |
+| faster | benchmark |
+
+不要用 unit test 代替 universal semantic proof，不要用 Lean theorem 代替 ABI/link qualification，也不要用 benchmark 代替 correctness evidence。
+
+---
+
+# 14. Canonical chapter flow
+
+推荐：
+
+1. Plain C baseline
+2. Concrete duplicated/implicit knowledge
+3. Minimal semantic object
+4. Representation in C
+5. Compiler/control-plane pseudocode
+6. Flow diagram
+7. Semantic judgment / invariant
+8. Lean only if necessary
+9. Generated/lowered ordinary C
+10. Failure case
+11. Evidence
+12. What changed / what did not change
+
+---
+
+# 15. Canonical examples
+
+## Typed data
+
+~~~c
+typedef struct User {
+    uint64_t id;
+    const char *name;
+} User;
+~~~
+
+用于 Generic / Struct / Traits / DataBind / ABI。
+
+## Typed computation
 
 ~~~c
 long sum_even_squares(const int *xs, size_t n);
 ~~~
 
-以及：
+用于 Callable / Graph / Stream / Lean / Optimize / Direct。
+
+## Service contract
 
 ~~~text
-Source<int>
-    ↓
-Filter(is_even)
-    ↓
-Map(square)
-    ↓
-Reduce(sum)
+service UserService {
+    GetUser: GetUserRequest -> GetUserResponse;
+}
 ~~~
 
-逐步展示：
+Native：
 
-~~~text
-Callable
-Graph
-Stream
-Lean law
-Optimizer
-Plan
-Direct/AOT
-benchmark
+~~~c
+int get_user(
+    UserRepository *repo,
+    uint64_t id,
+    User *out_user);
 ~~~
 
-## Part III — connection/service example
+用于 FunctionDesc / DataBind binding / HTTP / RPC / Plugin / WASM / OpenAPI / Mock。
 
-Stateful/concurrent chapters复用：
+## Connection runtime
 
-~~~text
-DISCONNECTED
-CONNECTING
-CONNECTED
-CLOSING
+Canonical states：DISCONNECTED → CONNECTING → CONNECTED → CLOSING。
+
+用于 Reactive / Executor / Machine / Actor / lifecycle proof。
+
+---
+
+# 16. H2 / H3 density rule
+
+H2 应该表示**真正的主论点或阶段**，不是每一个步骤、证据或小机制。
+
+推荐判断：
+
+- H2：一个读者可以在目录里直接导航到的核心概念或阶段；
+- H3：H2 下的算法步骤、证据、case、子机制；
+- bullet/table：普通枚举、对比、field list、evidence list。
+
+如果一章出现 20+ 个 H2，优先检查是否把 implementation steps / evidence / subcases 错当成主节。
+
+目标不是硬性限制 H2 数量，而是让正式目录暴露**章节骨架**，而不是 issue checklist。
+
+## 17. Final editing check
+
+删除或改写一个段落，如果它不能回答至少一个问题：
+
+- What is the C representation?
+- What fact became single-source?
+- Who owns it?
+- When can it fail?
+- What exact algorithm consumes it?
+- What is observable?
+- What theorem/invariant applies?
+- What leaves the hot path?
+- What evidence supports the claim?
+
+如果一个 abstraction 只能用形容词解释，而不能用代码、IR、logic 或 evidence 表示，它还没有写清楚。
+
+提交前可以运行：
+
+~~~bash
+python scripts/audit_text_fences.py --edition cn
+python scripts/audit_text_fences.py --edition en
 ~~~
 
-和：
-
-~~~text
-CONNECT
-CONNECT_OK
-TIMEOUT
-CLOSE
-~~~
-
-再扩展到：
-
-~~~text
-async I/O
-Machine
-Actor
-RPC/service lifecycle
-~~~
-
-这样全书的代码会真正形成连续工程，而不是 15 组独立 demo。
+这个脚本只报告疑似“说明性 text fence”，作为编辑提示，不作为硬性 publication gate。

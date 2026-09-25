@@ -14,7 +14,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from book_structure import ROOT, read_manifest, render_toc_body
+
 BOOK_NAME = "C-with-Modern-Grammar.md"
 
 EDITION_META = {
@@ -44,17 +45,13 @@ def parse_args() -> argparse.Namespace:
 
 def chapter_paths(edition: str) -> list[Path]:
     edition_dir = ROOT / edition
-    manifest = edition_dir / "BOOK_MANIFEST.txt"
-    entries = [
-        line.strip()
-        for line in manifest.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
-    return [edition_dir / entry for entry in entries]
+    return [edition_dir / entry for entry in read_manifest(edition)]
 
 
 def front_matter(edition: str) -> str:
     meta = EDITION_META[edition]
+    toc_heading = "目录" if edition == "cn" else "Table of Contents"
+    toc = render_toc_body(edition, link_prefix=None)
     return f"""---
 title: "{meta['title']}"
 subtitle: "{meta['subtitle']}"
@@ -68,6 +65,10 @@ rights: "Apache-2.0"
 
 > This file is generated from the ordered chapter sources listed in
 > {edition}/BOOK_MANIFEST.txt. Edit the chapter files, not this artifact.
+
+## {toc_heading}
+
+{toc}
 """
 
 
